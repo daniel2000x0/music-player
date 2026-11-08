@@ -4,10 +4,29 @@ import { Fonts, ThemeColor } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
+  /**
+   * Variante tipográfica. Cambia tamaño, grosor y familia.
+   * Ej.: 'title' (grande) | 'subtitle' (título de sección) | 'default' | ...
+   */
   type?: 'default' | 'title' | 'small' | 'smallBold' | 'subtitle' | 'link' | 'linkPrimary' | 'code';
+  /** Clave de color del tema aplicada al texto (default: 'text'). */
   themeColor?: ThemeColor;
 };
 
+/**
+ * `<Text>` vinculado al tema.
+ *
+ * LÓGICA: un único componente para todo el texto de la app, que combina:
+ * 1. El color según el tema (y clave `themeColor`).
+ * 2. La variante de tipografía (`type`).
+ * Esto mantiene coherencia visual y evita repetir estilos por pantalla.
+ *
+ * CÓDIGO:
+ * - Se aplica primero el color, luego la variante y al final cualquier
+ *   `style` extra del consumidor (los estilos posteriores ganan).
+ * - Es un componente puro: no tiene estado, sólo propaga props de `Text`
+ *   (onPress, numberOfLines, ...).
+ */
 export function ThemedText({ style, type = 'default', themeColor, ...rest }: ThemedTextProps) {
   const theme = useTheme();
 

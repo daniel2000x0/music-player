@@ -1,14 +1,11 @@
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
-
 import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useSettingsStore } from '@/stores/settings.store';
 
+/**
+ * Devuelve la paleta de colores del tema activo.
+ * El tema se hidrata desde SQLite y se cambia desde Configuración.
+ */
 export function useTheme() {
-  const scheme = useColorScheme();
-  const theme = scheme === 'unspecified' ? 'light' : scheme;
-
+  const theme = useSettingsStore((state) => state.theme);
   return Colors[theme];
 }

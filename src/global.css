@@ -1,3 +1,14 @@
+/*
+ * CSS global. Sólo aplica en web (no hace nada en Android/iOS).
+ *
+ * LÓGICA: define variables CSS (que `Fonts.web` consume en theme.ts) y
+ * configura la base visual de la página (colores y tipografía del <body>).
+ *
+ * CÓDIGO:
+ * - `var(--font-*)` son nombres que se referencian desde `Fonts` en web.
+ * - El orden de familias en cada variable actúa como "fallback": si la
+ *   primera fuente no existe, se usa la siguiente.
+ */
 :root {
   --font-display:
     Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
