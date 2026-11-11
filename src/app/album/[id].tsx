@@ -52,28 +52,12 @@ export default function AlbumDetailScreen() {
       <ScreenShell
         title={album.title}
         subtitle={`${album.artist} · ${formatSongCount(album.songCount)}`}
+        scroll={false}
         leading={
           <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }>
-        <View style={styles.hero}>
-          <Artwork uri={album.artwork} size={160} radius={Radius.large} />
-          <View style={styles.heroInfo}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {formatDuration(album.totalDuration)} de música
-            </ThemedText>
-            <Pressable
-              onPress={() => songs.length > 0 && play(songs[0], songs)}
-              style={[styles.playButton, { backgroundColor: theme.accent }]}>
-              <Ionicons name="play" size={18} color={theme.accentText} />
-              <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-                Reproducir álbum
-              </ThemedText>
-            </Pressable>
-          </View>
-        </View>
-
         {songs.length === 0 ? (
           <EmptyState title="Sin canciones" message="Este álbum no tiene pistas disponibles." />
         ) : (
@@ -83,6 +67,24 @@ export default function AlbumDetailScreen() {
               setPickerSong(song);
               setPickerVisible(true);
             }}
+            ListHeaderComponent={
+              <View style={styles.hero}>
+                <Artwork uri={album.artwork} size={160} radius={Radius.large} />
+                <View style={styles.heroInfo}>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {formatDuration(album.totalDuration)} de música
+                  </ThemedText>
+                  <Pressable
+                    onPress={() => songs.length > 0 && play(songs[0], songs)}
+                    style={[styles.playButton, { backgroundColor: theme.accent }]}>
+                    <Ionicons name="play" size={18} color={theme.accentText} />
+                    <ThemedText type="smallBold" style={{ color: theme.accentText }}>
+                      Reproducir álbum
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </View>
+            }
           />
         )}
       </ScreenShell>

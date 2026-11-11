@@ -1,7 +1,7 @@
 # Project Scope — Aplicación de Reproducción Musical
 
-**Versión:** 1.0  
-**Estado:** Propuesta inicial  
+**Versión:** 1.1  
+**Estado:** Alineado con la implementación actual  
 **Documento relacionado:** `SRS.md`
 
 ## 1. Propósito del proyecto
@@ -19,6 +19,7 @@ Desarrollar una aplicación móvil que permita reproducir, organizar y administr
 - Implementar una biblioteca musical local.
 - Desarrollar un reproductor de audio.
 - Organizar canciones por álbum y artista.
+- Clasificar y administrar audiolibros.
 - Implementar playlists manuales y automáticas.
 - Administrar favoritos.
 - Registrar el historial de reproducción.
@@ -39,6 +40,7 @@ Incluye:
 - Clasificación por canciones.
 - Clasificación por álbumes.
 - Clasificación por artistas.
+- Clasificación de audiolibros.
 - Detección de archivos duplicados.
 - Actualización de biblioteca.
 
@@ -75,15 +77,14 @@ Incluye:
 
 Incluye:
 
-- Búsqueda por canción.
-- Búsqueda por artista.
-- Búsqueda por álbum.
-- Búsqueda por playlist.
-- Filtros por duración.
-- Filtros por artista.
-- Filtros por álbum.
+- Búsqueda por canción (título, artista o álbum).
+- Búsqueda por álbum o artista.
+- Búsqueda de audiolibros.
 - Filtros por favoritos.
 - Filtros por estado de reproducción.
+- Filtros por artista y álbum en los listados correspondientes.
+- Filtros por rango de duración (soporte de dominio; interfaz pendiente).
+- Búsqueda por playlist (pendiente).
 
 ### 4.5. Ordenamiento
 
@@ -101,12 +102,15 @@ Incluye:
 
 La pantalla Home incluirá:
 
-- Más escuchadas.
-- Favoritos.
+- Resumen de la biblioteca (canciones, álbumes y playlists).
+- Accesos rápidos (favoritos, más escuchadas, recientes).
 - Últimas reproducidas.
-- Agregadas recientemente.
-- Playlists automáticas.
+- Más escuchadas.
+- Álbumes recientes.
+- Playlists del usuario.
 - Accesos a la biblioteca.
+
+Las playlists automáticas se consultan desde la pestaña Playlists.
 
 ### 4.7. Configuración
 
@@ -119,8 +123,21 @@ La configuración será sencilla e incluirá:
 - Actualización de biblioteca.
 - Consulta de permisos.
 - Limpieza del historial.
+- Borrado de datos administrativos.
+- Registro de errores (diagnóstico).
 
 No se incorporarán configuraciones avanzadas de audio ni personalizaciones complejas en esta versión.
+
+### 4.8. Audiolibros
+
+Incluye:
+
+- Detección automática de contenido largo durante el escaneo.
+- Clasificación manual desde el menú de opciones de una canción.
+- Pestaña propia con agrupación por libro (capítulos).
+- Búsqueda de audiolibros.
+- Reproducción de un libro completo.
+- Remover la clasificación (los capítulos vuelven a Canciones).
 
 ## 5. Alcance técnico
 
@@ -225,12 +242,12 @@ Estas funcionalidades podrán evaluarse en futuras versiones.
 - `README.md`.
 - `SRS.md`.
 - `user-stories.md`.
-- `use-cases.md`.
+- `uses-cases.md`.
 - `scope.md`.
-- `ARCHITECTURE.md`.
-- `DATABASE.md`.
-- `CODING_STANDARDS.md`.
-- `TESTING.md`.
+- `ARCHITECTURE.md` (pendiente).
+- `DATABASE.md` (pendiente).
+- `CODING_STANDARDS.md` (pendiente).
+- `TESTING.md` (pendiente).
 
 ## 10. Fases de desarrollo propuestas
 
@@ -294,7 +311,8 @@ La primera versión se considerará finalizada cuando:
 9. Permita cambiar entre tema claro y oscuro.
 10. Mantenga los datos administrativos mediante SQLite.
 11. Funcione sin necesidad de un servidor backend.
-12. Cumpla los requisitos funcionales y no funcionales establecidos en `SRS.md`.
+12. Clasifique y reproduzca audiolibros.
+13. Cumpla los requisitos funcionales y no funcionales establecidos en `SRS.md`.
 
 ## 12. Gestión de cambios
 

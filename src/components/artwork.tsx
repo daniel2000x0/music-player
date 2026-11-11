@@ -17,9 +17,11 @@ export type ArtworkProps = {
 /**
  * Portada cuadrada de una canción/álbum/playlist.
  *
- * LÓGICA: la mediateca del dispositivo no expone arte embebido (ID3), así
- * que si no hay `uri` dibujamos un placeholder coherente con el tema
- * (cuadro + ícono musical) en lugar de dejar un hueco.
+ * LÓGICA: el arte embebido se extrae de los tags ID3v2/MP4 durante el
+ * escaneo y se cachea en el dispositivo (ver `artwork.service`); la URI
+ * llega por `song.artwork`/`album.artwork`. Si el archivo de audio no
+ * tiene portada (o el cache fue purgado), se dibuja un placeholder
+ * coherente con el tema en lugar de dejar un hueco.
  *
  * CÓDIGO:
  * - Con `uri` usa `expo-image` (cachea y recorta).
@@ -33,6 +35,9 @@ export function Artwork({ uri, size = 56, radius }: ArtworkProps) {
     return (
       <Image
         source={{ uri }}
+        // Clave de reciclaje: al reusarse la celda de una FlatList con otra
+        // portada, expo-image descarta la imagen anterior de inmediato.
+        recyclingKey={uri}
         style={{ width: size, height: size, borderRadius: cornerRadius }}
         contentFit="cover"
         transition={150}

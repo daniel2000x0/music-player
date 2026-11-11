@@ -1,8 +1,8 @@
 # DOCUMENTO DE REQUISITOS DE SOFTWARE (SRS)
 ## Aplicación móvil de reproducción y administración musical
 
-**Versión:** 1.1  
-**Estado:** Especificación funcional inicial  
+**Versión:** 1.2  
+**Estado:** Especificación alineada con la implementación actual  
 **Plataforma:** Android / iOS  
 **Framework:** React Native + Expo  
 **Lenguaje:** TypeScript  
@@ -18,7 +18,7 @@
 
 Desarrollar una aplicación móvil ligera para reproducir y administrar una biblioteca musical almacenada localmente en el dispositivo.
 
-La aplicación permitirá organizar canciones, álbumes, artistas y playlists, además de administrar favoritos, historial de reproducción y preferencias del usuario.
+La aplicación permitirá organizar canciones, álbumes, artistas, playlists y audiolibros, además de administrar favoritos, historial de reproducción y preferencias del usuario.
 
 Se priorizará una arquitectura sencilla, eficiente, modular y escalable, evitando dependencias externas y servicios innecesarios.
 
@@ -74,6 +74,7 @@ El sistema permitirá explorar los archivos musicales disponibles en el disposit
 - Mostrar título, artista, álbum y duración.
 - Mostrar portada cuando esté disponible.
 - Registrar la fecha de incorporación a la biblioteca.
+- Clasificar contenido largo como audiolibro y permitir reclasificación manual.
 - Actualizar la biblioteca.
 - Evitar registros duplicados.
 - Identificar archivos inaccesibles o eliminados.
@@ -97,14 +98,17 @@ Será la pantalla predeterminada.
 
 Contendrá las siguientes secciones:
 
-1. Más escuchadas.
-2. Favoritos.
+1. Resumen de la biblioteca (canciones, álbumes y playlists).
+2. Accesos rápidos (favoritos, más escuchadas, recientes).
 3. Últimas reproducidas.
-4. Agregadas recientemente.
-5. Playlists automáticas.
-6. Acceso rápido a la biblioteca.
+4. Más escuchadas.
+5. Álbumes recientes.
+6. Playlists del usuario.
+7. Acceso rápido a la biblioteca.
 
 Cada sección permitirá visualizar una selección de elementos y acceder al listado completo.
+
+Las playlists automáticas se consultan desde la pestaña Playlists.
 
 ## RF-004. Biblioteca y categorías
 
@@ -113,10 +117,13 @@ La biblioteca tendrá las siguientes categorías:
 - Canciones.
 - Álbumes.
 - Artistas.
+- Audiolibros.
 - Playlists.
 - Favoritos.
 
 Cada categoría tendrá su propio listado y opciones de ordenamiento.
+
+Los artistas se consultan dentro de la pestaña Álbumes y los favoritos como vista de la pestaña Canciones.
 
 ## RF-005. Favoritos
 
@@ -191,30 +198,29 @@ Se permitirá ordenar y filtrar los elementos de la biblioteca.
 - Nombre A-Z / Z-A.
 - Fecha de creación.
 - Cantidad de canciones.
-- Última reproducción.
 
 ### Filtros adicionales
 
 - Favoritos.
 - Reproducidas.
 - No reproducidas.
-- Agregadas recientemente.
 - Por artista.
 - Por álbum.
-- Por rango de duración.
+- Por rango de duración (soporte de dominio; interfaz pendiente).
 
 Los filtros y ordenamientos podrán combinarse cuando sean compatibles.
 
 ## RF-008. Búsqueda
 
-El buscador permitirá encontrar:
+La búsqueda se ofrecerá dentro de las pestañas correspondientes:
 
-- Canciones.
-- Artistas.
-- Álbumes.
-- Playlists.
+- Canciones: por título, artista o álbum.
+- Álbumes: por título de álbum o artista.
+- Audiolibros: por título o autor.
 
-Los resultados se actualizarán conforme el usuario introduzca texto.
+Los resultados se actualizarán conforme el usuario introduzca texto, con una breve demora (debounce) para no filtrar en cada tecla.
+
+La búsqueda de playlists queda como evolución futura.
 
 ## RF-009. Cola de reproducción
 
@@ -284,6 +290,26 @@ Se mostrará:
 - Eliminar información administrativa de la aplicación mediante una acción explícita de confirmación.
 
 La eliminación de información administrativa no deberá eliminar los archivos musicales originales.
+
+### Diagnóstico
+
+- Consultar el registro local de errores y advertencias de la aplicación.
+
+## RF-012. Audiolibros
+
+- Clasificar automáticamente contenido largo durante el escaneo.
+- Marcar canciones como audiolibro desde su menú de opciones.
+- Remover la clasificación: los capítulos vuelven a la pestaña Canciones.
+- Consultar los audiolibros en una pestaña propia, agrupados por libro.
+- Buscar audiolibros por título o autor.
+- Reproducir un libro completo con sus capítulos.
+- Persistir la clasificación, incluida la marca manual, en SQLite.
+
+## RF-013. Registro de errores
+
+- Registrar errores y advertencias con contexto (módulo y acción en curso).
+- Deduplicar errores repetidos con contador y fecha de última ocurrencia.
+- Consultar el registro desde Configuración → Diagnóstico.
 
 # 4. Requisitos no funcionales
 
@@ -357,15 +383,18 @@ Las funcionalidades principales deberán funcionar sin conexión a Internet.
 
 # 5. Estructura de navegación
 
-La navegación principal estará compuesta por cinco secciones:
+La navegación principal estará compuesta por seis secciones:
 
 1. Home.
 2. Canciones.
 3. Álbumes.
-4. Playlists.
-5. Configuración.
+4. Audiolibros.
+5. Playlists.
+6. Configuración.
 
-Los artistas y favoritos estarán disponibles como categorías internas de la biblioteca y mediante accesos desde Home.
+Los artistas se consultan dentro de la pestaña Álbumes; los favoritos, como vista de la pestaña Canciones.
+
+Existen además pantallas de detalle fuera de las pestañas: álbum, artista, playlist, playlist automática, cola de reproducción, reproductor a pantalla completa y registro de errores.
 
 El reproductor minimizado estará disponible durante la navegación cuando exista una reproducción activa.
 
@@ -373,16 +402,17 @@ El reproductor minimizado estará disponible durante la navegación cuando exist
 
 SQLite será responsable de almacenar los datos de administración de la aplicación.
 
-Se contemplan inicialmente las siguientes entidades:
+Las entidades implementadas son:
 
-- songs
+- songs (incluye las columnas `is_audiobook` y `audiobook_manual`)
 - artists
 - albums
 - favorites
 - playlists
 - playlist_songs
-- playback_history
+- playback_history (con segundos escuchados y marca de escucha válida)
 - app_settings
+- error_logs (registro local de errores y advertencias)
 
 Las relaciones y restricciones de integridad deberán definirse durante el diseño de base de datos.
 
@@ -400,6 +430,8 @@ Los archivos de audio no se almacenarán dentro de SQLite.
 8. Los cambios de tema deberán aplicarse inmediatamente.
 9. La eliminación del historial no eliminará favoritos ni playlists.
 10. La eliminación de información administrativa no deberá eliminar archivos originales.
+11. Un audiolibro se oculta de la pestaña Canciones y no cuenta en los resúmenes musicales de Home.
+12. La clasificación manual de audiolibros persistirá entre escaneos.
 
 # 8. Restricciones del proyecto
 
@@ -421,6 +453,7 @@ La primera versión deberá cumplir con lo siguiente:
 - Gestionar favoritos.
 - Crear y administrar playlists.
 - Generar playlists automáticas.
+- Clasificar y reproducir audiolibros.
 - Filtrar y ordenar por duración.
 - Filtrar y ordenar por fecha agregada.
 - Ordenar alfabéticamente.

@@ -20,8 +20,33 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
+import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
 import { formatDuration } from '@/utils/format';
+
+/**
+ * Bloque de progreso (barra + tiempos). Suscribe posición y duración al
+ * almacén aislado: solo este componente se re-renderiza con cada tick de
+ * reproducción (2 por segundo), no la pantalla completa.
+ */
+function PlayerProgress({ onSeek }: { onSeek: (seconds: number) => void }) {
+  const position = usePlaybackPosition();
+  const duration = usePlaybackDuration();
+
+  return (
+    <View style={styles.progressBlock}>
+      <SeekBar position={position} duration={duration} onSeek={onSeek} />
+      <View style={styles.timeRow}>
+        <ThemedText type="small" themeColor="textSecondary">
+          {formatDuration(position)}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {formatDuration(duration)}
+        </ThemedText>
+      </View>
+    </View>
+  );
+}
 
 /**
  * Reproductor a pantalla completa. El estado vive en el store global, así que
@@ -33,8 +58,6 @@ export default function PlayerScreen() {
   const currentSong = usePlayerStore((state) => state.currentSong);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const isBuffering = usePlayerStore((state) => state.isBuffering);
-  const position = usePlayerStore((state) => state.position);
-  const duration = usePlayerStore((state) => state.duration);
   const repeatMode = usePlayerStore((state) => state.repeatMode);
   const shuffle = usePlayerStore((state) => state.shuffle);
   const toggle = usePlayerStore((state) => state.toggle);
@@ -101,17 +124,7 @@ export default function PlayerScreen() {
             </ThemedText>
           </View>
 
-          <View style={styles.progressBlock}>
-            <SeekBar position={position} duration={duration} onSeek={seek} />
-            <View style={styles.timeRow}>
-              <ThemedText type="small" themeColor="textSecondary">
-                {formatDuration(position)}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {formatDuration(duration)}
-              </ThemedText>
-            </View>
-          </View>
+          <PlayerProgress onSeek={seek} />
 
           <View style={styles.controls}>
             <Pressable hitSlop={8} onPress={toggleShuffle} accessibilityLabel="Aleatorio">

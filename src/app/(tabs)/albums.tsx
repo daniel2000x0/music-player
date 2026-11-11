@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,11 +19,13 @@ import { OptionSheet, type Option } from '@/components/option-sheet';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { ThemedText } from '@/components/themed-text';
-import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { sortAlbums, sortArtists } from '@/domain/library/sorting';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { AlbumSortKey } from '@/types/filters';
+import type { Album } from '@/types/song';
 
 const SORT_OPTIONS: readonly Option<AlbumSortKey>[] = [
   { value: 'title-asc', label: 'Título (A-Z)' },
@@ -48,11 +51,14 @@ export default function AlbumsScreen() {
   const [sortKey, setSortKey] = useState<AlbumSortKey>('title-asc');
   const [sortVisible, setSortVisible] = useState(false);
 
+  // El filtrado corre sobre el texto "asentado" (ver `useDebouncedValue`).
+  const debouncedQuery = useDebouncedValue(query);
+
   const contentWidth = Math.min(width, MaxContentWidth) - Spacing.four * 2;
   const cardWidth = (contentWidth - Spacing.three) / 2;
 
   const visibleAlbums = useMemo(() => {
-    const term = query.trim().toLowerCase();
+    const term = debouncedQuery.trim().toLowerCase();
     const filtered = term
       ? albums.filter(
           (album) =>
@@ -61,15 +67,21 @@ export default function AlbumsScreen() {
         )
       : albums;
     return sortAlbums(filtered, sortKey);
-  }, [albums, query, sortKey]);
+  }, [albums, debouncedQuery, sortKey]);
 
   const visibleArtists = useMemo(() => {
-    const term = query.trim().toLowerCase();
+    const term = debouncedQuery.trim().toLowerCase();
     const filtered = term
       ? artists.filter((artist) => artist.name.toLowerCase().includes(term))
       : artists;
     return sortArtists(filtered, 'name-asc').filter((artist) => artist.songCount > 0);
-  }, [artists, query]);
+  }, [artists, debouncedQuery]);
+
+  const handleAlbumPress = useCallback(
+    (id: number) => router.push({ pathname: '/album/[id]', params: { id: String(id) } }),
+    []
+  );
+  const keyExtractor = useCallback((album: Album) => String(album.id), []);
 
   const header = (
     <View style={styles.header}>
@@ -102,6 +114,7 @@ export default function AlbumsScreen() {
       <ScreenShell
         title="Álbumes"
         subtitle={`${albums.length} álbumes · ${artists.length} artistas`}
+        scroll={false}
         action={
           <Pressable
             onPress={() => setSortVisible(true)}
@@ -120,58 +133,62 @@ export default function AlbumsScreen() {
             title="Sin álbumes"
             message="Las canciones de tu dispositivo se agruparán por carpeta de álbum."
           />
+        ) : visibleAlbums.length === 0 ? (
+          <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
         ) : (
-          <>
-            {visibleArtists.length > 0 ? (
-              <View>
-                <SectionHeader title="Artistas" />
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.artistRow}>
-                  {visibleArtists.map((artist) => (
-                    <Pressable
-                      key={artist.id}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/artist/[name]',
-                          params: { name: encodeURIComponent(artist.name) },
-                        })
-                      }
-                      style={styles.artist}>
-                      <Artwork size={68} radius={Radius.pill} />
-                      <ThemedText type="smallBold" numberOfLines={1} style={styles.artistName}>
-                        {artist.name}
-                      </ThemedText>
-                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                        {artist.songCount} canciones
-                      </ThemedText>
-                    </Pressable>
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null}
-
-            <View>
-              <SectionHeader title="Álbumes" />
-              {visibleAlbums.length === 0 ? (
-                <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
-              ) : (
-                <View style={styles.grid}>
-                  {visibleAlbums.map((album) => (
-                    <AlbumCard
-                      key={album.id}
-                      album={album}
-                      width={cardWidth}
-                      onPress={() =>
-                        router.push({ pathname: '/album/[id]', params: { id: String(album.id) } })
-                      }
-                    />
-                  ))}
+          <FlatList
+            data={visibleAlbums}
+            keyExtractor={keyExtractor}
+            numColumns={2}
+            columnWrapperStyle={{ columnGap: Spacing.three }}
+            key={`${cardWidth}`}
+            renderItem={({ item }) => (
+              <AlbumCard album={item} width={cardWidth} onPress={() => handleAlbumPress(item.id)} />
+            )}
+            ListHeaderComponent={
+              visibleArtists.length > 0 ? (
+                <View style={styles.albumsHeader}>
+                  <SectionHeader title="Artistas" />
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.artistRow}>
+                    {visibleArtists.map((artist) => (
+                      <Pressable
+                        key={artist.id}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/artist/[name]',
+                            params: { name: encodeURIComponent(artist.name) },
+                          })
+                        }
+                        style={styles.artist}>
+                        <Artwork size={68} radius={Radius.pill} />
+                        <ThemedText type="smallBold" numberOfLines={1} style={styles.artistName}>
+                          {artist.name}
+                        </ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                          {artist.songCount} canciones
+                        </ThemedText>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                  <SectionHeader title="Álbumes" />
                 </View>
-              )}
-            </View>
-          </>
+              ) : (
+                <SectionHeader title="Álbumes" />
+              )
+            }
+            ListEmptyComponent={
+              <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
+            }
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            showsVerticalScrollIndicator={false}
+            style={styles.flex}
+            contentContainerStyle={styles.gridContent}
+          />
         )}
       </ScreenShell>
 
@@ -209,6 +226,10 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     paddingBottom: Spacing.two,
   },
+  albumsHeader: {
+    gap: Spacing.three,
+    paddingBottom: Spacing.two,
+  },
   artist: {
     width: 84,
     alignItems: 'center',
@@ -218,11 +239,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.one,
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.three,
+  flex: {
+    flex: 1,
+  },
+  gridContent: {
     rowGap: Spacing.four,
+    paddingBottom: BottomTabInset + 110,
   },
   loader: {
     marginTop: Spacing.five,

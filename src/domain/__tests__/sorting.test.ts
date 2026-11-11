@@ -1,7 +1,31 @@
-import { sortAlbums, sortArtists, sortSongs } from '@/domain/library/sorting';
+import {
+  sortAlbums,
+  sortArtists,
+  sortDirectionOf,
+  sortFieldOf,
+  sortSongs,
+  toggleSortDirection,
+} from '@/domain/library/sorting';
 import type { Album, Artist } from '@/types/song';
 
 import { makeSong } from '@/testing/fixtures';
+
+describe('claves de orden', () => {
+  it('extrae el campo y la dirección de una clave', () => {
+    expect(sortFieldOf('title-asc')).toBe('title');
+    expect(sortDirectionOf('title-asc')).toBe('asc');
+    expect(sortFieldOf('duration-desc')).toBe('duration');
+    expect(sortDirectionOf('duration-desc')).toBe('desc');
+    expect(sortFieldOf('lastPlayed-desc')).toBe('lastPlayed');
+  });
+
+  it('alterna la dirección conservando el campo', () => {
+    expect(toggleSortDirection('title-asc')).toBe('title-desc');
+    expect(toggleSortDirection('title-desc')).toBe('title-asc');
+    expect(toggleSortDirection('lastPlayed-desc')).toBe('lastPlayed-asc');
+    expect(toggleSortDirection('plays-desc')).toBe('plays-asc');
+  });
+});
 
 describe('sortSongs', () => {
   const songs = [

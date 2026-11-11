@@ -17,6 +17,12 @@ describe('filterSongs', () => {
     expect(result.map((song) => song.id)).toEqual([1, 2, 3]);
   });
 
+  it('excluye audiolibros siempre (viven en su pestaña)', () => {
+    const withBook = [...songs, makeSong({ id: 9, isAudiobook: true, title: 'Capítulo 1' })];
+    const result = filterSongs(withBook, {}, favorites);
+    expect(result.map((song) => song.id)).toEqual([1, 2, 3]);
+  });
+
   it('filtra por favoritos', () => {
     const result = filterSongs(songs, { view: 'favorites' }, favorites);
     expect(result.map((song) => song.id)).toEqual([1, 3]);

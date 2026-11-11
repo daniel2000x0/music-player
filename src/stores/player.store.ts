@@ -3,8 +3,16 @@ import { create } from 'zustand';
 import { historyRepository } from '@/data/repositories/history.repository';
 import { isValidPlay } from '@/domain/playback/valid-play';
 import { moveItem } from '@/domain/playlists/reorder';
-import { getPlayer, loadAndPlay } from '@/services/audio-engine';
+import { clearLockScreenControls, getPlayer, loadAndPlay } from '@/services/audio-engine';
+import { logError } from '@/services/error-log.service';
 import { useLibraryStore } from '@/stores/library.store';
+import {
+  getPlaybackDuration,
+  getPlaybackPosition,
+  resetPlaybackProgress,
+  setPlaybackPosition,
+  setPlaybackProgress,
+} from '@/stores/playback-progress';
 import type { Song } from '@/types/song';
 
 export type RepeatMode = 'none' | 'all' | 'single';
@@ -21,8 +29,8 @@ type PlayerState = {
   currentSong: Song | null;
   queue: Song[];
   isPlaying: boolean;
-  position: number;
-  duration: number;
+  // `position` y `duration` viven en `playback-progress` (almacén aislado):
+  // cambian cada 500 ms y no deben re-renderizar las pantallas completas.
   isBuffering: boolean;
   repeatMode: RepeatMode;
   shuffle: boolean;
@@ -48,6 +56,15 @@ type PlayerState = {
 
 let lastPosition = 0;
 
+/** Reproduce una pista registrando fallos (archivo borrado, códec, etc.). */
+function safeLoadAndPlay(song: Song): void {
+  try {
+    loadAndPlay(song);
+  } catch (error) {
+    logError('player-store', 'loadAndPlay', error);
+  }
+}
+
 function resolveQueue(current: Song[], song: Song, nextQueue?: Song[]): Song[] {
   if (nextQueue && nextQueue.length > 0) {
     return nextQueue;
@@ -62,8 +79,6 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentSong: null,
   queue: [],
   isPlaying: false,
-  position: 0,
-  duration: 0,
   isBuffering: false,
   repeatMode: 'none',
   shuffle: false,
@@ -76,13 +91,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({
       currentSong: song,
       queue,
-      position: 0,
-      duration: song.duration,
       listenedSeconds: 0,
       recordedSongId: null,
       isPlaying: true,
     });
-    loadAndPlay(song);
+    resetPlaybackProgress(song.duration);
+    safeLoadAndPlay(song);
   },
 
   playQueueIndex: (index) => {
@@ -94,13 +108,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     lastPosition = 0;
     set({
       currentSong: song,
-      position: 0,
-      duration: song.duration,
       listenedSeconds: 0,
       recordedSongId: null,
       isPlaying: true,
     });
-    loadAndPlay(song);
+    resetPlaybackProgress(song.duration);
+    safeLoadAndPlay(song);
     if (currentSong?.id === song.id) {
       getPlayer().seekTo(0);
     }
@@ -137,6 +150,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         get().playQueueIndex(0);
       } else {
         getPlayer().pause();
+        clearLockScreenControls();
         set({ isPlaying: false });
       }
       return;
@@ -145,14 +159,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   previous: () => {
-    const { queue, currentSong, position, repeatMode } = get();
+    const { queue, currentSong, repeatMode } = get();
     if (queue.length === 0) {
       return;
     }
-    if (position > 3) {
+    if (getPlaybackPosition() > 3) {
       getPlayer().seekTo(0);
       lastPosition = 0;
-      set({ position: 0 });
+      setPlaybackPosition(0);
       return;
     }
     const index = queue.findIndex((item) => item.id === currentSong?.id);
@@ -163,7 +177,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       } else {
         getPlayer().seekTo(0);
         lastPosition = 0;
-        set({ position: 0 });
+        setPlaybackPosition(0);
       }
       return;
     }
@@ -174,7 +188,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const clamped = Math.max(0, seconds);
     getPlayer().seekTo(clamped);
     lastPosition = clamped;
-    set({ position: clamped });
+    setPlaybackPosition(clamped);
   },
 
   cycleRepeat: () => {
@@ -213,7 +227,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
     if (nextQueue.length === 0) {
       getPlayer().pause();
-      set({ queue: [], currentSong: null, isPlaying: false, position: 0, duration: 0 });
+      clearLockScreenControls();
+      set({ queue: [], currentSong: null, isPlaying: false });
+      setPlaybackProgress(0, 0);
       return;
     }
     const target = Math.min(index, nextQueue.length - 1);
@@ -241,10 +257,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
     const nextListened = listenedSeconds + countedDelta;
 
+    // La posición y la duración van al almacén de progreso aislado: los ticks
+    // de 500 ms no re-renderizan las pantallas del reproductor.
+    setPlaybackProgress(
+      status.currentTime,
+      status.duration > 0 ? status.duration : getPlaybackDuration()
+    );
     set({
       isPlaying: status.playing,
-      position: status.currentTime,
-      duration: status.duration > 0 ? status.duration : get().duration,
       isBuffering: status.isBuffering,
       listenedSeconds: nextListened,
     });
@@ -259,7 +279,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       void historyRepository
         .record(currentSong.id, nextListened, true)
         .then(() => useLibraryStore.getState().recordPlayLocal(currentSong.id, playedAt))
-        .catch(() => undefined);
+        .catch((error: unknown) =>
+          logError('player-store', 'historyRepository.record', error)
+        );
     }
   },
 
@@ -268,7 +290,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       lastPosition = 0;
       getPlayer().seekTo(0);
       getPlayer().play();
-      set({ position: 0, listenedSeconds: 0, recordedSongId: null });
+      set({ listenedSeconds: 0, recordedSongId: null });
+      setPlaybackPosition(0);
       return;
     }
     get().next();

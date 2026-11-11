@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { memo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Artwork } from '@/components/artwork';
@@ -24,8 +25,12 @@ export type SongRowProps = {
 /**
  * Fila de canción reutilizable. Resalta la pista actual y reproduce dentro
  * de la cola indicada.
+ *
+ * RENDIMIENTO: `memo` evita re-renderizar todas las filas cuando cambia
+ * algo ajeno a ellas (favoritos, búsqueda) — solo re-renderizan las filas
+ * cuyas props cambiaron, siempre que los callbacks del padre sean estables.
  */
-export function SongRow({
+export const SongRow = memo(function SongRow({
   song,
   queue,
   isFavorite = false,
@@ -86,7 +91,7 @@ export function SongRow({
       ) : null}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: {

@@ -78,6 +78,7 @@ export default function PlaylistDetailScreen() {
       <ScreenShell
         title={playlist.name}
         subtitle={`${songs.length} canciones`}
+        scroll={false}
         leading={back}
         action={
           songs.length > 0 ? (
@@ -96,14 +97,18 @@ export default function PlaylistDetailScreen() {
             message="Agrega canciones desde el menú de cada pista."
           />
         ) : (
-          <SongList songs={songs} onMore={(song) => setActionSong(song)} />
+          <SongList
+            songs={songs}
+            onMore={(song) => setActionSong(song)}
+            ListFooterComponent={
+              <View style={styles.hint}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Usa el botón de opciones de cada canción para reordenarla o quitarla.
+                </ThemedText>
+              </View>
+            }
+          />
         )}
-
-        <View style={styles.hint}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Usa el botón de opciones de cada canción para reordenarla o quitarla.
-          </ThemedText>
-        </View>
       </ScreenShell>
 
       <OptionSheet

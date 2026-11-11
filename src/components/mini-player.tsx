@@ -6,6 +6,7 @@ import { Artwork } from '@/components/artwork';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
 
 export type MiniPlayerProps = {
@@ -15,22 +16,37 @@ export type MiniPlayerProps = {
 };
 
 /**
+ * Barra de progreso del mini-reproductor. Suscribe posición y duración al
+ * almacén aislado para que el resto del MiniPlayer (portada, textos,
+ * controles) no se re-renderice con cada tick de reproducción.
+ */
+function MiniPlayerProgress() {
+  const theme = useTheme();
+  const position = usePlaybackPosition();
+  const duration = usePlaybackDuration();
+
+  const progress = duration > 0 ? Math.max(0, Math.min(1, position / duration)) : 0;
+
+  return (
+    <View style={[styles.progressTrack, { backgroundColor: theme.backgroundSelected }]}>
+      <View style={[styles.progressFill, { backgroundColor: theme.accent, width: `${progress * 100}%` }]} />
+    </View>
+  );
+}
+
+/**
  * Mini-reproductor flotante. Tocar el cuerpo abre `/player`.
  */
 export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
   const theme = useTheme();
   const currentSong = usePlayerStore((state) => state.currentSong);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
-  const position = usePlayerStore((state) => state.position);
-  const duration = usePlayerStore((state) => state.duration);
   const toggle = usePlayerStore((state) => state.toggle);
   const next = usePlayerStore((state) => state.next);
 
   if (!currentSong) {
     return null;
   }
-
-  const progress = duration > 0 ? Math.max(0, Math.min(1, position / duration)) : 0;
 
   return (
     <Pressable
@@ -40,9 +56,7 @@ export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
         { backgroundColor: theme.backgroundElement, bottom: bottomOffset + Spacing.two },
         style,
       ]}>
-      <View style={[styles.progressTrack, { backgroundColor: theme.backgroundSelected }]}>
-        <View style={[styles.progressFill, { backgroundColor: theme.accent, width: `${progress * 100}%` }]} />
-      </View>
+      <MiniPlayerProgress />
 
       <View style={styles.content}>
         <Artwork uri={currentSong.artwork} size={44} />

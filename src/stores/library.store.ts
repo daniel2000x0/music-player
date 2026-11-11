@@ -8,6 +8,7 @@ import { maintenanceRepository } from '@/data/repositories/maintenance.repositor
 import { playlistRepository } from '@/data/repositories/playlist.repository';
 import { songRepository } from '@/data/repositories/song.repository';
 import { migrateLegacyLibrary } from '@/services/legacy-migration.service';
+import { logError } from '@/services/error-log.service';
 import { hasAudioPermission, loadDeviceAudio, requestAudioAccess } from '@/services/media.service';
 import type { Playlist } from '@/types/playlist';
 import type { Album, Artist, Song } from '@/types/song';
@@ -38,6 +39,8 @@ type LibraryState = {
   movePlaylistSong: (playlistId: number, songId: number, direction: 'up' | 'down') => Promise<void>;
   clearHistory: () => Promise<void>;
   clearAdministrativeData: () => Promise<void>;
+  /** Marca/desmarca canciones como audiolibro (decisión manual del usuario). */
+  setAudiobook: (songIds: number[], isAudiobook: boolean) => Promise<void>;
   getSongById: (id: number) => Song | undefined;
   getSongByIdOrMedia: (id: number | string) => Song | undefined;
   getSongsByIds: (ids: number[]) => Song[];
@@ -69,10 +72,29 @@ async function loadLocal(): Promise<
   };
 }
 
-async function scanLibrary(): Promise<void> {
-  const scanned = await loadDeviceAudio();
-  await songRepository.upsertScannedSongs(scanned);
-  await migrateLegacyLibrary();
+let scanPromise: Promise<void> | null = null;
+
+/**
+ * Escanea la mediateca (consulta + portadas + upsert) y sincroniza SQLite.
+ *
+ * RENDIMIENTO: deduplica ejecuciones simultáneas — el escaneo de arranque
+ * corre en background y un refresh manual durante ese tiempo comparte el
+ * mismo trabajo en vuelo en lugar de duplicarlo.
+ */
+function scanLibrary(): Promise<void> {
+  if (!scanPromise) {
+    scanPromise = (async () => {
+      try {
+        const scanned = await loadDeviceAudio();
+        await songRepository.upsertScannedSongs(scanned);
+        await songRepository.reclassifyAudiobooks();
+        await migrateLegacyLibrary();
+      } finally {
+        scanPromise = null;
+      }
+    })();
+  }
+  return scanPromise;
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({
@@ -97,14 +119,28 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     }
     hydratePromise = (async () => {
       try {
-        const granted = await hasAudioPermission();
-        set({ hasPermission: granted });
+        // La BD persistida carga primero: la biblioteca de la sesión
+        // anterior aparece al instante, sin esperar el escaneo del
+        // dispositivo (consulta de mediateca + portadas + upsert).
+        const [granted, local] = await Promise.all([hasAudioPermission(), loadLocal()]);
+        // Primera ejecución (BD vacía): no hay nada persistido que mostrar,
+        // se mantiene el loader hasta que el escaneo inicial termine
+        // (`refresh` baja `isLoading` al finalizar).
+        const keepLoading = granted && local.songs.length === 0;
+        set({
+          ...local,
+          hasPermission: granted,
+          hydrated: true,
+          isLoading: keepLoading,
+          error: null,
+        });
+        // El escaneo corre en background; `refresh` gestiona `isScanning`,
+        // errores y la recarga del estado al terminar.
         if (granted) {
-          await scanLibrary();
+          void get().refresh();
         }
-        const local = await loadLocal();
-        set({ ...local, hydrated: true, isLoading: false, error: null });
       } catch (error) {
+        logError('library-store', 'hydrate', error);
         set({
           error: error instanceof Error ? error.message : 'No se pudo cargar la biblioteca',
           hydrated: true,
@@ -128,7 +164,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const local = await loadLocal();
       set({ ...local, isLoading: false });
     } catch (error) {
-      set({ error: error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca' });
+      logError('library-store', 'refresh', error);
+      set({
+        error: error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca',
+        isLoading: false,
+      });
     } finally {
       set({ isScanning: false });
     }
@@ -194,6 +234,11 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     await maintenanceRepository.clearAdministrativeData();
     const local = await loadLocal();
     set(local);
+  },
+
+  setAudiobook: async (songIds, isAudiobook) => {
+    await songRepository.setAudiobook(songIds, isAudiobook);
+    set({ songs: await songRepository.getAll() });
   },
 
   getSongById: (id) => get().songs.find((song) => song.id === id),

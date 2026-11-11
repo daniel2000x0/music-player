@@ -1,7 +1,7 @@
 # User Stories — Aplicación de Reproducción Musical
 
-**Versión:** 1.0  
-**Estado:** Propuesta inicial  
+**Versión:** 1.1  
+**Estado:** Alineado con la implementación actual  
 **Documento relacionado:** `SRS.md`
 
 ## 1. Introducción
@@ -59,11 +59,12 @@ Criterios de aceptación:
 Criterios de aceptación:
 
 - Home debe ser la pantalla predeterminada.
-- Debe mostrar las canciones más escuchadas.
-- Debe mostrar los favoritos.
+- Debe mostrar un resumen de la biblioteca (canciones, álbumes y playlists).
+- Debe mostrar accesos rápidos a favoritos, más escuchadas y recientes.
 - Debe mostrar las últimas reproducidas.
-- Debe mostrar las canciones agregadas recientemente.
-- Debe mostrar accesos a las playlists automáticas.
+- Debe mostrar las más escuchadas.
+- Debe mostrar álbumes recientes.
+- Debe mostrar las playlists del usuario.
 - Cada sección debe permitir consultar su contenido completo.
 
 ### US-004. Consultar canciones
@@ -217,12 +218,12 @@ Criterios de aceptación:
 
 Criterios de aceptación:
 
-- Debe permitir buscar por título.
-- Debe permitir buscar por artista.
-- Debe permitir buscar por álbum.
-- Debe permitir buscar por nombre de playlist.
+- Debe permitir buscar canciones por título, artista o álbum.
+- Debe permitir buscar álbumes por título o artista.
+- Debe permitir buscar audiolibros por título o autor.
 - Debe mostrar resultados relacionados con el texto ingresado.
 - Debe informar cuando no existan resultados.
+- La búsqueda de playlists queda como evolución futura.
 
 ### US-015. Administrar la cola de reproducción
 
@@ -297,6 +298,34 @@ Criterios de aceptación:
 - Las operaciones deben mantener la integridad de la información.
 - No debe requerirse conexión a Internet.
 
+### US-020. Administrar audiolibros
+
+**Como** usuario,  
+**quiero** separar mis audiolibros de mi música,  
+**para** escucharlos por libro sin mezclarlos con las canciones.
+
+Criterios de aceptación:
+
+- Debe detectar contenido largo y clasificarlo como audiolibro durante el escaneo.
+- Debe permitir marcar canciones como audiolibro desde su menú de opciones.
+- Debe mostrar los audiolibros en una pestaña propia, agrupados por libro.
+- Debe permitir buscar audiolibros por título o autor.
+- Debe permitir reproducir un libro completo con sus capítulos.
+- Debe permitir remover la clasificación y devolver los capítulos a Canciones.
+- La clasificación debe persistir en SQLite.
+
+### US-021. Consultar el registro de errores
+
+**Como** usuario,  
+**quiero** consultar los errores registrados por la aplicación,  
+**para** diagnosticar problemas de biblioteca o reproducción.
+
+Criterios de aceptación:
+
+- Debe registrar errores y advertencias con contexto.
+- Debe agrupar errores repetidos con contador y última fecha.
+- Debe permitir acceder al registro desde Configuración.
+
 ## 4. Priorización
 
 Se utilizará el siguiente sistema:
@@ -326,6 +355,8 @@ Se utilizará el siguiente sistema:
 | US-017 | Temas | P0 |
 | US-018 | Configuración | P1 |
 | US-019 | Persistencia | P0 |
+| US-020 | Audiolibros | P1 |
+| US-021 | Registro de errores | P2 |
 
 ## 5. Consideraciones
 

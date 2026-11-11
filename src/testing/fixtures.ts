@@ -12,6 +12,7 @@ export function makeSong(overrides: Partial<Song> = {}): Song {
     artwork: null,
     addedAt: 1_000,
     isAvailable: true,
+    isAudiobook: false,
     playCount: 0,
     lastPlayedAt: null,
     ...overrides,

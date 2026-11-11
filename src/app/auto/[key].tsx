@@ -49,6 +49,7 @@ export default function AutoPlaylistScreen() {
       <ScreenShell
         title={definition.name}
         subtitle={definition.description}
+        scroll={false}
         leading={
           <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={26} color={theme.text} />
@@ -64,15 +65,6 @@ export default function AutoPlaylistScreen() {
             </Pressable>
           ) : null
         }>
-        <View style={[styles.banner, { backgroundColor: theme.backgroundElement }]}>
-          <View style={[styles.bannerIcon, { backgroundColor: theme.backgroundSelected }]}>
-            <Ionicons name={definition.icon} size={26} color={theme.accent} />
-          </View>
-          <ThemedText type="small" themeColor="textSecondary" style={styles.bannerText}>
-            {list.length} canciones · se actualiza automáticamente
-          </ThemedText>
-        </View>
-
         {list.length === 0 ? (
           <EmptyState
             icon="musical-notes-outline"
@@ -86,6 +78,16 @@ export default function AutoPlaylistScreen() {
               setPickerSong(song);
               setPickerVisible(true);
             }}
+            ListHeaderComponent={
+              <View style={[styles.banner, { backgroundColor: theme.backgroundElement }]}>
+                <View style={[styles.bannerIcon, { backgroundColor: theme.backgroundSelected }]}>
+                  <Ionicons name={definition.icon} size={26} color={theme.accent} />
+                </View>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.bannerText}>
+                  {list.length} canciones · se actualiza automáticamente
+                </ThemedText>
+              </View>
+            }
           />
         )}
       </ScreenShell>

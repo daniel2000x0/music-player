@@ -23,6 +23,8 @@ export type Song = {
   addedAt: number;
   /** `false` si el archivo ya no está en el dispositivo. */
   isAvailable: boolean;
+  /** `true` → se oculta de Canciones y se agrupa en Audiolibros. */
+  isAudiobook: boolean;
   playCount: number;
   lastPlayedAt: number | null;
 };

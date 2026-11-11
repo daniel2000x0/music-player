@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { CategoryBar, type CategoryOption } from '@/components/category-bar';
@@ -8,11 +8,13 @@ import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { ScreenShell } from '@/components/screen-shell';
+import { SortSheet, type SortField } from '@/components/sort-sheet';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { filterSongs } from '@/domain/library/filters';
-import { sortSongs } from '@/domain/library/sorting';
+import { sortDirectionOf, sortFieldOf, sortSongs } from '@/domain/library/sorting';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
@@ -26,17 +28,28 @@ const VIEWS: readonly CategoryOption<SongView>[] = [
   { key: 'unplayed', label: 'Sin reproducir' },
 ];
 
-const SORT_OPTIONS: readonly Option<SongSortKey>[] = [
-  { value: 'title-asc', label: 'Título (A-Z)' },
-  { value: 'title-desc', label: 'Título (Z-A)' },
-  { value: 'artist-asc', label: 'Artista (A-Z)' },
-  { value: 'artist-desc', label: 'Artista (Z-A)' },
-  { value: 'album-asc', label: 'Álbum (A-Z)' },
-  { value: 'album-desc', label: 'Álbum (Z-A)' },
-  { value: 'duration-asc', label: 'Duración (menor)' },
-  { value: 'duration-desc', label: 'Duración (mayor)' },
-  { value: 'added-desc', label: 'Agregadas recientemente' },
-  { value: 'plays-desc', label: 'Más escuchadas' },
+type SongAction = 'playlist' | 'audiobook';
+
+const SONG_ACTIONS: readonly Option<SongAction>[] = [
+  {
+    value: 'playlist',
+    label: 'Agregar a playlist',
+    description: 'Incluye esta canción en una playlist existente o nueva.',
+  },
+  {
+    value: 'audiobook',
+    label: 'Agregar como audiolibro',
+    description: 'Se oculta de Canciones y aparece en la pestaña Audiolibros.',
+  },
+];
+
+const SORT_FIELDS: readonly SortField<SongSortKey>[] = [
+  { value: 'title-asc', label: 'Título' },
+  { value: 'artist-asc', label: 'Artista' },
+  { value: 'album-asc', label: 'Álbum' },
+  { value: 'duration-asc', label: 'Duración' },
+  { value: 'added-desc', label: 'Agregadas' },
+  { value: 'plays-desc', label: 'Reproducciones' },
   { value: 'lastPlayed-desc', label: 'Última reproducción' },
 ];
 
@@ -52,11 +65,14 @@ export default function SongsScreen() {
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
+  const setAudiobook = useLibraryStore((state) => state.setAudiobook);
   const play = usePlayerStore((state) => state.play);
 
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SongSortKey>('title-asc');
   const [sortVisible, setSortVisible] = useState(false);
+  const [menuSong, setMenuSong] = useState<Song | null>(null);
+  const [menuVisible, setMenuVisible] = useState(false);
   const [pickerSong, setPickerSong] = useState<Song | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
@@ -64,11 +80,19 @@ export default function SongsScreen() {
   const setView = (next: SongView) => router.setParams({ view: next });
 
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  // El filtrado (caro con bibliotecas grandes) corre sobre el texto
+  // "asentado"; el input responde al instante.
+  const debouncedQuery = useDebouncedValue(query);
 
   const visibleSongs = useMemo(() => {
-    const filtered = filterSongs(songs, { query, view }, favoriteSet);
+    const filtered = filterSongs(songs, { query: debouncedQuery, view }, favoriteSet);
     return sortSongs(filtered, sortKey);
-  }, [songs, query, view, favoriteSet, sortKey]);
+  }, [songs, debouncedQuery, view, favoriteSet, sortKey]);
+
+  const handleMore = useCallback((song: Song) => {
+    setMenuSong(song);
+    setMenuVisible(true);
+  }, []);
 
   const header = (
     <View style={styles.header}>
@@ -91,8 +115,13 @@ export default function SongsScreen() {
           accessibilityLabel="Ordenar canciones">
           <Ionicons name="swap-vertical" size={16} color={theme.text} />
           <ThemedText type="small" numberOfLines={1}>
-            {SORT_OPTIONS.find((option) => option.value === sortKey)?.label}
+            {SORT_FIELDS.find((field) => sortFieldOf(field.value) === sortFieldOf(sortKey))?.label}
           </ThemedText>
+          <Ionicons
+            name={sortDirectionOf(sortKey) === 'asc' ? 'arrow-up' : 'arrow-down'}
+            size={14}
+            color={theme.text}
+          />
         </Pressable>
       </View>
     </View>
@@ -117,6 +146,7 @@ export default function SongsScreen() {
       <ScreenShell
         title="Canciones"
         subtitle={`${songs.length} en tu biblioteca`}
+        scroll={false}
         action={
           visibleSongs.length > 0 ? (
             <Pressable
@@ -139,20 +169,31 @@ export default function SongsScreen() {
             message="No hay canciones que coincidan con la búsqueda o el filtro."
           />
         ) : (
-          <SongList
-            songs={visibleSongs}
-            onMore={(song) => {
-              setPickerSong(song);
-              setPickerVisible(true);
-            }}
-          />
+          <SongList songs={visibleSongs} onMore={handleMore} />
         )}
       </ScreenShell>
 
       <OptionSheet
+        visible={menuVisible}
+        title={menuSong?.title ?? 'Opciones de canción'}
+        options={SONG_ACTIONS}
+        onSelect={(action) => {
+          if (!menuSong) {
+            return;
+          }
+          if (action === 'playlist') {
+            setPickerSong(menuSong);
+            setPickerVisible(true);
+          } else {
+            void setAudiobook([menuSong.id], true);
+          }
+        }}
+        onClose={() => setMenuVisible(false)}
+      />
+      <SortSheet
         visible={sortVisible}
         title="Ordenar canciones"
-        options={SORT_OPTIONS}
+        fields={SORT_FIELDS}
         value={sortKey}
         onSelect={setSortKey}
         onClose={() => setSortVisible(false)}

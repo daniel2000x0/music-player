@@ -17,7 +17,7 @@ import { PlaylistPicker } from '@/components/playlist-picker';
 import { QuickAccess, type QuickAccessItem } from '@/components/quick-access';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
-import { SongList } from '@/components/song-list';
+import { InlineSongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -53,14 +53,24 @@ export default function HomeScreen() {
   const contentWidth = Math.min(width, MaxContentWidth) - Spacing.four * 2;
   const albumCardWidth = (contentWidth - Spacing.three) / 2;
 
-  const recentSongs = useMemo(() => getSongsByIds(recentIds).slice(0, 5), [getSongsByIds, recentIds]);
+  // Los audiolibros no cuentan como canciones en Inicio (ni en contadores
+  // ni en recientes/más escuchadas): viven en su propia pestaña.
+  const musicSongs = useMemo(() => songs.filter((song) => !song.isAudiobook), [songs]);
+
+  const recentSongs = useMemo(
+    () =>
+      getSongsByIds(recentIds)
+        .filter((song) => !song.isAudiobook)
+        .slice(0, 5),
+    [getSongsByIds, recentIds]
+  );
   const mostPlayed = useMemo(
     () =>
-      [...songs]
+      [...musicSongs]
         .filter((song) => song.playCount > 0)
         .sort((a, b) => b.playCount - a.playCount)
         .slice(0, 5),
-    [songs]
+    [musicSongs]
   );
   const topAlbums = useMemo(
     () => [...albums].sort((a, b) => b.createdAt - a.createdAt).slice(0, 4),
@@ -134,7 +144,7 @@ export default function HomeScreen() {
     <>
       <ScreenShell
         title="Mi Música"
-        subtitle={`${formatSongCount(songs.length)} · ${artists.length} artistas`}
+        subtitle={`${formatSongCount(musicSongs.length)} · ${artists.length} artistas`}
         action={
           <Pressable
             hitSlop={8}
@@ -162,7 +172,7 @@ export default function HomeScreen() {
 
         <View style={styles.statsRow}>
           {[
-            { label: 'Canciones', value: songs.length },
+            { label: 'Canciones', value: musicSongs.length },
             { label: 'Álbumes', value: albums.length },
             { label: 'Playlists', value: playlists.length },
           ].map((stat) => (
@@ -186,7 +196,7 @@ export default function HomeScreen() {
               actionLabel="Ver todo"
               onActionPress={() => router.push('/songs')}
             />
-            <SongList songs={recentSongs} onMore={openPicker} />
+            <InlineSongList songs={recentSongs} onMore={openPicker} />
           </View>
         ) : null}
 
@@ -197,7 +207,7 @@ export default function HomeScreen() {
               actionLabel="Ver todo"
               onActionPress={() => router.push({ pathname: '/songs', params: { view: 'played' } })}
             />
-            <SongList songs={mostPlayed} onMore={openPicker} />
+            <InlineSongList songs={mostPlayed} onMore={openPicker} />
           </View>
         ) : null}
 

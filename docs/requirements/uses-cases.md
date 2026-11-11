@@ -1,7 +1,7 @@
 # Use Cases — Aplicación de Reproducción Musical
 
-**Versión:** 1.0  
-**Estado:** Propuesta inicial  
+**Versión:** 1.1  
+**Estado:** Alineado con la implementación actual  
 **Documento relacionado:** `SRS.md`
 
 ## 1. Introducción
@@ -35,12 +35,10 @@ Proporciona acceso autorizado a los archivos de audio, almacenamiento del dispos
 **Flujo principal:**
 1. El usuario abre la aplicación.
 2. El sistema inicializa SQLite.
-3. El sistema recupera las preferencias.
-4. El sistema recupera la información de la biblioteca.
-5. El sistema carga favoritos y playlists.
-6. El sistema recupera el historial.
-7. El sistema aplica el tema seleccionado.
-8. El sistema muestra Home.
+3. El sistema recupera preferencias, biblioteca, favoritos, playlists e historial desde la base local.
+4. El sistema aplica el tema seleccionado.
+5. El sistema muestra Home de inmediato con la biblioteca persistida.
+6. Si el permiso de audio está concedido, el sistema re-escanea la mediateca en segundo plano y actualiza la biblioteca al terminar.
 
 **Flujos alternativos:**
 - Si no existen datos, se muestra una biblioteca vacía.
@@ -324,6 +322,34 @@ Proporciona acceso autorizado a los archivos de audio, almacenamiento del dispos
 6. El sistema actualiza los registros locales.
 7. El sistema informa el resultado.
 
+### UC-017. Administrar audiolibros
+
+**Actor:** Usuario.
+
+**Objetivo:** Separar audiolibros de la biblioteca musical.
+
+**Flujo principal:**
+1. El usuario marca canciones como audiolibro desde su menú de opciones, o el escaneo clasifica contenido largo automáticamente.
+2. El sistema persiste la clasificación en SQLite.
+3. El usuario consulta la pestaña Audiolibros.
+4. El sistema muestra los libros agrupados con sus capítulos.
+5. El usuario reproduce un libro o busca por título o autor.
+6. El usuario puede remover la clasificación y los capítulos vuelven a Canciones.
+
+**Postcondición:** La clasificación persiste entre sesiones y escaneos.
+
+### UC-018. Consultar registro de errores
+
+**Actor:** Usuario.
+
+**Objetivo:** Revisar errores y advertencias de la aplicación.
+
+**Flujo principal:**
+1. El usuario abre Configuración.
+2. Selecciona Diagnóstico → Registro de errores.
+3. El sistema consulta la tabla local de errores.
+4. El sistema muestra los errores con contexto, contador y última fecha.
+
 ## 4. Relaciones entre casos de uso
 
 - UC-001 es el proceso inicial.
@@ -334,6 +360,8 @@ Proporciona acceso autorizado a los archivos de audio, almacenamiento del dispos
 - UC-009 y UC-010 modifican la presentación de los listados, no los datos originales.
 - UC-014 administra la preferencia visual.
 - UC-016 mantiene actualizada la biblioteca.
+- UC-017 administra la clasificación de audiolibros consumida por UC-002 y UC-003.
+- UC-018 consulta el registro de errores generado por el resto de casos de uso.
 
 ## 5. Consideraciones técnicas
 

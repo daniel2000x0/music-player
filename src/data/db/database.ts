@@ -23,7 +23,12 @@ async function openAndMigrate(): Promise<SQLiteDatabase> {
 
 export function getDatabase(): Promise<SQLiteDatabase> {
   if (!databasePromise) {
-    databasePromise = openAndMigrate();
+    databasePromise = openAndMigrate().catch((error: unknown) => {
+      // No cachear el rechazo: el siguiente uso reintenta (p. ej. tras un
+      // fallo transitorio) en lugar de fallar para siempre.
+      databasePromise = null;
+      throw error;
+    });
   }
   return databasePromise;
 }

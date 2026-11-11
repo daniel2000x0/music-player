@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
@@ -121,7 +122,7 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <ActionRow
             icon="musical-notes-outline"
-            title={`${songs.length} canciones`}
+            title={`${songs.filter((song) => !song.isAudiobook).length} canciones`}
             description={`${playlists.length} playlists · ${
               hasPermission ? 'permiso concedido' : 'sin permiso de audio'
             }`}
@@ -181,6 +182,18 @@ export default function SettingsScreen() {
               <ActivityIndicator color={theme.accent} />
             </View>
           ) : null}
+        </View>
+      </View>
+
+      <View>
+        <SectionHeader title="Diagnóstico" />
+        <View style={styles.section}>
+          <ActionRow
+            icon="bug-outline"
+            title="Registro de errores"
+            description="Errores y advertencias guardados en el dispositivo."
+            onPress={() => router.push('/logs')}
+          />
         </View>
       </View>
 

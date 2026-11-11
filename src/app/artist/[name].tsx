@@ -58,47 +58,51 @@ export default function ArtistDetailScreen() {
       <ScreenShell
         title={artist.name}
         subtitle={`${formatSongCount(artist.songCount)} · ${artist.albumCount} álbumes`}
+        scroll={false}
         leading={
           <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }>
-        <View style={styles.hero}>
-          <Artwork size={120} radius={Radius.pill} />
-          <Pressable
-            onPress={() => play(songs[0], songs)}
-            style={[styles.playButton, { backgroundColor: theme.accent }]}>
-            <Ionicons name="play" size={18} color={theme.accentText} />
-            <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-              Reproducir todo
-            </ThemedText>
-          </Pressable>
-        </View>
-
-        {albums.length > 0 ? (
-          <View style={styles.albumRow}>
-            {albums.map((album) => (
-              <Pressable
-                key={album.id}
-                onPress={() =>
-                  router.push({ pathname: '/album/[id]', params: { id: String(album.id) } })
-                }
-                style={styles.albumItem}>
-                <Artwork uri={album.artwork} size={80} />
-                <ThemedText type="small" numberOfLines={1} style={styles.albumTitle}>
-                  {album.title}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-
         <SongList
           songs={songs}
           onMore={(song) => {
             setPickerSong(song);
             setPickerVisible(true);
           }}
+          ListHeaderComponent={
+            <>
+              <View style={styles.hero}>
+                <Artwork size={120} radius={Radius.pill} />
+                <Pressable
+                  onPress={() => play(songs[0], songs)}
+                  style={[styles.playButton, { backgroundColor: theme.accent }]}>
+                  <Ionicons name="play" size={18} color={theme.accentText} />
+                  <ThemedText type="smallBold" style={{ color: theme.accentText }}>
+                    Reproducir todo
+                  </ThemedText>
+                </Pressable>
+              </View>
+
+              {albums.length > 0 ? (
+                <View style={styles.albumRow}>
+                  {albums.map((album) => (
+                    <Pressable
+                      key={album.id}
+                      onPress={() =>
+                        router.push({ pathname: '/album/[id]', params: { id: String(album.id) } })
+                      }
+                      style={styles.albumItem}>
+                      <Artwork uri={album.artwork} size={80} />
+                      <ThemedText type="small" numberOfLines={1} style={styles.albumTitle}>
+                        {album.title}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </>
+          }
         />
       </ScreenShell>
 

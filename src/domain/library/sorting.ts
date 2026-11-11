@@ -7,6 +7,21 @@ import type {
 import type { Playlist } from '@/types/playlist';
 import type { Album, Artist, Song } from '@/types/song';
 
+export type SortDirection = 'asc' | 'desc';
+
+export function sortDirectionOf(key: string): SortDirection {
+  return key.endsWith('-asc') ? 'asc' : 'desc';
+}
+
+export function sortFieldOf(key: string): string {
+  return key.slice(0, sortDirectionOf(key) === 'asc' ? -4 : -5);
+}
+
+export function toggleSortDirection<K extends string>(key: K): K {
+  const field = sortFieldOf(key);
+  return (sortDirectionOf(key) === 'asc' ? `${field}-desc` : `${field}-asc`) as K;
+}
+
 const collator = new Intl.Collator('es', { sensitivity: 'base', numeric: true });
 
 function compareText(a: string, b: string): number {

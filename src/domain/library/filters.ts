@@ -21,6 +21,10 @@ export function filterSongs(
     if (!song.isAvailable) {
       return false;
     }
+    // Los audiolibros viven en su propia pestaña: nunca en Canciones.
+    if (song.isAudiobook) {
+      return false;
+    }
     if (view === 'favorites' && !favoriteIds.has(song.id)) {
       return false;
     }
