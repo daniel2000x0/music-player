@@ -15,19 +15,26 @@ export type SectionHeaderProps = {
  * Encabezado de sección con acción opcional.
  *
  * LÓGICA: unifica los títulos de bloque ("Álbumes", "Tus playlists", ...)
- * y el enlace de acción a la derecha.
+ * y el enlace de acción a la derecha. El título puede encogerse con
+ * elipsis (`flexShrink`) mientras la acción permanece visible
+ * (`flexShrink: 0`): así "Ver todo" no se sale del borde en pantallas
+ * estrechas ni con títulos largos como "Reproducidas recientemente".
  */
 export function SectionHeader({ title, actionLabel, onActionPress }: SectionHeaderProps) {
   const theme = useTheme();
 
   return (
     <View style={styles.container}>
-      <ThemedText type="subtitle" style={styles.title}>
+      <ThemedText type="subtitle" numberOfLines={1} style={styles.title}>
         {title}
       </ThemedText>
       {actionLabel && onActionPress ? (
-        <Pressable hitSlop={8} onPress={onActionPress}>
-          <ThemedText type="smallBold" themeColor="accent">
+        <Pressable
+          hitSlop={8}
+          onPress={onActionPress}
+          accessibilityRole="button"
+          style={styles.action}>
+          <ThemedText type="smallBold" themeColor="accent" numberOfLines={1}>
             {actionLabel}
           </ThemedText>
         </Pressable>
@@ -41,13 +48,19 @@ export function SectionHeader({ title, actionLabel, onActionPress }: SectionHead
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.three,
+    gap: Spacing.two,
+    marginBottom: Spacing.two,
   },
   title: {
-    fontSize: 22,
-    lineHeight: 28,
+    flexShrink: 1,
+    minWidth: 0,
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  action: {
+    flexShrink: 0,
   },
   spacer: {
     height: 1,
