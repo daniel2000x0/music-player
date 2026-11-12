@@ -1,11 +1,19 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  usePathname,
+  useSegments,
+} from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
 import { AudioBridge } from '@/components/audio-bridge';
 import { MiniPlayer } from '@/components/mini-player';
-import { BottomTabInset, Colors } from '@/constants/theme';
+import { Colors, TabBarBaseHeight } from '@/constants/theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { useSettingsStore } from '@/stores/settings.store';
 
@@ -15,8 +23,18 @@ import { useSettingsStore } from '@/stores/settings.store';
  */
 export default function RootLayout() {
   const pathname = usePathname();
+  const segments = useSegments();
+  const insets = useSafeAreaInsets();
   const theme = useSettingsStore((state) => state.theme);
   const showMiniPlayer = pathname !== '/player';
+
+  // El mini-reproductor se apoya justo encima de la barra de pestañas
+  // (49 px + área segura). En las pantallas fuera de las pestañas no hay
+  // barra, así que solo respeta el área segura inferior.
+  const isTabScreen = segments[0] === '(tabs)';
+  const miniPlayerBottom = isTabScreen
+    ? TabBarBaseHeight + insets.bottom
+    : insets.bottom;
 
   useEffect(() => {
     void useSettingsStore
@@ -58,7 +76,7 @@ export default function RootLayout() {
             options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
           />
         </Stack>
-        {showMiniPlayer ? <MiniPlayer bottomOffset={BottomTabInset} /> : null}
+        {showMiniPlayer ? <MiniPlayer bottomOffset={miniPlayerBottom} /> : null}
       </View>
     </ThemeProvider>
   );

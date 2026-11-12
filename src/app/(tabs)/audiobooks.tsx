@@ -1,11 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { Artwork } from '@/components/artwork';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
+import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { ThemedText } from '@/components/themed-text';
 import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
@@ -87,6 +96,8 @@ export default function AudiobooksScreen() {
   const albums = useLibraryStore((state) => state.albums);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
+  const isScanning = useLibraryStore((state) => state.isScanning);
+  const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
   const setAudiobook = useLibraryStore((state) => state.setAudiobook);
   const play = usePlayerStore((state) => state.play);
@@ -118,10 +129,7 @@ export default function AudiobooksScreen() {
     },
     [play]
   );
-  const keyExtractor = useCallback(
-    (book: Audiobook) => `${book.title}-${book.author}`,
-    []
-  );
+  const keyExtractor = useCallback((book: Audiobook) => book.key, []);
 
   const header = (
     <View style={styles.header}>
@@ -156,6 +164,7 @@ export default function AudiobooksScreen() {
         title="Audiolibros"
         subtitle={`${books.length} títulos`}
         scroll={false}
+        action={<RefreshButton />}
         header={header}>
       {isLoading ? (
         <ActivityIndicator color={theme.accent} style={styles.loader} />
@@ -186,6 +195,14 @@ export default function AudiobooksScreen() {
           showsVerticalScrollIndicator={false}
           style={styles.flex}
           contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isScanning}
+              onRefresh={() => void refresh()}
+              tintColor={theme.accent}
+              colors={[theme.accent]}
+            />
+          }
         />
       )}
     </ScreenShell>

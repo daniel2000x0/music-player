@@ -8,7 +8,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Nunca se borran datos del usuario en una migración.
  */
 
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 
 const V1 = `
 CREATE TABLE IF NOT EXISTS artists (
@@ -143,6 +143,12 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   }
   if (!(await columnExists('songs', 'audiobook_manual'))) {
     await db.runAsync('ALTER TABLE songs ADD COLUMN audiobook_manual INTEGER NOT NULL DEFAULT 0');
+  }
+  if (!(await columnExists('songs', 'track_number'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN track_number INTEGER');
+  }
+  if (!(await columnExists('songs', 'folder_name'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN folder_name TEXT');
   }
   await db.execAsync('CREATE INDEX IF NOT EXISTS idx_songs_audiobook ON songs(is_audiobook)');
 

@@ -1,3 +1,4 @@
+import Constants from 'expo-constants';
 import {
   createAudioPlayer,
   setAudioModeAsync,
@@ -48,14 +49,30 @@ let player: AudioPlayer | null = null;
 /**
  * `false` tras el primer fallo de los controles de pantalla de bloqueo.
  *
- * En Expo Go el servicio nativo `AudioControlsService` no existe (los config
- * plugins solo aplican a builds propias), así que `setActiveForLockScreen`
- * falla; recordar el fallo evita reintentar en cada cambio de pista.
+ * En builds propias el servicio nativo `AudioControlsService` existe (lo
+ * declara el config plugin de `expo-audio`), así que este guard solo cubre
+ * fallos reales del sistema.
  */
 let lockScreenControlsSupported = true;
 
+/**
+ * `true` cuando la sesión de medios puede existir.
+ *
+ * LÓGICA: Expo Go no aplica los config plugins del proyecto, así que su
+ * manifest no declara `AudioControlsService`. Sin ese servicio,
+ * `setActiveForLockScreen` falla en el hilo nativo y expo-audio lo reporta
+ * como log (`Failed to start the expo-audio playback service.`), no como
+ * excepción JS. Por eso el `try/catch` de abajo no puede detectarlo: la
+ * única forma de evitar el log repetido es no invocarlo en Expo Go.
+ *
+ * `expoGoConfig` solo tiene valor dentro de Expo Go (también en desarrollo),
+ * a diferencia de `executionEnvironment === 'storeClient'`, que incluye los
+ * development builds con `expo-dev-client`.
+ */
+const LOCK_SCREEN_SUPPORTED = Constants.expoGoConfig == null;
+
 function withLockScreenGuard(action: string, run: () => void): void {
-  if (!lockScreenControlsSupported) {
+  if (!lockScreenControlsSupported || !LOCK_SCREEN_SUPPORTED) {
     return;
   }
   try {
@@ -65,8 +82,7 @@ function withLockScreenGuard(action: string, run: () => void): void {
     logError('audio-engine', action, error);
     if (__DEV__) {
       console.warn(
-        '[audio-engine] Controles de pantalla de bloqueo no disponibles ' +
-          '(esperado en Expo Go; requieren development build):',
+        '[audio-engine] Controles de pantalla de bloqueo no disponibles:',
         error
       );
     }

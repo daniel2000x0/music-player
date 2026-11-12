@@ -1,9 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   StyleSheet,
   View,
@@ -15,6 +13,7 @@ import { EmptyState } from '@/components/empty-state';
 import { PlaylistCard } from '@/components/playlist-card';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { QuickAccess, type QuickAccessItem } from '@/components/quick-access';
+import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { InlineSongList } from '@/components/song-list';
@@ -145,18 +144,7 @@ export default function HomeScreen() {
       <ScreenShell
         title="Mi Música"
         subtitle={`${formatSongCount(musicSongs.length)} · ${artists.length} artistas`}
-        action={
-          <Pressable
-            hitSlop={8}
-            onPress={() => void refresh()}
-            accessibilityLabel="Actualizar biblioteca">
-            {isScanning ? (
-              <ActivityIndicator color={theme.accent} />
-            ) : (
-              <Ionicons name="refresh" size={22} color={theme.text} />
-            )}
-          </Pressable>
-        }
+        action={<RefreshButton />}
         refreshControl={
           <RefreshControl
             refreshing={isScanning}

@@ -1,8 +1,16 @@
 import { useCallback, useMemo, type ReactElement } from 'react';
-import { FlatList, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
 import { SongRow } from '@/components/song-row';
 import { BottomTabInset } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { Song } from '@/types/song';
 
@@ -17,6 +25,10 @@ export type SongListProps = {
   /** Pie que se desplaza con la lista. */
   ListFooterComponent?: ReactElement | null;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /** Muestra el spinner de "desliza para actualizar". */
+  refreshing?: boolean;
+  /** Habilita el gesto de deslizar para actualizar. */
+  onRefresh?: () => void;
 };
 
 /** Altura fija de una fila (artwork 52 + padding 8×2). */
@@ -37,7 +49,10 @@ export function SongList({
   ListHeaderComponent,
   ListFooterComponent,
   contentContainerStyle,
+  refreshing = false,
+  onRefresh,
 }: SongListProps) {
+  const theme = useTheme();
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
 
@@ -73,6 +88,16 @@ export function SongList({
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       style={styles.flex}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.accent}
+            colors={[theme.accent]}
+          />
+        ) : undefined
+      }
       ListHeaderComponent={
         // FlatList no acepta `null` en estos props: se normaliza a `undefined`.
         ListHeaderComponent ?? undefined

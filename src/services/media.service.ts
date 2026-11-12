@@ -6,29 +6,34 @@ import {
   requestPermissionsAsync,
 } from 'expo-media-library';
 
+import { resolveSongMetadata } from '@/domain/metadata';
 import { logError } from '@/services/error-log.service';
 import { assignAlbumArtwork } from '@/services/artwork.service';
+import { readAudioTags } from '@/services/tag.service';
 import type { ScannedSong } from '@/types/song';
+import { mapLimit } from '@/utils/async';
 
 /**
  * Servicio de acceso al almacenamiento de audio del dispositivo.
  *
  * LÓGICA: pide permisos y consulta la mediateca del sistema para construir
- * la biblioteca de canciones. En el SDK 57 `expo-media-library` expone la
+ * la biblioteca de canciones. En el SDK 58 `expo-media-library` expone la
  * API nueva basada en `Query`/`Asset`.
  *
  * CÓDIGO:
  * - `loadDeviceAudio()` filtra por `MediaType.AUDIO`.
- * - La mediateca NO expone etiquetas ID3 (título/artista/álbum), por lo que
- *   los derivamos del nombre de archivo y de la carpeta contenedora:
- *   "Artista - Título.mp3" → artist/title; la carpeta → álbum.
- * - El arte embebido sí se lee del archivo (ID3v2/MP4) vía
- *   `assignAlbumArtwork` antes de persistir el escaneo.
+ * - La mediateca NO expone etiquetas ID3/MP4 (título/artista/álbum/pista),
+ *   así que `readAudioTags` las lee del archivo y `resolveSongMetadata`
+ *   aplica la cadena tag → nombre de archivo → carpeta.
+ * - El arte embebido se lee aparte (ID3v2/MP4) vía `assignAlbumArtwork`.
  * - La deduplicación y la fecha de incorporación se resuelven en SQLite.
  */
 
 /** Máximo de canciones a cargar por escaneo (configurable). */
 const MAX_SONGS = 5000;
+
+/** Archivos leídos en paralelo durante el escaneo. */
+const TAG_CONCURRENCY = 4;
 
 export async function hasAudioPermission(): Promise<boolean> {
   try {
@@ -50,30 +55,24 @@ export async function requestAudioAccess(): Promise<boolean> {
   }
 }
 
-function albumFromUri(uri: string): string | null {
+/**
+ * Carpeta contenedora según el URI.
+ *
+ * Solo `file://` expone la ruta real; `content://`/`ph://` no permiten
+ * deducirla. La decisión de usar la carpeta como álbum (o ignorarla si es
+ * genérica) vive en `resolveSongMetadata`.
+ */
+function folderFromUri(uri: string): string | null {
   try {
     const clean = decodeURIComponent(uri.split('?')[0]);
-    const parts = clean.split('/').filter(Boolean);
-    const folder = parts[parts.length - 2];
-    if (!folder || folder === 'media' || folder === 'audio') {
+    if (!clean.startsWith('file://')) {
       return null;
     }
-    return folder;
+    const parts = clean.split('/').filter(Boolean);
+    return parts[parts.length - 2] ?? null;
   } catch {
     return null;
   }
-}
-
-function parseFilename(filename: string): { title: string; artist: string } {
-  const base = filename.replace(/\.[^.]+$/, '') || 'Pista sin título';
-  const dash = base.split(' - ');
-  if (dash.length >= 2) {
-    return {
-      artist: dash[0].trim() || 'Artista desconocido',
-      title: dash.slice(1).join(' - ').trim() || base,
-    };
-  }
-  return { title: base, artist: 'Artista desconocido' };
 }
 
 async function toSong(asset: {
@@ -86,13 +85,19 @@ async function toSong(asset: {
 }): Promise<ScannedSong | null> {
   try {
     const info = await asset.getInfo();
-    const { title, artist } = parseFilename(info.filename ?? '');
+    const filename = info.filename ?? '';
+    const folder = folderFromUri(info.uri);
+    const tags = await readAudioTags(info.uri);
+    const metadata = resolveSongMetadata({ filename, folder, tags });
+
     return {
       mediaId: info.id,
       uri: info.uri,
-      title,
-      artist,
-      album: albumFromUri(info.uri) ?? 'Sin álbum',
+      title: metadata.title,
+      artist: metadata.artist,
+      album: metadata.album,
+      track: metadata.track,
+      folder,
       duration: info.duration ? info.duration / 1000 : 0,
       artwork: null,
     };
@@ -116,7 +121,7 @@ export async function loadDeviceAudio(): Promise<ScannedSong[]> {
     return [];
   }
 
-  const resolved = await Promise.all(assets.map((asset) => toSong(asset)));
+  const resolved = await mapLimit(assets, TAG_CONCURRENCY, (asset) => toSong(asset));
   const songs = resolved.filter((song): song is ScannedSong => song !== null);
 
   // Extrae el arte embebido (una pasada por álbum) antes de persistir.

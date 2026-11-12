@@ -128,6 +128,17 @@ export const Radius = {
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 
 /**
+ * Altura base de la barra de pestañas, sin el área segura inferior.
+ *
+ * LÓGICA: la barra que renderiza `expo-router` (variante "uikit") mide
+ * 49 px más el inset inferior del dispositivo. El mini-reproductor necesita
+ * ese valor exacto para apoyarse justo encima de la barra: una altura fija
+ * por plataforma (`BottomTabInset`) dejaba un hueco visible en Android y en
+ * pantallas sin área segura.
+ */
+export const TabBarBaseHeight = 49;
+
+/**
  * Espacio que reserva el contenido en la parte superior en web.
  *
  * LÓGICA: la barra de navegación de la versión web es una barra flotante

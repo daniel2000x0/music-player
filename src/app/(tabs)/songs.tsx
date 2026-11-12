@@ -7,6 +7,7 @@ import { CategoryBar, type CategoryOption } from '@/components/category-bar';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
+import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SortSheet, type SortField } from '@/components/sort-sheet';
 import { SongList } from '@/components/song-list';
@@ -64,6 +65,8 @@ export default function SongsScreen() {
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
+  const isScanning = useLibraryStore((state) => state.isScanning);
+  const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
   const setAudiobook = useLibraryStore((state) => state.setAudiobook);
   const play = usePlayerStore((state) => state.play);
@@ -109,20 +112,23 @@ export default function SongsScreen() {
         <ThemedText type="small" themeColor="textSecondary">
           {visibleSongs.length} canciones
         </ThemedText>
-        <Pressable
-          onPress={() => setSortVisible(true)}
-          style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
-          accessibilityLabel="Ordenar canciones">
-          <Ionicons name="swap-vertical" size={16} color={theme.text} />
-          <ThemedText type="small" numberOfLines={1}>
-            {SORT_FIELDS.find((field) => sortFieldOf(field.value) === sortFieldOf(sortKey))?.label}
-          </ThemedText>
-          <Ionicons
-            name={sortDirectionOf(sortKey) === 'asc' ? 'arrow-up' : 'arrow-down'}
-            size={14}
-            color={theme.text}
-          />
-        </Pressable>
+        <View style={styles.toolbarActions}>
+          <RefreshButton />
+          <Pressable
+            onPress={() => setSortVisible(true)}
+            style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
+            accessibilityLabel="Ordenar canciones">
+            <Ionicons name="swap-vertical" size={16} color={theme.text} />
+            <ThemedText type="small" numberOfLines={1}>
+              {SORT_FIELDS.find((field) => sortFieldOf(field.value) === sortFieldOf(sortKey))?.label}
+            </ThemedText>
+            <Ionicons
+              name={sortDirectionOf(sortKey) === 'asc' ? 'arrow-up' : 'arrow-down'}
+              size={14}
+              color={theme.text}
+            />
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -169,7 +175,12 @@ export default function SongsScreen() {
             message="No hay canciones que coincidan con la búsqueda o el filtro."
           />
         ) : (
-          <SongList songs={visibleSongs} onMore={handleMore} />
+          <SongList
+            songs={visibleSongs}
+            onMore={handleMore}
+            refreshing={isScanning}
+            onRefresh={() => void refresh()}
+          />
         )}
       </ScreenShell>
 
@@ -224,6 +235,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.two,
   },
+  toolbarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -232,6 +248,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     borderRadius: Radius.pill,
     maxWidth: '65%',
+    flexShrink: 1,
   },
   playAll: {
     flexDirection: 'row',

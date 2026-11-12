@@ -1,17 +1,32 @@
 import { ascii, sniffArtwork, u32, type AsyncByteReader, type EmbeddedArtwork } from '@/domain/artwork/bytes';
+import { cleanText, decodeUtf8, type AudioTags } from '@/domain/metadata';
 
 /**
- * Parser de átomos MP4/M4A para extraer la portada (`moov/udta/meta/ilst/covr`).
+ * Parser de átomos MP4/M4A/M4B.
  *
  * LÓGICA: en vez de cargar el archivo completo, se navega el árbol de
  * átomos pidiendo solo los headers (8 bytes) al reader — así el `mdat`
- * (el audio, la parte más grande) se salta sin leerlo. Solo se descarga
- * el payload final del átomo `covr/data` (la imagen).
+ * (el audio, la parte más grande) se salta sin leerlo. Se reutiliza el
+ * mismo recorrido para:
+ * - la portada (`moov/udta/meta/ilst/covr`),
+ * - las etiquetas de texto (`©nam`, `©ART`, `©alb`, `aART`, `trkn`).
  */
 
 type AtomRange = {
   payloadStart: number;
   end: number;
+};
+
+type Atom = AtomRange & {
+  type: string;
+};
+
+/** Átomos de texto dentro de `ilst` que se mapean a `AudioTags`. */
+const TEXT_ATOMS: Record<string, Exclude<keyof AudioTags, 'track'>> = {
+  '\u00a9nam': 'title',
+  '\u00a9ART': 'artist',
+  '\u00a9alb': 'album',
+  aART: 'albumArtist',
 };
 
 async function findAtom(
@@ -53,11 +68,43 @@ async function findAtom(
   return null;
 }
 
-/** Extrae la portada embebida de un contenedor MP4/M4A. */
-export async function extractMp4Artwork(
+/** Recorre los átomos hijos de un rango y entrega tipo y payload a `visitor`. */
+async function forEachAtom(
   read: AsyncByteReader,
-  fileSize: number
-): Promise<EmbeddedArtwork | null> {
+  start: number,
+  end: number,
+  visitor: (atom: Atom) => Promise<void> | void
+): Promise<void> {
+  let offset = start;
+  while (offset + 8 <= end) {
+    const header = await read(offset, 8);
+    if (!header || header.length < 8) {
+      return;
+    }
+    let size = u32(header, 0);
+    const type = ascii(header, 4, 4);
+    let headerSize = 8;
+
+    if (size === 1) {
+      const extended = await read(offset + 8, 8);
+      if (!extended || extended.length < 8) {
+        return;
+      }
+      size = u32(extended, 0) * 4294967296 + u32(extended, 4);
+      headerSize = 16;
+    } else if (size === 0) {
+      size = end - offset;
+    }
+    if (size < headerSize || offset + size > end) {
+      return;
+    }
+    await visitor({ type, payloadStart: offset + headerSize, end: offset + size });
+    offset += size;
+  }
+}
+
+/** Localiza `moov/udta/meta/ilst` (el contenedor de portada y etiquetas). */
+async function findIlst(read: AsyncByteReader, fileSize: number): Promise<AtomRange | null> {
   const moov = await findAtom(read, 0, fileSize, 'moov');
   if (!moov) {
     return null;
@@ -71,7 +118,15 @@ export async function extractMp4Artwork(
     return null;
   }
   // 'meta' reserva 4 bytes de versión/flags antes de sus átomos hijos.
-  const ilst = await findAtom(read, meta.payloadStart + 4, meta.end, 'ilst');
+  return findAtom(read, meta.payloadStart + 4, meta.end, 'ilst');
+}
+
+/** Extrae la portada embebida de un contenedor MP4/M4A. */
+export async function extractMp4Artwork(
+  read: AsyncByteReader,
+  fileSize: number
+): Promise<EmbeddedArtwork | null> {
+  const ilst = await findIlst(read, fileSize);
   if (!ilst) {
     return null;
   }
@@ -93,4 +148,70 @@ export async function extractMp4Artwork(
     return null;
   }
   return sniffArtwork(payload);
+}
+
+/**
+ * Lee las etiquetas de texto de un contenedor MP4/M4A/M4B.
+ * Devuelve `null` si no hay `ilst` o no trae ningún campo útil.
+ */
+export async function extractMp4Tags(
+  read: AsyncByteReader,
+  fileSize: number
+): Promise<AudioTags | null> {
+  const ilst = await findIlst(read, fileSize);
+  if (!ilst) {
+    return null;
+  }
+
+  const tags: AudioTags = {
+    title: null,
+    artist: null,
+    album: null,
+    albumArtist: null,
+    track: null,
+  };
+  let found = false;
+
+  await forEachAtom(read, ilst.payloadStart, ilst.end, async (atom) => {
+    if (atom.type === 'trkn') {
+      const dataAtom = await findAtom(read, atom.payloadStart, atom.end, 'data');
+      if (!dataAtom) {
+        return;
+      }
+      // 'data': 8 bytes (type/locale) + 2 reservados + 2 de pista + 2 total.
+      const payload = await read(dataAtom.payloadStart + 8, dataAtom.end - dataAtom.payloadStart - 8);
+      if (payload && payload.length >= 4) {
+        const track = (payload[2] << 8) | payload[3];
+        if (track > 0) {
+          tags.track = track;
+          found = true;
+        }
+      }
+      return;
+    }
+
+    const key = TEXT_ATOMS[atom.type];
+    if (!key) {
+      return;
+    }
+    const dataAtom = await findAtom(read, atom.payloadStart, atom.end, 'data');
+    if (!dataAtom) {
+      return;
+    }
+    const payloadStart = dataAtom.payloadStart + 8;
+    if (payloadStart >= dataAtom.end) {
+      return;
+    }
+    const payload = await read(payloadStart, dataAtom.end - payloadStart);
+    if (!payload) {
+      return;
+    }
+    const text = cleanText(decodeUtf8(payload, 0, payload.length));
+    if (text) {
+      tags[key] = text;
+      found = true;
+    }
+  });
+
+  return found ? tags : null;
 }

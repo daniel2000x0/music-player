@@ -16,6 +16,10 @@ export type Song = {
   title: string;
   artist: string;
   album: string;
+  /** Número de pista del tag (`TRCK`/`trkn`); `null` si no existe. */
+  track: number | null;
+  /** Carpeta contenedora del archivo; `null` si el URI no la expone. */
+  folder: string | null;
   /** Duración en segundos. */
   duration: number;
   artwork: string | null;
@@ -56,6 +60,8 @@ export type ScannedSong = {
   title: string;
   artist: string;
   album: string;
+  track: number | null;
+  folder: string | null;
   duration: number;
   artwork: string | null;
 };

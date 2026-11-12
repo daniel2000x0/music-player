@@ -29,13 +29,19 @@ import { formatDuration } from '@/utils/format';
  * almacén aislado: solo este componente se re-renderiza con cada tick de
  * reproducción (2 por segundo), no la pantalla completa.
  */
-function PlayerProgress({ onSeek }: { onSeek: (seconds: number) => void }) {
+function PlayerProgress({
+  onSeek,
+  trackKey,
+}: {
+  onSeek: (seconds: number) => void;
+  trackKey: number;
+}) {
   const position = usePlaybackPosition();
   const duration = usePlaybackDuration();
 
   return (
     <View style={styles.progressBlock}>
-      <SeekBar position={position} duration={duration} onSeek={onSeek} />
+      <SeekBar key={trackKey} position={position} duration={duration} onSeek={onSeek} />
       <View style={styles.timeRow}>
         <ThemedText type="small" themeColor="textSecondary">
           {formatDuration(position)}
@@ -124,7 +130,7 @@ export default function PlayerScreen() {
             </ThemedText>
           </View>
 
-          <PlayerProgress onSeek={seek} />
+          <PlayerProgress onSeek={seek} trackKey={currentSong.id} />
 
           <View style={styles.controls}>
             <Pressable hitSlop={8} onPress={toggleShuffle} accessibilityLabel="Aleatorio">

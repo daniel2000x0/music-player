@@ -9,6 +9,8 @@ type SongRow = {
   title: string;
   artist: string;
   album: string;
+  track_number: number | null;
+  folder_name: string | null;
   duration: number;
   artwork_uri: string | null;
   added_at: number;
@@ -21,6 +23,7 @@ type SongRow = {
 const SELECT_SONGS = `
   SELECT s.id, s.media_id, s.uri, s.title,
          ar.name AS artist, al.title AS album,
+         s.track_number, s.folder_name,
          s.duration, s.artwork_uri, s.added_at,
          s.is_available, s.is_audiobook, s.play_count, s.last_played_at
   FROM songs s
@@ -36,6 +39,8 @@ function mapSong(row: SongRow): Song {
     title: row.title,
     artist: row.artist,
     album: row.album,
+    track: row.track_number,
+    folder: row.folder_name,
     duration: row.duration,
     artwork: row.artwork_uri,
     addedAt: row.added_at,
@@ -166,14 +171,16 @@ export const songRepository = {
 
         await db.runAsync(
           `INSERT INTO songs
-            (media_id, uri, title, artist_id, album_id, duration, artwork_uri,
-             added_at, last_seen_at, is_available)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            (media_id, uri, title, artist_id, album_id, track_number, folder_name,
+             duration, artwork_uri, added_at, last_seen_at, is_available)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
            ON CONFLICT(media_id) DO UPDATE SET
              uri = excluded.uri,
              title = excluded.title,
              artist_id = excluded.artist_id,
              album_id = excluded.album_id,
+             track_number = excluded.track_number,
+             folder_name = excluded.folder_name,
              duration = excluded.duration,
              artwork_uri = excluded.artwork_uri,
              last_seen_at = excluded.last_seen_at,
@@ -183,6 +190,8 @@ export const songRepository = {
           item.title,
           artistId,
           albumId,
+          item.track,
+          item.folder,
           item.duration,
           item.artwork,
           now,
@@ -244,8 +253,17 @@ export const songRepository = {
    */
   async reclassifyAudiobooks(): Promise<void> {
     const db = await getDatabase();
-    const rows = await db.getAllAsync<{ id: number; album: string; artist: string; duration: number }>(
-      `SELECT s.id, al.title AS album, ar.name AS artist, s.duration
+    const rows = await db.getAllAsync<{
+      id: number;
+      album: string;
+      artist: string;
+      title: string;
+      uri: string;
+      folder: string | null;
+      duration: number;
+    }>(
+      `SELECT s.id, al.title AS album, ar.name AS artist,
+              s.title, s.uri, s.folder_name AS folder, s.duration
        FROM songs s
        JOIN albums al ON al.id = s.album_id
        JOIN artists ar ON ar.id = s.artist_id

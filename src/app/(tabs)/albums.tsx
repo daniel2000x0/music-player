@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   TextInput,
@@ -16,6 +17,7 @@ import { AlbumCard } from '@/components/album-card';
 import { Artwork } from '@/components/artwork';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
+import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { ThemedText } from '@/components/themed-text';
@@ -45,6 +47,8 @@ export default function AlbumsScreen() {
   const artists = useLibraryStore((state) => state.artists);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
+  const isScanning = useLibraryStore((state) => state.isScanning);
+  const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
 
   const [query, setQuery] = useState('');
@@ -116,13 +120,16 @@ export default function AlbumsScreen() {
         subtitle={`${albums.length} álbumes · ${artists.length} artistas`}
         scroll={false}
         action={
-          <Pressable
-            onPress={() => setSortVisible(true)}
-            style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
-            accessibilityLabel="Ordenar álbumes">
-            <Ionicons name="swap-vertical" size={16} color={theme.text} />
-            <ThemedText type="small">Ordenar</ThemedText>
-          </Pressable>
+          <View style={styles.actions}>
+            <Pressable
+              onPress={() => setSortVisible(true)}
+              style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
+              accessibilityLabel="Ordenar álbumes">
+              <Ionicons name="swap-vertical" size={16} color={theme.text} />
+              <ThemedText type="small">Ordenar</ThemedText>
+            </Pressable>
+            <RefreshButton />
+          </View>
         }
         header={header}>
         {isLoading ? (
@@ -188,6 +195,14 @@ export default function AlbumsScreen() {
             showsVerticalScrollIndicator={false}
             style={styles.flex}
             contentContainerStyle={styles.gridContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={isScanning}
+                onRefresh={() => void refresh()}
+                tintColor={theme.accent}
+                colors={[theme.accent]}
+              />
+            }
           />
         )}
       </ScreenShell>
@@ -221,6 +236,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: Radius.pill,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
   },
   artistRow: {
     gap: Spacing.three,

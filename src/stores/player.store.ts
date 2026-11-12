@@ -56,6 +56,49 @@ type PlayerState = {
 
 let lastPosition = 0;
 
+/**
+ * Destino del último seek pendiente de confirmar por el motor nativo.
+ *
+ * LÓGICA: `seek()` escribe la posición de forma optimista para que la barra
+ * responda al instante, pero el motor tarda hasta un tick (500 ms) en
+ * reportar la nueva posición. Mientras el destino siga pendiente,
+ * `syncStatus` ignora los ticks que aún traen la posición anterior y evita
+ * que la barra (y el mini-reproductor) salten atrás.
+ */
+let seekTarget: number | null = null;
+let seekRequestedAt = 0;
+
+/** Tiempo máximo que se espera la confirmación nativa de un seek (ms). */
+const SEEK_CONFIRMATION_TIMEOUT_MS = 1500;
+
+function clearSeekTarget(): void {
+  seekTarget = null;
+}
+
+/** Envía un seek al motor sin dejar promesas rechazadas sin manejar. */
+function safeSeekTo(seconds: number): void {
+  void getPlayer()
+    .seekTo(seconds)
+    .catch((error: unknown) => logError('player-store', 'seekTo', error));
+}
+
+/**
+ * Registra un seek optimista y lo envía al motor.
+ *
+ * Acota al rango reproducible para evitar saltos al final (o reinicios)
+ * cuando la duración de metadatos no coincide con la real o aún es 0.
+ */
+function requestSeek(seconds: number): void {
+  const duration = getPlaybackDuration();
+  const clamped =
+    duration > 0 ? Math.max(0, Math.min(seconds, duration)) : Math.max(0, seconds);
+  seekTarget = clamped;
+  seekRequestedAt = Date.now();
+  lastPosition = clamped;
+  setPlaybackPosition(clamped);
+  safeSeekTo(clamped);
+}
+
 /** Reproduce una pista registrando fallos (archivo borrado, códec, etc.). */
 function safeLoadAndPlay(song: Song): void {
   try {
@@ -88,6 +131,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   play: (song, nextQueue) => {
     const queue = resolveQueue(get().queue, song, nextQueue);
     lastPosition = 0;
+    clearSeekTarget();
     set({
       currentSong: song,
       queue,
@@ -106,6 +150,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
     lastPosition = 0;
+    clearSeekTarget();
     set({
       currentSong: song,
       listenedSeconds: 0,
@@ -115,7 +160,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     resetPlaybackProgress(song.duration);
     safeLoadAndPlay(song);
     if (currentSong?.id === song.id) {
-      getPlayer().seekTo(0);
+      requestSeek(0);
     }
   },
 
@@ -164,9 +209,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
     if (getPlaybackPosition() > 3) {
-      getPlayer().seekTo(0);
-      lastPosition = 0;
-      setPlaybackPosition(0);
+      requestSeek(0);
       return;
     }
     const index = queue.findIndex((item) => item.id === currentSong?.id);
@@ -175,9 +218,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       if (repeatMode === 'all') {
         get().playQueueIndex(queue.length - 1);
       } else {
-        getPlayer().seekTo(0);
-        lastPosition = 0;
-        setPlaybackPosition(0);
+        requestSeek(0);
       }
       return;
     }
@@ -185,10 +226,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   seek: (seconds) => {
-    const clamped = Math.max(0, seconds);
-    getPlayer().seekTo(clamped);
-    lastPosition = clamped;
-    setPlaybackPosition(clamped);
+    if (!Number.isFinite(seconds)) {
+      return;
+    }
+    requestSeek(seconds);
   },
 
   cycleRepeat: () => {
@@ -248,11 +289,23 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   syncStatus: (status) => {
     const { currentSong, recordedSongId, listenedSeconds } = get();
-    const delta = status.currentTime - lastPosition;
-    // Siempre sincroniza la posición para no perder el hilo tras un salto
-    // (buffering, cambio de pista o app en segundo plano); solo suma el
-    // tiempo cuando el avance es continuo y la reproducción está activa.
-    lastPosition = status.currentTime;
+
+    // Confirma (o descarta por timeout) el seek pendiente. Mientras siga
+    // pendiente se muestra el destino, no el tick viejo del motor, para que
+    // la barra no salte atrás tras soltar el dedo.
+    if (seekTarget !== null) {
+      const confirmed = Math.abs(status.currentTime - seekTarget) < 1;
+      const expired = Date.now() - seekRequestedAt > SEEK_CONFIRMATION_TIMEOUT_MS;
+      if (confirmed || expired) {
+        clearSeekTarget();
+      }
+    }
+
+    const position = seekTarget ?? status.currentTime;
+    const delta = position - lastPosition;
+    // Solo suma el tiempo cuando el avance es continuo y la reproducción
+    // está activa (un seek produce un salto grande y no debe contar).
+    lastPosition = position;
     const countedDelta = status.playing && delta > 0 && delta < 2.5 ? delta : 0;
 
     const nextListened = listenedSeconds + countedDelta;
@@ -260,7 +313,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     // La posición y la duración van al almacén de progreso aislado: los ticks
     // de 500 ms no re-renderizan las pantallas del reproductor.
     setPlaybackProgress(
-      status.currentTime,
+      position,
       status.duration > 0 ? status.duration : getPlaybackDuration()
     );
     set({
@@ -287,11 +340,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   handleDidFinish: () => {
     if (get().repeatMode === 'single') {
-      lastPosition = 0;
-      getPlayer().seekTo(0);
+      requestSeek(0);
       getPlayer().play();
       set({ listenedSeconds: 0, recordedSongId: null });
-      setPlaybackPosition(0);
       return;
     }
     get().next();
