@@ -20,3 +20,8 @@ export async function requestAudioAccess(): Promise<boolean> {
 export async function loadDeviceAudio(): Promise<ScannedSong[]> {
   return [];
 }
+
+/** En web no hay mediateca del dispositivo. */
+export async function listDeviceAudioIds(): Promise<Set<string> | null> {
+  return null;
+}

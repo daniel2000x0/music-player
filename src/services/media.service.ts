@@ -56,6 +56,29 @@ export async function requestAudioAccess(): Promise<boolean> {
 }
 
 /**
+ * Ids de los audios presentes en la mediateca, sin resolver rutas ni leer
+ * etiquetas (`exeForMetadata` es una sola consulta liviana al MediaStore).
+ *
+ * LÓGICA: el arranque compara estos ids con los guardados en SQLite; si son
+ * iguales no hace falta releer etiquetas de todos los archivos. Devuelve
+ * `null` si la consulta falla, para que el llamador haga un escaneo completo
+ * en lugar de asumir que la biblioteca está vacía.
+ */
+export async function listDeviceAudioIds(): Promise<Set<string> | null> {
+  try {
+    const metadata = await new Query()
+      .eq(AssetField.MEDIA_TYPE, MediaType.AUDIO)
+      .orderBy(AssetField.CREATION_TIME)
+      .limit(MAX_SONGS)
+      .exeForMetadata();
+    return new Set(metadata.map((item) => item.id));
+  } catch (error) {
+    logError('media-service', 'query.exeForMetadata', error);
+    return null;
+  }
+}
+
+/**
  * Carpeta contenedora según el URI.
  *
  * Solo `file://` expone la ruta real; `content://`/`ph://` no permiten

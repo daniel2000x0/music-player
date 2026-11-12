@@ -201,6 +201,15 @@ export const songRepository = {
     });
   },
 
+  /** Ids de mediateca de las canciones disponibles (para detectar cambios). */
+  async getAvailableMediaIds(): Promise<Set<string>> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ media_id: string }>(
+      'SELECT media_id FROM songs WHERE is_available = 1'
+    );
+    return new Set(rows.map((row) => row.media_id));
+  },
+
   async getAll(includeUnavailable = false): Promise<Song[]> {
     const db = await getDatabase();
     const where = includeUnavailable ? '' : 'WHERE s.is_available = 1';
