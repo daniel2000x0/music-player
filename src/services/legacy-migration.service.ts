@@ -27,15 +27,18 @@ async function readLegacy<T>(key: string, fallback: T): Promise<T> {
 /**
  * Importa una sola vez los datos del antiguo almacén clave-valor a SQLite.
  * Se ejecuta después del primer escaneo para poder resolver ids de mediateca.
+ *
+ * Devuelve `true` solo si en esta llamada importó datos; así el llamador
+ * puede evitar recargar el estado cuando no hubo cambios.
  */
-export async function migrateLegacyLibrary(): Promise<void> {
+export async function migrateLegacyLibrary(): Promise<boolean> {
   const db = await getDatabase();
   const done = await db.getFirstAsync<{ value: string }>(
     'SELECT value FROM app_settings WHERE key = ?',
     MIGRATION_KEY
   );
   if (done) {
-    return;
+    return false;
   }
 
   const [favorites, playCounts, recent, playlists] = await Promise.all([
@@ -117,4 +120,6 @@ export async function migrateLegacyLibrary(): Promise<void> {
       String(Date.now())
     );
   });
+
+  return true;
 }

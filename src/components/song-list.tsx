@@ -124,6 +124,12 @@ export function InlineSongList({ songs, onMore }: InlineSongListProps) {
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  // Callback estable: si cambia en cada render, `memo` en `SongRow` deja de
+  // servir y todas las filas se re-renderizan con cualquier cambio del padre.
+  const handleToggleFavorite = useCallback(
+    (song: Song) => void toggleFavorite(song.id),
+    [toggleFavorite]
+  );
 
   return (
     <View style={styles.list}>
@@ -133,7 +139,7 @@ export function InlineSongList({ songs, onMore }: InlineSongListProps) {
           song={song}
           queue={songs}
           isFavorite={favoriteSet.has(song.id)}
-          onToggleFavorite={(item) => void toggleFavorite(item.id)}
+          onToggleFavorite={handleToggleFavorite}
           onMore={onMore}
         />
       ))}

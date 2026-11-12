@@ -17,7 +17,7 @@ export async function requestAudioAccess(): Promise<boolean> {
   return false;
 }
 
-export async function loadDeviceAudio(): Promise<ScannedSong[]> {
+export async function loadDeviceAudio(): Promise<ScannedSong[] | null> {
   return [];
 }
 

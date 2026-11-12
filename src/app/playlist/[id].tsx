@@ -9,6 +9,7 @@ import { ScreenShell } from '@/components/screen-shell';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { resolveSongsByIds } from '@/domain/library/selection';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
@@ -31,7 +32,7 @@ export default function PlaylistDetailScreen() {
   const playlist = useLibraryStore((state) =>
     state.playlists.find((item) => item.id === playlistId)
   );
-  const getSongsByIds = useLibraryStore((state) => state.getSongsByIds);
+  const librarySongs = useLibraryStore((state) => state.songs);
   const removeFromPlaylist = useLibraryStore((state) => state.removeFromPlaylist);
   const movePlaylistSong = useLibraryStore((state) => state.movePlaylistSong);
   const play = usePlayerStore((state) => state.play);
@@ -40,8 +41,8 @@ export default function PlaylistDetailScreen() {
   const [actionSong, setActionSong] = useState<Song | null>(null);
 
   const songs = useMemo(
-    () => (playlist ? getSongsByIds(playlist.songIds) : []),
-    [playlist, getSongsByIds]
+    () => (playlist ? resolveSongsByIds(librarySongs, playlist.songIds) : []),
+    [playlist, librarySongs]
   );
 
   const handleSongAction = (action: SongAction) => {

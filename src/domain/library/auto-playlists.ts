@@ -23,7 +23,9 @@ export function getAutoPlaylistSongs(
   favoriteIds: ReadonlySet<number>,
   recentIds: readonly number[]
 ): Song[] {
-  const available = songs.filter((song) => song.isAvailable);
+  // Los audiolibros viven en su pestaña: no deben colarse en las listas
+  // automáticas de música (favoritos, más escuchadas, aleatoria, etc.).
+  const available = songs.filter((song) => song.isAvailable && !song.isAudiobook);
   switch (key) {
     case 'mostPlayed':
       return [...available]

@@ -19,6 +19,7 @@ import { SectionHeader } from '@/components/section-header';
 import { InlineSongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { resolveSongsByIds } from '@/domain/library/selection';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { Song } from '@/types/song';
@@ -43,8 +44,6 @@ export default function HomeScreen() {
   const error = useLibraryStore((state) => state.error);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
   const refresh = useLibraryStore((state) => state.refresh);
-  const getSongsByIds = useLibraryStore((state) => state.getSongsByIds);
-  const getSongById = useLibraryStore((state) => state.getSongById);
 
   const [pickerSong, setPickerSong] = useState<Song | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -55,13 +54,16 @@ export default function HomeScreen() {
   // Los audiolibros no cuentan como canciones en Inicio (ni en contadores
   // ni en recientes/más escuchadas): viven en su propia pestaña.
   const musicSongs = useMemo(() => songs.filter((song) => !song.isAudiobook), [songs]);
+  // Set de ids para contar canciones de una playlist sin recorrer toda la
+  // biblioteca por cada id (antes: O(canciones) por canción de la playlist).
+  const songIdSet = useMemo(() => new Set(songs.map((song) => song.id)), [songs]);
 
   const recentSongs = useMemo(
     () =>
-      getSongsByIds(recentIds)
+      resolveSongsByIds(songs, recentIds)
         .filter((song) => !song.isAudiobook)
         .slice(0, 5),
-    [getSongsByIds, recentIds]
+    [recentIds, songs]
   );
   const mostPlayed = useMemo(
     () =>
@@ -243,7 +245,7 @@ export default function HomeScreen() {
                 key={playlist.id}
                 playlist={playlist}
                 songCount={
-                  playlist.songIds.filter((id) => getSongById(id) !== undefined).length
+                  playlist.songIds.filter((id) => songIdSet.has(id)).length
                 }
                 onPress={() =>
                   router.push({ pathname: '/playlist/[id]', params: { id: String(playlist.id) } })

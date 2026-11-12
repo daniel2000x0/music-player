@@ -10,6 +10,7 @@ import { ScreenShell } from '@/components/screen-shell';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { songsOfArtist } from '@/domain/library/selection';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
@@ -29,15 +30,19 @@ export default function ArtistDetailScreen() {
     }
   }, [params.name]);
   const artist = useLibraryStore((state) => state.artists.find((item) => item.name === name));
-  const getSongsByArtist = useLibraryStore((state) => state.getSongsByArtist);
-  const albums = useLibraryStore((state) =>
-    state.albums.filter((album) => album.artist === name)
+  const librarySongs = useLibraryStore((state) => state.songs);
+  // Seleccionar el array completo y filtrar en `useMemo` evita devolver un
+  // array nuevo en el selector (que re-renderiza en cada cambio del store).
+  const allAlbums = useLibraryStore((state) => state.albums);
+  const artistAlbums = useMemo(
+    () => allAlbums.filter((album) => album.artist === name),
+    [allAlbums, name]
   );
   const play = usePlayerStore((state) => state.play);
   const [pickerSong, setPickerSong] = useState<Song | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
-  const songs = useMemo(() => getSongsByArtist(name), [getSongsByArtist, name]);
+  const songs = useMemo(() => songsOfArtist(librarySongs, name), [librarySongs, name]);
 
   if (!artist || songs.length === 0) {
     return (
@@ -84,9 +89,9 @@ export default function ArtistDetailScreen() {
                 </Pressable>
               </View>
 
-              {albums.length > 0 ? (
+              {artistAlbums.length > 0 ? (
                 <View style={styles.albumRow}>
-                  {albums.map((album) => (
+                  {artistAlbums.map((album) => (
                     <Pressable
                       key={album.id}
                       onPress={() =>

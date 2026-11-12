@@ -158,6 +158,7 @@ export const songRepository = {
       // canciones, así que se resuelven una sola vez (ver helpers arriba).
       const artistCache = new Map<string, number>();
       const albumCache = new Map<string, AlbumCacheEntry>();
+      const rows: { item: ScannedSong; artistId: number; albumId: number }[] = [];
 
       for (const item of scanned) {
         const artistId = await getOrCreateArtistId(item.artist, now, artistCache);
@@ -168,12 +169,34 @@ export const songRepository = {
           now,
           albumCache
         );
+        rows.push({ item, artistId, albumId });
+      }
 
+      // Upsert por lotes: 50 filas por sentencia (600 parámetros, por debajo
+      // del límite de 999 de SQLite) reduce ~5.000 viajes al bridge nativo a
+      // ~100 en bibliotecas grandes.
+      const CHUNK_SIZE = 50;
+      for (let start = 0; start < rows.length; start += CHUNK_SIZE) {
+        const chunk = rows.slice(start, start + CHUNK_SIZE);
+        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').join(',');
+        const params = chunk.flatMap(({ item, artistId, albumId }) => [
+          item.mediaId,
+          item.uri,
+          item.title,
+          artistId,
+          albumId,
+          item.track,
+          item.folder,
+          item.duration,
+          item.artwork,
+          now,
+          now,
+        ]);
         await db.runAsync(
           `INSERT INTO songs
             (media_id, uri, title, artist_id, album_id, track_number, folder_name,
              duration, artwork_uri, added_at, last_seen_at, is_available)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+           VALUES ${placeholders}
            ON CONFLICT(media_id) DO UPDATE SET
              uri = excluded.uri,
              title = excluded.title,
@@ -185,17 +208,7 @@ export const songRepository = {
              artwork_uri = excluded.artwork_uri,
              last_seen_at = excluded.last_seen_at,
              is_available = 1`,
-          item.mediaId,
-          item.uri,
-          item.title,
-          artistId,
-          albumId,
-          item.track,
-          item.folder,
-          item.duration,
-          item.artwork,
-          now,
-          now
+          ...params
         );
       }
     });

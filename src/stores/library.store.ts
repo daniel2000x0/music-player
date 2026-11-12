@@ -7,6 +7,11 @@ import { historyRepository } from '@/data/repositories/history.repository';
 import { maintenanceRepository } from '@/data/repositories/maintenance.repository';
 import { playlistRepository } from '@/data/repositories/playlist.repository';
 import { songRepository } from '@/data/repositories/song.repository';
+import {
+  resolveSongsByIds,
+  songsOfAlbum,
+  songsOfArtist,
+} from '@/domain/library/selection';
 import { migrateLegacyLibrary } from '@/services/legacy-migration.service';
 import { logError } from '@/services/error-log.service';
 import { hasAudioPermission, listDeviceAudioIds, loadDeviceAudio, requestAudioAccess } from '@/services/media.service';
@@ -75,23 +80,31 @@ async function loadLocal(): Promise<
   };
 }
 
-let scanPromise: Promise<void> | null = null;
+let scanPromise: Promise<boolean> | null = null;
 
 /**
  * Escanea la mediateca (consulta + portadas + upsert) y sincroniza SQLite.
+ *
+ * Devuelve `true` si la biblioteca se actualizó y `false` si la consulta a
+ * la mediateca falló: en ese caso NO se toca SQLite, para no marcar todas
+ * las canciones como no disponibles por un fallo transitorio.
  *
  * RENDIMIENTO: deduplica ejecuciones simultáneas — el escaneo de arranque
  * corre en background y un refresh manual durante ese tiempo comparte el
  * mismo trabajo en vuelo en lugar de duplicarlo.
  */
-function scanLibrary(): Promise<void> {
+function scanLibrary(): Promise<boolean> {
   if (!scanPromise) {
     scanPromise = (async () => {
       try {
         const scanned = await loadDeviceAudio();
+        if (!scanned) {
+          return false;
+        }
         await songRepository.upsertScannedSongs(scanned);
         await songRepository.reclassifyAudiobooks();
         await migrateLegacyLibrary();
+        return true;
       } finally {
         scanPromise = null;
       }
@@ -190,7 +203,10 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       const granted = await hasAudioPermission();
       set({ hasPermission: granted });
       if (granted) {
-        await scanLibrary();
+        const scanned = await scanLibrary();
+        if (!scanned) {
+          set({ error: 'No se pudo leer la mediateca del dispositivo. Inténtalo de nuevo.' });
+        }
       }
       const local = await loadLocal();
       set({ ...local, isLoading: false });
@@ -220,16 +236,25 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     try {
       const granted = await hasAudioPermission();
       set({ hasPermission: granted });
-      if (granted && !(await libraryMatchesDevice())) {
-        await scanLibrary();
-      } else if (granted && get().songs.length > 0) {
-        // La BD ya está al día: se reintenta la importación heredada sin
-        // escanear. Solo con canciones resueltas, para no marcarla como
-        // hecha antes de que existan ids de mediateca que mapear.
-        await migrateLegacyLibrary();
+      let changed = false;
+      if (granted) {
+        if (!(await libraryMatchesDevice())) {
+          changed = await scanLibrary();
+        } else if (get().songs.length > 0) {
+          // La BD ya está al día: se reintenta la importación heredada sin
+          // escanear. Solo con canciones resueltas, para no marcarla como
+          // hecha antes de que existan ids de mediateca que mapear.
+          changed = await migrateLegacyLibrary();
+        }
       }
-      const local = await loadLocal();
-      set({ ...local, isLoading: false });
+      if (changed) {
+        const local = await loadLocal();
+        set({ ...local, isLoading: false });
+      } else {
+        // Nada cambió: el estado que cargó `hydrate` ya es válido. Se evita
+        // repetir las seis consultas de `loadLocal` en cada arranque.
+        set({ isLoading: false });
+      }
     } catch (error) {
       logError('library-store', 'sync', error);
       set({
@@ -317,22 +342,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     return get().songs.find((song) => song.mediaId === id);
   },
 
-  getSongsByIds: (ids) => {
-    const map = new Map(get().songs.map((song) => [song.id, song]));
-    return ids.map((id) => map.get(id)).filter((song): song is Song => song !== undefined);
-  },
+  getSongsByIds: (ids) => resolveSongsByIds(get().songs, ids),
 
   getSongsByAlbum: (albumId) => {
     const album = get().albums.find((item) => item.id === albumId);
-    if (!album) {
-      return [];
-    }
-    return get().songs.filter(
-      (song) => song.album === album.title && song.artist === album.artist
-    );
+    return album ? songsOfAlbum(get().songs, album) : [];
   },
 
-  getSongsByArtist: (artistName) => get().songs.filter((song) => song.artist === artistName),
+  getSongsByArtist: (artistName) => songsOfArtist(get().songs, artistName),
 
   recordPlayLocal: (songId, playedAt) => {
     set({

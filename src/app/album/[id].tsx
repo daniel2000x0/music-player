@@ -10,6 +10,7 @@ import { ScreenShell } from '@/components/screen-shell';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { songsOfAlbum } from '@/domain/library/selection';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
@@ -22,15 +23,15 @@ export default function AlbumDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const albumId = Number(params.id);
   const album = useLibraryStore((state) => state.albums.find((item) => item.id === albumId));
-  const getSongsByAlbum = useLibraryStore((state) => state.getSongsByAlbum);
+  const librarySongs = useLibraryStore((state) => state.songs);
   const play = usePlayerStore((state) => state.play);
 
   const [pickerSong, setPickerSong] = useState<Song | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const songs = useMemo(
-    () => (album ? getSongsByAlbum(album.id) : []),
-    [album, getSongsByAlbum]
+    () => (album ? songsOfAlbum(librarySongs, album) : []),
+    [album, librarySongs]
   );
 
   if (!album) {

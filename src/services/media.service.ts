@@ -130,8 +130,14 @@ async function toSong(asset: {
   }
 }
 
-/** Carga las canciones de audio del dispositivo (requiere permiso). */
-export async function loadDeviceAudio(): Promise<ScannedSong[]> {
+/**
+ * Carga las canciones de audio del dispositivo (requiere permiso).
+ *
+ * Devuelve `null` si la consulta a la mediateca falla, para que el llamador
+ * NO interprete el fallo como "el dispositivo no tiene canciones" y marque
+ * toda la biblioteca como no disponible.
+ */
+export async function loadDeviceAudio(): Promise<ScannedSong[] | null> {
   let assets;
   try {
     assets = await new Query()
@@ -141,7 +147,7 @@ export async function loadDeviceAudio(): Promise<ScannedSong[]> {
       .exe();
   } catch (error) {
     logError('media-service', 'query.exec', error);
-    return [];
+    return null;
   }
 
   const resolved = await mapLimit(assets, TAG_CONCURRENCY, (asset) => toSong(asset));

@@ -49,4 +49,15 @@ describe('getAutoPlaylistSongs', () => {
     const result = getAutoPlaylistSongs('random', songs, favorites, recentIds);
     expect(result.map((song) => song.id).sort()).toEqual([1, 2, 3]);
   });
+
+  it('excluye audiolibros de todas las listas de música', () => {
+    const withBook = [
+      ...songs,
+      makeSong({ id: 9, isAudiobook: true, playCount: 5, addedAt: 99 }),
+    ];
+    for (const definition of AUTO_PLAYLISTS) {
+      const result = getAutoPlaylistSongs(definition.key, withBook, favorites, recentIds);
+      expect(result.some((song) => song.id === 9)).toBe(false);
+    }
+  });
 });
