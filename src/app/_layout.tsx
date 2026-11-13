@@ -7,7 +7,7 @@ import {
   useSegments,
 } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 
@@ -16,12 +16,14 @@ import { MiniPlayer } from '@/components/mini-player';
 import { Colors, TabBarBaseHeight } from '@/constants/theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { useSettingsStore } from '@/stores/settings.store';
+import { useAppUpdatePrompt } from '@/hooks/use-app-update-prompt';
 
 /**
  * Layout raíz. Hidrata SQLite y los stores globales (biblioteca, ajustes y
  * motor de audio) y mantiene el mini-reproductor sobre toda la navegación.
  */
 export default function RootLayout() {
+  useAppUpdatePrompt();
   const pathname = usePathname();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
@@ -42,6 +44,16 @@ export default function RootLayout() {
       .hydrate()
       .then(() => useLibraryStore.getState().hydrate());
   }, []);
+
+  // En web, `color-scheme` alinea las barras de desplazamiento y los
+  // controles del navegador con el tema elegido dentro de la app.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') {
+      return;
+    }
+
+    document.documentElement.style.setProperty('color-scheme', theme);
+  }, [theme]);
 
   const navigationTheme = useMemo(() => {
     const base = theme === 'dark' ? DarkTheme : DefaultTheme;

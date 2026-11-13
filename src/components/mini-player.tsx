@@ -10,7 +10,7 @@ import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-prog
 import { usePlayerStore } from '@/stores/player.store';
 
 export type MiniPlayerProps = {
-  /** Separación inferior (para no chocar con el tab bar). */
+  /** Distancia desde el borde inferior de la pantalla (alto del tab bar). */
   bottomOffset?: number;
   style?: ViewStyle;
 };
@@ -53,7 +53,7 @@ export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
       onPress={() => router.push('/player')}
       style={[
         styles.container,
-        { backgroundColor: theme.backgroundElement, bottom: bottomOffset + Spacing.two },
+        { backgroundColor: theme.backgroundElement, bottom: bottomOffset },
         style,
       ]}>
       <MiniPlayerProgress />

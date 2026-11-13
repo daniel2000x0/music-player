@@ -7,7 +7,8 @@ import { Artwork } from '@/components/artwork';
 import { EmptyState } from '@/components/empty-state';
 import { ScreenShell } from '@/components/screen-shell';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
@@ -100,6 +101,7 @@ export default function QueueScreen() {
   const removeFromQueue = usePlayerStore((state) => state.removeFromQueue);
   const moveInQueue = usePlayerStore((state) => state.moveInQueue);
   const clearQueue = usePlayerStore((state) => state.clearQueue);
+  const scrollIndicator = useScrollIndicator();
 
   const confirmClear = () => {
     Alert.alert('Vaciar cola', 'Se quitarán las canciones pendientes. La actual seguirá sonando.', [
@@ -169,7 +171,7 @@ export default function QueueScreen() {
           maxToRenderPerBatch={12}
           windowSize={5}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          {...scrollIndicator}
           style={styles.flex}
           contentContainerStyle={styles.listContent}
         />
@@ -207,5 +209,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: BottomTabInset + 110,
+    paddingRight: ScrollbarGutter,
   },
 });

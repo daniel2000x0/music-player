@@ -18,3 +18,11 @@
   --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
   --font-serif: Georgia, 'Times New Roman', serif;
 }
+
+/*
+ * Barras de desplazamiento de web: finas y con el esquema de color que fija
+ * `_layout.tsx` (`color-scheme`), para que sigan el tema de la app.
+ */
+* {
+  scrollbar-width: thin;
+}

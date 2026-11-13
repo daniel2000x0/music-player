@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,18 +11,21 @@ import {
   View,
 } from 'react-native';
 
+import { AlphabetBar } from '@/components/alphabet-bar';
 import { Artwork } from '@/components/artwork';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
 import { collectAudiobooks, type Audiobook } from '@/domain/library/audiobooks';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
+import { collectInitials, normalizeLetter } from '@/utils/alphabet';
 import { formatDuration } from '@/utils/format';
 
 function pluralizeChapters(count: number): string {
@@ -92,6 +95,7 @@ const BookRow = memo(function BookRow({
 /** Pantalla "Audiolibros": contenido marcado como audiolibro, agrupado por carpeta. */
 export default function AudiobooksScreen() {
   const theme = useTheme();
+  const scrollIndicator = useScrollIndicator();
   const songs = useLibraryStore((state) => state.songs);
   const albums = useLibraryStore((state) => state.albums);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
@@ -130,6 +134,32 @@ export default function AudiobooksScreen() {
     [play]
   );
   const keyExtractor = useCallback((book: Audiobook) => book.key, []);
+
+  const listRef = useRef<FlatList<Audiobook>>(null);
+
+  // Letras presentes en los audiolibros visibles, en orden alfabético.
+  const availableLetters = useMemo(
+    () => collectInitials(visibleBooks.map((book) => book.title)),
+    [visibleBooks]
+  );
+
+  // Desplaza la lista hasta el primer audiolibro de la letra elegida.
+  const scrollToLetter = useCallback(
+    (letter: string) => {
+      const index = visibleBooks.findIndex(
+        (book) => normalizeLetter(book.title) === letter
+      );
+
+      if (index !== -1) {
+        listRef.current?.scrollToIndex({
+          index,
+          animated: false,
+          viewPosition: 0,
+        });
+      }
+    },
+    [visibleBooks]
+  );
 
   const header = (
     <View style={styles.header}>
@@ -177,33 +207,42 @@ export default function AudiobooksScreen() {
       ) : visibleBooks.length === 0 ? (
         <EmptyState title="Sin resultados" message="No hay audiolibros que coincidan." />
       ) : (
-        <FlatList
-          data={visibleBooks}
-          keyExtractor={keyExtractor}
-          renderItem={({ item }) => (
-            <BookRow book={item} onPlay={handlePlay} onOptions={setOptionsBook} />
-          )}
-          getItemLayout={(_, index) => ({
-            length: ROW_HEIGHT,
-            offset: ROW_HEIGHT * index,
-            index,
-          })}
-          initialNumToRender={12}
-          maxToRenderPerBatch={12}
-          windowSize={5}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          style={styles.flex}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isScanning}
-              onRefresh={() => void refresh()}
-              tintColor={theme.accent}
-              colors={[theme.accent]}
-            />
-          }
-        />
+        <View style={styles.listContainer}>
+          <FlatList
+            ref={listRef}
+            data={visibleBooks}
+            keyExtractor={keyExtractor}
+            renderItem={({ item }) => (
+              <BookRow book={item} onPlay={handlePlay} onOptions={setOptionsBook} />
+            )}
+            getItemLayout={(_, index) => ({
+              length: ROW_HEIGHT,
+              offset: ROW_HEIGHT * index,
+              index,
+            })}
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={5}
+            keyboardShouldPersistTaps="handled"
+            {...scrollIndicator}
+            style={styles.flex}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={isScanning}
+                onRefresh={() => void refresh()}
+                tintColor={theme.accent}
+                colors={[theme.accent]}
+              />
+            }
+          />
+
+          <AlphabetBar
+            letters={availableLetters}
+            onSelect={scrollToLetter}
+            itemNoun="audiolibros"
+          />
+        </View>
       )}
     </ScreenShell>
 
@@ -228,6 +267,7 @@ export default function AudiobooksScreen() {
 const styles = StyleSheet.create({
   header: {
     paddingBottom: Spacing.two,
+    paddingRight: ScrollbarGutter,
   },
   search: {
     height: 44,
@@ -263,8 +303,14 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
+  listContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   listContent: {
     paddingBottom: BottomTabInset + 110,
+    // Carril del indicador; la barra alfabética vive en el margen derecho.
+    paddingRight: ScrollbarGutter,
   },
   loader: {
     marginTop: Spacing.five,

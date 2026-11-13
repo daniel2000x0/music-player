@@ -8,14 +8,25 @@ function normalize(value: string): string {
 /**
  * Aplica filtros combinables sobre una lista de canciones.
  * Función pura: no modifica la lista original.
+ *
+ * RENDIMIENTO: las condiciones se resuelven una sola vez fuera del recorrido
+ * y la búsqueda se compara contra cada campo por separado (sin concatenar
+ * cadenas por canción, que era más lento con bibliotecas grandes).
  */
 export function filterSongs(
   songs: Song[],
   filter: SongFilter,
   favoriteIds: ReadonlySet<number>
 ): Song[] {
-  const query = filter.query ? normalize(filter.query) : '';
+  const query = normalize(filter.query ?? '');
   const view = filter.view ?? 'all';
+
+  const artist = filter.artist || null;
+  const album = filter.album || null;
+  const minDuration =
+    typeof filter.minDuration === 'number' ? filter.minDuration : null;
+  const maxDuration =
+    typeof filter.maxDuration === 'number' ? filter.maxDuration : null;
 
   return songs.filter((song) => {
     if (!song.isAvailable) {
@@ -34,24 +45,29 @@ export function filterSongs(
     if (view === 'unplayed' && song.playCount > 0) {
       return false;
     }
-    if (filter.artist && song.artist !== filter.artist) {
+    if (artist !== null && song.artist !== artist) {
       return false;
     }
-    if (filter.album && song.album !== filter.album) {
+    if (album !== null && song.album !== album) {
       return false;
     }
-    if (typeof filter.minDuration === 'number' && song.duration < filter.minDuration) {
+    if (minDuration !== null && song.duration < minDuration) {
       return false;
     }
-    if (typeof filter.maxDuration === 'number' && song.duration > filter.maxDuration) {
+    if (maxDuration !== null && song.duration > maxDuration) {
       return false;
     }
     if (query) {
-      const haystack = `${song.title} ${song.artist} ${song.album}`.toLowerCase();
-      if (!haystack.includes(query)) {
+      const matches =
+        song.title.toLowerCase().includes(query) ||
+        song.artist.toLowerCase().includes(query) ||
+        song.album.toLowerCase().includes(query);
+
+      if (!matches) {
         return false;
       }
     }
+
     return true;
   });
 }

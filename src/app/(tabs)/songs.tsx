@@ -80,17 +80,35 @@ export default function SongsScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const view: SongView = isSongView(params.view) ? params.view : 'all';
-  const setView = (next: SongView) => router.setParams({ view: next });
 
-  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+  const setView = useCallback(
+    (next: SongView) => {
+      if (next !== view) {
+        router.setParams({ view: next });
+      }
+    },
+    [view]
+  );
+
   // El filtrado (caro con bibliotecas grandes) corre sobre el texto
   // "asentado"; el input responde al instante.
   const debouncedQuery = useDebouncedValue(query);
 
+  // El Set solo se reconstruye cuando cambian los favoritos.
+  const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+
+  // Filtros memorizados: filterSongs recibe una dependencia estable.
+  const currentFilter = useMemo(
+    () => ({ query: debouncedQuery, view }),
+    [debouncedQuery, view]
+  );
+
+  // Filtrado + ordenamiento se recalculan solo cuando cambia una dependencia;
+  // cambiar de pestaña y volver reutiliza el resultado memorizado.
   const visibleSongs = useMemo(() => {
-    const filtered = filterSongs(songs, { query: debouncedQuery, view }, favoriteSet);
+    const filtered = filterSongs(songs, currentFilter, favoriteSet);
     return sortSongs(filtered, sortKey);
-  }, [songs, debouncedQuery, view, favoriteSet, sortKey]);
+  }, [songs, currentFilter, favoriteSet, sortKey]);
 
   const handleMore = useCallback((song: Song) => {
     setMenuSong(song);

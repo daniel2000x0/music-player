@@ -21,9 +21,10 @@ import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, Radius, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
 import { sortAlbums, sortArtists } from '@/domain/library/sorting';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { AlbumSortKey } from '@/types/filters';
@@ -42,6 +43,7 @@ const SORT_OPTIONS: readonly Option<AlbumSortKey>[] = [
 /** Pantalla "Álbumes": artistas y álbumes derivados de la biblioteca. */
 export default function AlbumsScreen() {
   const theme = useTheme();
+  const scrollIndicator = useScrollIndicator();
   const { width } = useWindowDimensions();
   const albums = useLibraryStore((state) => state.albums);
   const artists = useLibraryStore((state) => state.artists);
@@ -58,7 +60,8 @@ export default function AlbumsScreen() {
   // El filtrado corre sobre el texto "asentado" (ver `useDebouncedValue`).
   const debouncedQuery = useDebouncedValue(query);
 
-  const contentWidth = Math.min(width, MaxContentWidth) - Spacing.four * 2;
+  const contentWidth =
+    Math.min(width, MaxContentWidth) - Spacing.four * 2 - ScrollbarGutter;
   const cardWidth = (contentWidth - Spacing.three) / 2;
 
   const visibleAlbums = useMemo(() => {
@@ -192,7 +195,7 @@ export default function AlbumsScreen() {
             initialNumToRender={10}
             maxToRenderPerBatch={10}
             windowSize={5}
-            showsVerticalScrollIndicator={false}
+            {...scrollIndicator}
             style={styles.flex}
             contentContainerStyle={styles.gridContent}
             refreshControl={
@@ -222,6 +225,7 @@ export default function AlbumsScreen() {
 const styles = StyleSheet.create({
   header: {
     paddingBottom: Spacing.two,
+    paddingRight: ScrollbarGutter,
   },
   search: {
     height: 44,
@@ -265,6 +269,7 @@ const styles = StyleSheet.create({
   gridContent: {
     rowGap: Spacing.four,
     paddingBottom: BottomTabInset + 110,
+    paddingRight: ScrollbarGutter,
   },
   loader: {
     marginTop: Spacing.five,

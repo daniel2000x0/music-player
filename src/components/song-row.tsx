@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Artwork } from '@/components/artwork';
@@ -11,24 +11,25 @@ import type { Song } from '@/types/song';
 import { formatDuration } from '@/utils/format';
 
 export type SongRowProps = {
-  song: Song;
   /** Cola de reproducción al pulsar la fila. */
+  song: Song;
   queue?: Song[];
   isFavorite?: boolean;
   onToggleFavorite?: (song: Song) => void;
-  /** Acción del botón "más" (agregar a playlist, etc.). */
+  /** Acción del botón más. */
   onMore?: (song: Song) => void;
   /** Muestra u oculta el botón de favorito. */
   showFavorite?: boolean;
 };
 
 /**
- * Fila de canción reutilizable. Resalta la pista actual y reproduce dentro
- * de la cola indicada.
+ * Fila de canción reutilizable.
  *
- * RENDIMIENTO: `memo` evita re-renderizar todas las filas cuando cambia
- * algo ajeno a ellas (favoritos, búsqueda) — solo re-renderizan las filas
- * cuyas props cambiaron, siempre que los callbacks del padre sean estables.
+ * RENDIMIENTO:
+ * - memo evita renderizados por cambios en el padre
+ *   cuando las propiedades permanecen iguales.
+ * - useCallback estabiliza los eventos.
+ * - Zustand permite actualizar el resaltado de la canción actual.
  */
 export const SongRow = memo(function SongRow({
   song,
@@ -38,15 +39,39 @@ export const SongRow = memo(function SongRow({
   onMore,
   showFavorite = true,
 }: SongRowProps) {
+
   const theme = useTheme();
+
+  // Suscripción al estado del reproductor.
   const play = usePlayerStore((state) => state.play);
-  const currentId = usePlayerStore((state) => state.currentSong?.id);
+  const currentId = usePlayerStore(
+    (state) => state.currentSong?.id
+  );
+
   const isCurrent = currentId === song.id;
+
+  // Callbacks estables: evitan recrear funciones en cada render y así
+  // conservan la memoización de `SongRow`.
+  const handlePlay = useCallback(() => {
+    play(song, queue);
+  }, [play, song, queue]);
+
+  const handleToggleFavorite = useCallback(() => {
+    onToggleFavorite?.(song);
+  }, [onToggleFavorite, song]);
+
+  const handleMore = useCallback(() => {
+    onMore?.(song);
+  }, [onMore, song]);
 
   return (
     <Pressable
-      onPress={() => play(song, queue)}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+      onPress={handlePlay}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && styles.pressed,
+      ]}
+    >
       <Artwork uri={song.artwork} size={52} />
 
       <View style={styles.info}>
@@ -54,28 +79,47 @@ export const SongRow = memo(function SongRow({
           type="smallBold"
           numberOfLines={1}
           themeColor={isCurrent ? 'accent' : 'text'}
-          style={styles.title}>
+          style={styles.title}
+        >
           {song.title}
         </ThemedText>
-        <ThemedText type="small" numberOfLines={1} themeColor="textSecondary">
+
+        <ThemedText
+          type="small"
+          numberOfLines={1}
+          themeColor="textSecondary"
+        >
           {song.artist}
         </ThemedText>
       </View>
 
-      <ThemedText type="small" themeColor="textSecondary" style={styles.duration}>
+      <ThemedText
+        type="small"
+        themeColor="textSecondary"
+        style={styles.duration}
+      >
         {formatDuration(song.duration)}
       </ThemedText>
 
       {showFavorite && onToggleFavorite ? (
         <Pressable
           hitSlop={8}
-          onPress={() => onToggleFavorite(song)}
+          onPress={handleToggleFavorite}
           style={styles.action}
-          accessibilityLabel={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}>
+          accessibilityLabel={
+            isFavorite
+              ? 'Quitar de favoritos'
+              : 'Agregar a favoritos'
+          }
+        >
           <Ionicons
             name={isFavorite ? 'heart' : 'heart-outline'}
             size={20}
-            color={isFavorite ? theme.accent : theme.textSecondary}
+            color={
+              isFavorite
+                ? theme.accent
+                : theme.textSecondary
+            }
           />
         </Pressable>
       ) : null}
@@ -83,10 +127,15 @@ export const SongRow = memo(function SongRow({
       {onMore ? (
         <Pressable
           hitSlop={8}
-          onPress={() => onMore(song)}
+          onPress={handleMore}
           style={styles.action}
-          accessibilityLabel="Más opciones">
-          <Ionicons name="ellipsis-horizontal" size={20} color={theme.textSecondary} />
+          accessibilityLabel="Más opciones"
+        >
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={20}
+            color={theme.textSecondary}
+          />
         </Pressable>
       ) : null}
     </Pressable>

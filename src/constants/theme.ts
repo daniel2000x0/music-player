@@ -36,7 +36,11 @@ export const Colors = {
     accent: '#12B76A',
     accentText: '#04140A',
     danger: '#E5484D',
+
+    // Indicador de desplazamiento
+    scrollbarIndicator: 'black',
   },
+
   dark: {
     text: '#FFFFFF',
     background: '#0B0B0F',
@@ -47,6 +51,9 @@ export const Colors = {
     accent: '#1ED760',
     accentText: '#04140A',
     danger: '#FF453A',
+
+    // Indicador de desplazamiento
+    scrollbarIndicator: 'white',
   },
 } as const;
 
@@ -55,7 +62,10 @@ export const Colors = {
  * Se usa como tipo de prop (`type="backgroundElement"`, `themeColor="text"`, ...)
  * para garantizar que siempre haya un color disponible en ambos modos.
  */
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type ThemeColor = Exclude<
+  keyof typeof Colors.light & keyof typeof Colors.dark,
+  'scrollbarIndicator'
+>;
 
 /**
  * Familias tipográficas por plataforma.
@@ -107,6 +117,17 @@ export const Spacing = {
   five: 32,
   six: 64,
 } as const;
+
+/**
+ * Ancho reservado en el borde derecho de las listas para el indicador
+ * vertical de scroll.
+ *
+ * LÓGICA: la barra nativa se dibuja sobre el contenido. En Android además
+ * queda siempre visible (`persistentScrollbar`), así que este margen evita
+ * que tape botones o tarjetas; en Canciones también deja aire entre las
+ * filas y la barra alfabética anclada al borde derecho.
+ */
+export const ScrollbarGutter = 12;
 
 /**
  * Radios de esquina reutilizables (píldoras, tarjetas, artwork).
