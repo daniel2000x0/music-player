@@ -7,7 +7,7 @@ import {
 } from 'expo-media-library';
 
 import { resolveSongMetadata } from '@/domain/metadata';
-import { logError } from '@/services/error-log.service';
+import { logError, logWarning } from '@/services/error-log.service';
 import { assignAlbumArtwork } from '@/services/artwork.service';
 import { readAudioTags } from '@/services/tag.service';
 import type { ScannedSong } from '@/types/song';
@@ -29,11 +29,73 @@ import { mapLimit } from '@/utils/async';
  * - La deduplicación y la fecha de incorporación se resuelven en SQLite.
  */
 
-/** Máximo de canciones a cargar por escaneo (configurable). */
-const MAX_SONGS = 5000;
+/**
+ * Tamaño de página al recorrer la mediateca.
+ *
+ * LÓGICA: la API nueva de `expo-media-library` pagina con `limit`/`offset`
+ * (no expone cursor). Antes había un `.limit(5000)` fijo que truncaba la
+ * biblioteca en silencio (`C-02`); ahora se recorre hasta la última página.
+ * El coste es tiempo de escaneo, no pérdida de canciones.
+ */
+export const AUDIO_PAGE_SIZE = 1000;
+
+/** Tope defensivo: 1 000 000 de pistas, evita un bucle si se ignora `offset`. */
+const MAX_PAGES = 1000;
 
 /** Archivos leídos en paralelo durante el escaneo. */
 const TAG_CONCURRENCY = 4;
+
+function audioQuery(offset: number): Query {
+  return new Query()
+    .eq(AssetField.MEDIA_TYPE, MediaType.AUDIO)
+    .orderBy(AssetField.CREATION_TIME)
+    .limit(AUDIO_PAGE_SIZE)
+    .offset(offset);
+}
+
+/**
+ * Recorre todas las páginas de la mediateca y deduplica por id.
+ *
+ * Si una página viene completa pero no aporta ids nuevos, el proveedor está
+ * ignorando `offset`: se detiene y se registra, en lugar de iterar sin fin.
+ */
+async function collectPages<T extends { id: string }>(
+  fetchPage: (offset: number) => Promise<T[]>
+): Promise<T[]> {
+  const collected: T[] = [];
+  const seen = new Set<string>();
+
+  for (let pageIndex = 0; pageIndex < MAX_PAGES; pageIndex += 1) {
+    const page = await fetchPage(pageIndex * AUDIO_PAGE_SIZE);
+    let added = 0;
+    for (const item of page) {
+      if (seen.has(item.id)) {
+        continue;
+      }
+      seen.add(item.id);
+      collected.push(item);
+      added += 1;
+    }
+    if (page.length < AUDIO_PAGE_SIZE) {
+      return collected;
+    }
+    if (added === 0) {
+      logWarning(
+        'media-service',
+        'collectPages',
+        'La página no aportó ids nuevos; se detiene el recorrido para evitar un bucle.'
+      );
+      return collected;
+    }
+  }
+
+  logWarning(
+    'media-service',
+    'collectPages',
+    `Se alcanzó el tope defensivo de ${MAX_PAGES} páginas (${MAX_PAGES * AUDIO_PAGE_SIZE} pistas).`
+  );
+  return collected;
+}
 
 export async function hasAudioPermission(): Promise<boolean> {
   try {
@@ -66,11 +128,7 @@ export async function requestAudioAccess(): Promise<boolean> {
  */
 export async function listDeviceAudioIds(): Promise<Set<string> | null> {
   try {
-    const metadata = await new Query()
-      .eq(AssetField.MEDIA_TYPE, MediaType.AUDIO)
-      .orderBy(AssetField.CREATION_TIME)
-      .limit(MAX_SONGS)
-      .exeForMetadata();
+    const metadata = await collectPages((offset) => audioQuery(offset).exeForMetadata());
     return new Set(metadata.map((item) => item.id));
   } catch (error) {
     logError('media-service', 'query.exeForMetadata', error);
@@ -140,11 +198,7 @@ async function toSong(asset: {
 export async function loadDeviceAudio(): Promise<ScannedSong[] | null> {
   let assets;
   try {
-    assets = await new Query()
-      .eq(AssetField.MEDIA_TYPE, MediaType.AUDIO)
-      .orderBy(AssetField.CREATION_TIME)
-      .limit(MAX_SONGS)
-      .exe();
+    assets = await collectPages((offset) => audioQuery(offset).exe());
   } catch (error) {
     logError('media-service', 'query.exec', error);
     return null;

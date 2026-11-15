@@ -74,6 +74,7 @@ export default function PlayerScreen() {
   const toggleShuffle = usePlayerStore((state) => state.toggleShuffle);
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
+  const lockScreen = usePlayerStore((state) => state.lockScreen);
 
   const [pickerVisible, setPickerVisible] = useState(false);
 
@@ -115,6 +116,22 @@ export default function PlayerScreen() {
             <Ionicons name="list" size={24} color={theme.text} />
           </Pressable>
         </View>
+
+        {lockScreen.status === 'degraded' ? (
+          <View
+            style={[
+              styles.lockNotice,
+              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite">
+            <Ionicons name="warning-outline" size={16} color={theme.danger} />
+            <ThemedText type="small" themeColor="textSecondary" style={styles.lockNoticeText}>
+              Los controles del sistema no están disponibles. La reproducción puede
+              detenerse en segundo plano.
+            </ThemedText>
+          </View>
+        ) : null}
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -261,6 +278,18 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.three,
     paddingBottom: Spacing.five,
     gap: Spacing.four,
+  },
+  lockNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.medium,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+  },
+  lockNoticeText: {
+    flex: 1,
   },
   meta: {
     alignItems: 'center',

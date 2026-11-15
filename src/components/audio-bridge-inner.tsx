@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import {
   configureAudioSession,
   requestNotificationPermission,
+  subscribeLockScreenHealth,
   subscribePlaylistStatus,
   subscribeTrackChange,
 } from '@/services/audio-engine';
@@ -29,6 +30,7 @@ import { usePlayerStore } from '@/stores/player.store';
 export function AudioBridge() {
   const syncStatus = usePlayerStore((state) => state.syncStatus);
   const syncTrack = usePlayerStore((state) => state.syncTrack);
+  const syncLockScreen = usePlayerStore((state) => state.syncLockScreen);
 
   useEffect(() => {
     void configureAudioSession();
@@ -38,6 +40,9 @@ export function AudioBridge() {
     // conectan los eventos nativos con el estado de la app.
     const unsubscribeStatus = subscribePlaylistStatus(syncStatus);
     const unsubscribeTrack = subscribeTrackChange(syncTrack);
+    // La salud del lock screen se publica de inmediato y en cada reintento:
+    // la UI puede avisar de una sesión degradada en vez de fallar en silencio.
+    const unsubscribeLockScreen = subscribeLockScreenHealth(syncLockScreen);
 
     const unsubscribeWidgetInteractions = registerMediaWidgetInteractions();
     const initial = usePlayerStore.getState();
@@ -68,11 +73,12 @@ export function AudioBridge() {
     return () => {
       unsubscribeStatus();
       unsubscribeTrack();
+      unsubscribeLockScreen();
       unsubscribeWidgetState();
       unsubscribeWidgetProgress();
       unsubscribeWidgetInteractions();
     };
-  }, [syncStatus, syncTrack]);
+  }, [syncStatus, syncTrack, syncLockScreen]);
 
   return null;
 }

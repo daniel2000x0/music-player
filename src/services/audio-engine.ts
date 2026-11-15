@@ -114,12 +114,6 @@ const statusListeners = new Set<(status: PlaybackStatus) => void>();
  */
 const trackListeners = new Set<(song: Song) => void>();
 
-/** `false` tras el primer fallo de los controles de pantalla de bloqueo. */
-let lockScreenControlsSupported = true;
-
-/** `true` mientras la playlist actual está registrada en la sesión de medios. */
-let lockScreenActive = false;
-
 /**
  * Expo Go no aplica los config plugins, así que su manifest no declara
  * `AudioControlsService` y la sesión de medios no puede enlazarse.
@@ -131,27 +125,109 @@ let lockScreenActive = false;
  */
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
 
+/** `true` mientras la playlist actual está registrada en la sesión de medios. */
+let lockScreenActive = false;
+
 /**
- * Ejecuta una operación de pantalla de bloqueo y se desactiva si falla.
+ * Estado de los controles de pantalla de bloqueo.
  *
- * El `try/catch` sigue siendo la red de seguridad para builds sin el plugin;
- * tras el primer fallo deja de intentarlo y lo registra una sola vez.
+ * LÓGICA: un fallo de `setActiveForLockScreen` NO desactiva la función para
+ * siempre. Se reintenta con backoff acotado y, si se agota, la sesión queda
+ * `degraded` de forma visible. Antes, un único error transitorio dejaba la
+ * reproducción en segundo plano con el corte de ~3 minutos de Android.
  */
-function withLockScreenGuard(action: string, run: () => void): void {
-  if (!lockScreenControlsSupported || IS_EXPO_GO) {
-    return;
+export type LockScreenStatus = 'unknown' | 'active' | 'degraded' | 'unsupported';
+
+export type LockScreenHealth = {
+  status: LockScreenStatus;
+  /** Reintentos consumidos en el ciclo actual. */
+  attempts: number;
+  lastError: string | null;
+};
+
+/** Esperas entre reintentos; tras agotarlas la sesión queda `degraded`. */
+const LOCK_SCREEN_RETRY_DELAYS_MS = [1000, 3000, 10000] as const;
+
+let lockScreenStatus: LockScreenStatus = IS_EXPO_GO ? 'unsupported' : 'unknown';
+let lockScreenAttempts = 0;
+let lockScreenLastError: string | null = null;
+let lockScreenRetryTimer: ReturnType<typeof setTimeout> | null = null;
+const lockScreenHealthListeners = new Set<(health: LockScreenHealth) => void>();
+
+function messageOf(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message || error.name;
+  }
+  return String(error);
+}
+
+function lockScreenHealth(): LockScreenHealth {
+  return {
+    status: lockScreenStatus,
+    attempts: lockScreenAttempts,
+    lastError: lockScreenLastError,
+  };
+}
+
+/** Notifica a la UI cada cambio de salud (activación, reintento, degradación). */
+function emitLockScreenHealth(): void {
+  const health = lockScreenHealth();
+  for (const listener of lockScreenHealthListeners) {
+    try {
+      listener(health);
+    } catch (error) {
+      logError('audio-engine', 'lockScreenHealthListener', error);
+    }
+  }
+}
+
+function setLockScreenStatus(status: LockScreenStatus): void {
+  lockScreenStatus = status;
+}
+
+/** Estado actual de los controles del sistema. */
+export function getLockScreenHealth(): LockScreenHealth {
+  return lockScreenHealth();
+}
+
+/**
+ * Suscribe un oyente a la salud del lock screen.
+ *
+ * Emite el estado actual de inmediato para que la UI no arranque a ciegas.
+ */
+export function subscribeLockScreenHealth(
+  listener: (health: LockScreenHealth) => void
+): () => void {
+  lockScreenHealthListeners.add(listener);
+  listener(lockScreenHealth());
+  return () => {
+    lockScreenHealthListeners.delete(listener);
+  };
+}
+
+function cancelLockScreenRetry(): void {
+  if (lockScreenRetryTimer !== null) {
+    clearTimeout(lockScreenRetryTimer);
+    lockScreenRetryTimer = null;
+  }
+}
+
+/**
+ * Ejecuta una operación de pantalla de bloqueo y devuelve si tuvo éxito.
+ *
+ * El `try/catch` es la red de seguridad para builds sin el plugin. Ya no
+ * desactiva la función: el llamador decide si reintenta o degrada.
+ */
+function runLockScreenOperation(action: string, run: () => void): boolean {
+  if (IS_EXPO_GO) {
+    return false;
   }
   try {
     run();
+    return true;
   } catch (error) {
-    lockScreenControlsSupported = false;
     logError('audio-engine', action, error);
-    if (__DEV__) {
-      console.warn(
-        '[audio-engine] Controles de pantalla de bloqueo no disponibles:',
-        error
-      );
-    }
+    return false;
   }
 }
 
@@ -227,6 +303,7 @@ function detachListeners(): void {
  * mientras el motor nativo termina de liberarse.
  */
 function disposePlaylist(): void {
+  cancelLockScreenRetry();
   detachListeners();
   const instance = playlist;
   playlist = null;
@@ -240,7 +317,7 @@ function disposePlaylist(): void {
   } catch (error) {
     logError('audio-engine', 'playlist.pause', error);
   }
-  withLockScreenGuard('clearLockScreenControls', () => instance.clearLockScreenControls());
+  runLockScreenOperation('clearLockScreenControls', () => instance.clearLockScreenControls());
   try {
     instance.destroy();
   } catch (error) {
@@ -263,7 +340,7 @@ function disposePlaylist(): void {
  * guard evita el log nativo en Expo Go.
  */
 function updateLockScreenMetadata(instance: AudioPlaylist, song: Song): void {
-  withLockScreenGuard('updateLockScreenMetadata', () => {
+  runLockScreenOperation('updateLockScreenMetadata', () => {
     instance.updateLockScreenMetadata(lockScreenMetadata(song));
   });
 }
@@ -321,19 +398,107 @@ function createPlaylist(songs: Song[], loop: RepeatMode): AudioPlaylist {
   return instance;
 }
 
-function activateLockScreen(instance: AudioPlaylist, song: Song): void {
-  withLockScreenGuard('setActiveForLockScreen', () => {
+/**
+ * Intenta registrar la playlist en la sesión de medios una sola vez.
+ *
+ * Devuelve `false` y guarda el mensaje para el diagnóstico si el módulo nativo
+ * rechaza la operación (build sin plugin, OEM sin soporte, fallo transitorio).
+ */
+function tryActivateLockScreen(instance: AudioPlaylist, song: Song): boolean {
+  if (IS_EXPO_GO) {
+    return false;
+  }
+  try {
     instance.setActiveForLockScreen(true, lockScreenMetadata(song), LOCK_SCREEN_OPTIONS);
+    return true;
+  } catch (error) {
+    lockScreenLastError = messageOf(error);
+    logError('audio-engine', 'setActiveForLockScreen', error);
+    return false;
+  }
+}
+
+/**
+ * Programa el siguiente reintento o declara la sesión degradada.
+ *
+ * Backoff 1 s → 3 s → 10 s. Es la diferencia entre «un fallo transitorio» y
+ * «la reproducción en segundo plano nunca vuelve a funcionar».
+ */
+function scheduleLockScreenRetry(instance: AudioPlaylist, song: Song): void {
+  const delay = LOCK_SCREEN_RETRY_DELAYS_MS[lockScreenAttempts];
+  if (delay === undefined) {
+    setLockScreenStatus('degraded');
+    emitLockScreenHealth();
+    if (__DEV__) {
+      console.warn(
+        '[audio-engine] Controles de pantalla de bloqueo degradados tras agotar reintentos:',
+        lockScreenLastError
+      );
+    }
+    return;
+  }
+
+  lockScreenAttempts += 1;
+  emitLockScreenHealth();
+
+  lockScreenRetryTimer = setTimeout(() => {
+    lockScreenRetryTimer = null;
+    // La playlist cambió o se liberó: el reintento ya no tiene sentido.
+    if (playlist !== instance) {
+      return;
+    }
+    const current = order[instance.currentIndex] ?? song;
+    attemptLockScreen(instance, current, false);
+  }, delay);
+}
+
+/** Un intento de activación; con `resetAttempts` inicia un ciclo nuevo. */
+function attemptLockScreen(
+  instance: AudioPlaylist,
+  song: Song,
+  resetAttempts: boolean
+): void {
+  if (resetAttempts) {
+    cancelLockScreenRetry();
+    lockScreenAttempts = 0;
+    lockScreenLastError = null;
+  }
+
+  if (IS_EXPO_GO) {
+    setLockScreenStatus('unsupported');
+    return;
+  }
+
+  if (tryActivateLockScreen(instance, song)) {
     lockScreenActive = true;
-  });
+    lockScreenAttempts = 0;
+    lockScreenLastError = null;
+    setLockScreenStatus('active');
+    emitLockScreenHealth();
+    return;
+  }
+
+  lockScreenActive = false;
+  scheduleLockScreenRetry(instance, song);
+}
+
+/** Punto de entrada al crear o reconstruir la cola: ciclo de reintentos nuevo. */
+function activateLockScreen(instance: AudioPlaylist, song: Song): void {
+  attemptLockScreen(instance, song, true);
 }
 
 /**
  * Reactiva la notificación si se había retirado (p. ej. tras detener al
  * final de la cola) y la reproducción vuelve a empezar.
+ *
+ * Si la sesión ya está `degraded`, no se reintenta aquí: se espera a que el
+ * usuario inicie una cola nueva, para no repetir el backoff en cada play.
  */
 function ensureLockScreenActive(): void {
   if (!playlist || lockScreenActive) {
+    return;
+  }
+  if (lockScreenStatus === 'degraded') {
     return;
   }
   const song = order[playlist.currentIndex];
@@ -611,8 +776,14 @@ export function setLoop(loop: RepeatMode): void {
 
 /** Retira la notificación de medios y los controles del lock screen. */
 function clearLockScreenControls(): void {
+  cancelLockScreenRetry();
   lockScreenActive = false;
-  withLockScreenGuard('clearLockScreenControls', () => {
+  if (lockScreenStatus === 'active') {
+    // La sesión ya no está registrada: `active` dejaría de ser cierto.
+    setLockScreenStatus('unknown');
+    emitLockScreenHealth();
+  }
+  runLockScreenOperation('clearLockScreenControls', () => {
     playlist?.clearLockScreenControls();
   });
 }

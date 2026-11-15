@@ -18,6 +18,7 @@ import {
   startQueue,
   stopPlayback,
   togglePlayback,
+  type LockScreenHealth,
   type PlaybackStatus,
   type RepeatMode,
 } from '@/services/audio-engine';
@@ -45,6 +46,8 @@ type PlayerState = {
   shuffle: boolean;
   listenedSeconds: number;
   recordedSongId: number | null;
+  /** Salud de los controles del sistema (notificación / pantalla de bloqueo). */
+  lockScreen: LockScreenHealth;
 
   play: (song: Song, queue?: Song[]) => void;
   playQueueIndex: (index: number) => void;
@@ -61,6 +64,7 @@ type PlayerState = {
   clearQueue: () => void;
   syncStatus: (status: PlaybackStatus) => void;
   syncTrack: (song: Song) => void;
+  syncLockScreen: (health: LockScreenHealth) => void;
 };
 
 let lastPosition = 0;
@@ -127,6 +131,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   shuffle: false,
   listenedSeconds: 0,
   recordedSongId: null,
+  lockScreen: { status: 'unknown', attempts: 0, lastError: null },
 
   play: (song, nextQueue) => {
     const queue = resolveQueue(get().queue, song, nextQueue);
@@ -406,5 +411,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           logError('player-store', 'historyRepository.record', error)
         );
     }
+  },
+
+  syncLockScreen: (health) => {
+    const current = get().lockScreen;
+    if (
+      current.status === health.status &&
+      current.attempts === health.attempts &&
+      current.lastError === health.lastError
+    ) {
+      return;
+    }
+    set({ lockScreen: health });
   },
 }));
