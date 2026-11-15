@@ -43,7 +43,7 @@ Leyenda de veredicto:
 | `react-native` | 0.88.1 | — | Runtime nativo | ✅ | **NO CAMBIAR** |
 | `react` | 19.3.0 | — | UI | ✅ | **NO CAMBIAR** |
 | `expo-router` | 58.0.31 | 14 archivos | Navegación por archivos | ✅ | **MANTENER** |
-| `expo-audio` | 58.0.12 | `services/audio-engine.ts` | Motor de reproducción | ✅ (con límites: background ~3 min sin lock screen) | **MANTENER** · crítico para `C-01` |
+| `expo-audio` | 58.0.12 | `services/audio/*.ts` | Motor de reproducción | ✅ (con límites: background ~3 min sin lock screen) | **MANTENER** · crítico para `C-01` |
 | `expo-media-library` | 58.0.14 | `services/media.service.ts` | Consulta de audio del dispositivo | ✅ (permiso runtime) | **MANTENER** · crítico para `C-02` |
 | `expo-sqlite` | 58.0.17 | `data/db/database.ts` | Persistencia administrativa | ✅ | **MANTENER** |
 | `expo-file-system` | 58.0.13 | `tag.service.ts`, `artwork.service.ts` | Lectura binaria de etiquetas/portadas | ✅ | **MANTENER** |
@@ -63,14 +63,14 @@ Leyenda de veredicto:
 | `expo-asset` | 58.0.20 | 0 | Empaquetado de assets | ✅ | **EVALUAR** · declarado como plugin sin uso; puede ser requerido por otra pieza |
 | `expo-splash-screen` | 58.0.14 | 0 | Control del splash | ✅ | **EVALUAR** · el plugin está configurado; sin uso explícito en código |
 | `expo-system-ui` | 58.0.7 | 0 | Color de fondo del sistema | ✅ | **EVALUAR** · útil para `UI-03`/`UI-04`, hoy sin uso |
-| `expo-web-browser` | 58.0.8 | 0 | Navegador in-app | ✅ | **RETIRAR** · plugin declarado sin uso |
-| `expo-font` | 58.0.11 | 0 | Carga de fuentes | ✅ | **RETIRAR** · no hay fuentes personalizadas; `Fonts` usa familias del sistema |
-| `expo-device` | 58.0.5 | 0 | Info del dispositivo | ✅ | **RETIRAR** |
-| `expo-symbols` | 58.0.5 | 0 | SF Symbols | ✅ (iOS) | **RETIRAR** · no hay uso; en Android no aporta |
-| `expo-glass-effect` | 58.0.5 | 0 | Efecto vidrio iOS | ✅ (iOS 26) | **RETIRAR** |
-| `react-native-gesture-handler` | 3.3.0 | 0 | Gestos | ✅ | **RETIRAR** (o MANTENER como peer si `expo-router` lo requiere en la versión instalada) |
-| `react-native-reanimated` | 4.7.1 | 0 | Animaciones | ✅ | **RETIRAR** (ídem: verificar peer antes) |
-| `react-native-worklets` | 0.13.0 | 0 | Runtime de worklets (peer de Reanimated 4) | ✅ | **RETIRAR** junto con Reanimated |
+| `expo-web-browser` | 58.0.8 | 0 | Navegador in-app | ✅ | **EVALUAR** · plugin declarado sin uso; aún instalado |
+| `expo-font` | 58.0.12 | 0 | Carga de fuentes | ✅ | **MANTENER (peer)** · peer obligatorio de `@expo/vector-icons`; retirarlo hace fallar `expo-doctor` |
+| `expo-device` | 58.0.5 | 0 | Info del dispositivo | ✅ | **RETIRADA en FASE 2** |
+| `expo-symbols` | 58.0.5 | 0 | SF Symbols | ✅ (iOS) | **RETIRADA en FASE 2** · peer opcional de `expo-router` |
+| `expo-glass-effect` | 58.0.5 | 0 | Efecto vidrio iOS | ✅ (iOS 26) | **RETIRADA en FASE 2** · dependencia dura de `expo-router`: sigue instalada de forma transitiva |
+| `react-native-gesture-handler` | 3.3.0 | 0 | Gestos | ✅ | **RETIRADA en FASE 2** · peer opcional de `expo-router@58` |
+| `react-native-reanimated` | 4.7.1 | 0 | Animaciones | ✅ | **RETIRADA en FASE 2** · peer opcional de `expo-router@58` |
+| `react-native-worklets` | 0.13.0 | 0 | Runtime de worklets (peer de Reanimated 4) | ✅ | **RETIRADA en FASE 2** junto con Reanimated |
 | `react-dom` | 19.3.0 | 0 | Render web | n/a | **EVALUAR** · solo necesario si se mantiene el objetivo web |
 | `react-native-web` | 0.21.4 | 0 | Render web | n/a | **EVALUAR** · idem; `app.json` declara `web.output: static` |
 
@@ -118,8 +118,10 @@ Leyenda de veredicto:
 | `expo-sqlite` | — | ✅ | — |
 | `expo-asset` | — | ⚠️ Sin uso funcional | Retirar o justificar |
 | `expo-status-bar` | — | ✅ | — |
-| `expo-web-browser` | — | ❌ Sin uso | Retirar |
+| `expo-web-browser` | — | ⚠️ Sin uso | Retirar (aún instalado; no está en `plugins`) |
 | `expo-widgets` | `enableAndroid: true`, `MediaWidget` 250×140, `targetCellWidth: 4` | ✅ Correcto | Requiere dev build; iOS deshabilitado (`ios: null`) de forma deliberada |
+
+> **FASE 2:** `npx expo install expo-font` añadió automáticamente un plugin `expo-font` a `app.json`; se retiró porque la app no carga fuentes personalizadas. `expo-font` sigue como dependencia (peer de `@expo/vector-icons`), no como plugin.
 
 ### 3.2 Permisos Android declarados
 
@@ -130,9 +132,9 @@ Leyenda de veredicto:
 | `POST_NOTIFICATIONS` | Sí, controles de reproducción | **MANTENER** |
 | `FOREGROUND_SERVICE` | Sí, reproducción en segundo plano | **MANTENER** |
 | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Sí | **MANTENER** |
-| `WRITE_EXTERNAL_STORAGE` | No | **RETIRAR** (`A-06`) |
-| `READ_MEDIA_VISUAL_USER_SELECTED` | No (es para fotos/vídeo) | **RETIRAR** (`A-06`) |
-| `MODIFY_AUDIO_SETTINGS` | No necesario para reproducir | **RETIRAR** (`A-06`) |
+| `WRITE_EXTERNAL_STORAGE` | No | **RETIRADO en FASE 2** (`A-06`) |
+| `READ_MEDIA_VISUAL_USER_SELECTED` | No (es para fotos/vídeo) | **RETIRADO en FASE 2** (`A-06`) |
+| `MODIFY_AUDIO_SETTINGS` | No necesario para reproducir | **RETIRADO en FASE 2** (`A-06`) |
 
 **Nota de plataforma:** `WRITE_EXTERNAL_STORAGE` está ignorado en Android 11+ y es motivo de fricción/observación en la revisión de Play. Su retirada es segura.
 
@@ -161,10 +163,10 @@ Estado **real** de esta sesión de auditoría, sin inventar capacidades:
 | **GitHub MCP** | ❌ **No expuesto** | — | No se pudo contrastar issues/PRs del upstream |
 | **`webfetch` a docs oficiales** | ✅ | Confirmar límites de background, requisitos de `expo-widgets`, componentes soportados | — |
 | **`expo-doctor`** | ✅ Local | 20/20 | — |
-| **`tsc` / `jest`** | ✅ Local | 0 errores / 111 pruebas | — |
-| **Dispositivo o emulador Android** | ❌ No disponible | — | Todo comportamiento nativo queda como riesgo, no como verificado |
-| **`adb`** | ❌ No verificado | — | Sin inspección de permisos efectivos ni logs nativos |
-| **`eas-cli`** | ❌ No ejecutado | — | No se validó build real ni firma |
+| **`tsc` / `jest`** | ✅ Local | 0 errores / 139 pruebas (FASE 2) | — |
+| **Dispositivo o emulador Android** | ✅ Infinix X6826 por `adb` | Verificación de FASE 1 por OTA | — |
+| **`adb`** | ✅ Disponible | Inspección del APK instalado y su canal | — |
+| **`eas-cli`** | ✅ Ejecutado (OTA) | Updates al canal `preview` | — |
 
 **Consecuencia honesta:** este informe distingue en todo momento entre **«confirmado en código/configuración»** y **«riesgo que requiere dispositivo»**. Nada de lo marcado como riesgo debe presentarse como fallo demostrado.
 
@@ -202,13 +204,25 @@ Estado **real** de esta sesión de auditoría, sin inventar capacidades:
 ## 7. Recomendaciones concretas y ordenadas
 
 1. **No actualizar ninguna dependencia ahora.** El árbol está coherente con SDK 58 y verde.
-2. **Retirar en FASE 2** (una por una, con `expo-doctor` después): `expo-web-browser`, `expo-font`, `expo-device`, `expo-symbols`, `expo-glass-effect`.
-3. **Verificar antes de retirar** `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`: comprobar `expo-router@58` `peerDependenciesMeta` en `node_modules`. Si son opcionales, retirar; si no, conservar y documentar.
+2. ✅ **Hecho en FASE 2** (una por una, con `expo-doctor` después): retiradas `expo-device`, `expo-symbols`, `expo-glass-effect`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`. `expo-font` **se conserva** por ser peer obligatorio de `@expo/vector-icons` (sin él, `expo-doctor` falla con «Missing peer dependency»).
+3. ✅ **Verificado** en `node_modules/expo-router/package.json`: `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets` y `expo-symbols` son peers **opcionales** (`peerDependenciesMeta`). `expo-glass-effect` es dependencia dura, por lo que permanece instalada de forma transitiva aunque no se declare.
 4. **Decidir sobre web** (`react-dom`, `react-native-web`, `web.output`, headers COEP/COOP): si el producto es Android/iOS, retirar y simplificar `app.json` (`M-03`). Si se mantiene web, justificarlo.
-5. **Retirar los 3 permisos sin uso** (`A-06`) en FASE 2.
+5. ✅ **Hecho en FASE 2**: retirados los 3 permisos sin uso (`A-06`). Quedan `READ_EXTERNAL_STORAGE`, `READ_MEDIA_AUDIO`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK`.
 6. **Instalar solo con `npx expo install`** en el futuro; nunca `npm install <paquete>` a secas, para no romper la matriz del SDK.
 7. **Reevaluar `react-native-reanimated`** únicamente si la FASE 6 la necesita de verdad, y entonces reinstalarla con `expo install` y documentar el motivo.
 8. **`@expo/ngrok`**: mover a `devDependencies` o retirar; es una herramienta de túnel, no una dependencia de producto.
+
+### 7.1 Resultado medido de la poda (FASE 2)
+
+| Comprobación | Antes | Después |
+| --- | --- | --- |
+| `npx expo-doctor` | 20/20 | **20/20** |
+| `npx tsc --noEmit` | limpio | **limpio** |
+| `npx jest` | 123 | **139** (20 suites) |
+| `npx expo lint` | 0 problemas | **0 problemas** |
+| `npx expo export --platform android` | — | bundle generado sin errores de módulos |
+| Dependencias retiradas | — | **7** (`expo-symbols`, `expo-glass-effect`, `expo-device`, `expo-system-ui`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`) |
+| Permisos retirados | — | **3** |
 
 ---
 
@@ -218,14 +232,13 @@ Estado **real** de esta sesión de auditoría, sin inventar capacidades:
 | --- | --- | --- |
 | **NO CAMBIAR** | 4 | `expo`, `react-native`, `react`, `typescript` |
 | **MANTENER** | 15 | `expo-router`, `expo-audio`, `expo-media-library`, `expo-sqlite`, `expo-file-system`, `expo-image`, `expo-widgets`, `@expo/ui`, `expo-updates`, `expo-constants`, `expo-status-bar`, `@expo/vector-icons`, `zustand`, `expo-dev-client`, `jest*`/`eslint*` |
-| **MANTENER (peer)** | 3 | `expo-linking`, `react-native-safe-area-context`, `react-native-screens` |
-| **EVALUAR** | 5 | `@expo/ngrok`, `expo-asset`, `expo-splash-screen`, `expo-system-ui`, `react-dom` + `react-native-web` (decisión web) |
-| **RETIRAR** | 8 | `expo-web-browser`, `expo-font`, `expo-device`, `expo-symbols`, `expo-glass-effect`, `react-native-gesture-handler`*, `react-native-reanimated`*, `react-native-worklets`* |
-| **RETIRAR (permisos)** | 3 | `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_VISUAL_USER_SELECTED`, `MODIFY_AUDIO_SETTINGS` |
+| **MANTENER (peer)** | 4 | `expo-linking`, `react-native-safe-area-context`, `react-native-screens`, `expo-font` |
+| **EVALUAR** | 4 | `@expo/ngrok`, `expo-asset`, `expo-splash-screen`, `react-dom` + `react-native-web` (decisión web) |
+| **EVALUAR (plugin sin uso)** | 1 | `expo-web-browser` |
+| **RETIRADAS en FASE 2** | 7 | `expo-device`, `expo-symbols`, `expo-glass-effect`, `expo-system-ui`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets` |
+| **RETIRADOS en FASE 2 (permisos)** | 3 | `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_VISUAL_USER_SELECTED`, `MODIFY_AUDIO_SETTINGS` |
 
-\* Sujeto a verificación de peers de `expo-router@58` antes de retirar.
-
-**Conclusión:** no hay ninguna dependencia «equivocada». Hay **8 dependencias sobrantes y 3 permisos sobrantes**. El stack elegido es el correcto para SDK 58; el trabajo pendiente es de **poda y verificación**, no de sustitución.
+**Conclusión:** no había ninguna dependencia «equivocada». Se retiraron **7 dependencias y 3 permisos** en FASE 2 manteniendo `expo-doctor` en **20/20**, `tsc` limpio, `jest` en **139/139** y `expo lint` sin problemas. Lo que queda es decisión de producto (web, `@expo/ngrok`, `expo-asset`/`expo-splash-screen`), no deuda técnica.
 
 ---
 

@@ -66,6 +66,7 @@ export default function SongsScreen() {
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
   const isScanning = useLibraryStore((state) => state.isScanning);
+  const error = useLibraryStore((state) => state.error);
   const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
   const setAudiobook = useLibraryStore((state) => state.setAudiobook);
@@ -80,7 +81,6 @@ export default function SongsScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const view: SongView = isSongView(params.view) ? params.view : 'all';
-
   const setView = useCallback(
     (next: SongView) => {
       if (next !== view) {
@@ -187,10 +187,36 @@ export default function SongsScreen() {
         header={header}>
         {isLoading ? (
           <ActivityIndicator color={theme.accent} style={styles.loader} />
+        ) : error && songs.length === 0 ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title="No se pudo leer tu música"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void refresh()}
+          />
+        ) : songs.length === 0 ? (
+          <EmptyState
+            icon="musical-notes-outline"
+            title="Tu biblioteca está vacía"
+            message="No se encontraron archivos de audio en este dispositivo. Copia música y vuelve a escanear."
+            actionLabel="Escanear de nuevo"
+            onAction={() => void refresh()}
+          />
         ) : visibleSongs.length === 0 ? (
           <EmptyState
-            title="Nada por aquí"
-            message="No hay canciones que coincidan con la búsqueda o el filtro."
+            icon="search-outline"
+            title="Sin resultados"
+            message={
+              query.trim()
+                ? `Nada coincide con «${query.trim()}» en este filtro.`
+                : 'No hay canciones en este filtro.'
+            }
+            actionLabel="Limpiar filtros"
+            onAction={() => {
+              setQuery('');
+              setView('all');
+            }}
           />
         ) : (
           <SongList

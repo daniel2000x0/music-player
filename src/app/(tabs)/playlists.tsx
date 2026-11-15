@@ -42,6 +42,8 @@ export default function PlaylistsScreen() {
   const recentIds = useLibraryStore((state) => state.recentIds);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
+  const error = useLibraryStore((state) => state.error);
+  const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
   const createPlaylist = useLibraryStore((state) => state.createPlaylist);
   const renamePlaylist = useLibraryStore((state) => state.renamePlaylist);
@@ -127,6 +129,22 @@ export default function PlaylistsScreen() {
         }>
         {isLoading ? (
           <ActivityIndicator color={theme.accent} style={styles.loader} />
+        ) : error && songs.length === 0 ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title="No se pudo leer tu música"
+            message={error}
+            actionLabel="Reintentar"
+            onAction={() => void refresh()}
+          />
+        ) : songs.length === 0 && sortedPlaylists.length === 0 ? (
+          <EmptyState
+            icon="musical-notes-outline"
+            title="Tu biblioteca está vacía"
+            message="Las playlists automáticas y las tuyas necesitan canciones en el dispositivo. Agrega música y vuelve a escanear."
+            actionLabel="Escanear de nuevo"
+            onAction={() => void refresh()}
+          />
         ) : (
           <>
             <View>

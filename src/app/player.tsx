@@ -19,6 +19,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useCapabilities } from '@/hooks/use-capabilities';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
@@ -75,6 +76,7 @@ export default function PlayerScreen() {
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const lockScreen = usePlayerStore((state) => state.lockScreen);
+  const capabilities = useCapabilities();
 
   const [pickerVisible, setPickerVisible] = useState(false);
 
@@ -117,7 +119,7 @@ export default function PlayerScreen() {
           </Pressable>
         </View>
 
-        {lockScreen.status === 'degraded' ? (
+        {!capabilities['playback.lockScreen'] || lockScreen.status === 'degraded' ? (
           <View
             style={[
               styles.lockNotice,
@@ -127,8 +129,9 @@ export default function PlayerScreen() {
             accessibilityLiveRegion="polite">
             <Ionicons name="warning-outline" size={16} color={theme.danger} />
             <ThemedText type="small" themeColor="textSecondary" style={styles.lockNoticeText}>
-              Los controles del sistema no están disponibles. La reproducción puede
-              detenerse en segundo plano.
+              {!capabilities['playback.lockScreen']
+                ? 'Este entorno no admite controles del sistema. La reproducción puede detenerse en segundo plano.'
+                : 'Los controles del sistema no están disponibles. La reproducción puede detenerse en segundo plano.'}
             </ThemedText>
           </View>
         ) : null}

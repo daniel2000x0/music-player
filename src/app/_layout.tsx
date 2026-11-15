@@ -13,6 +13,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { AudioBridge } from '@/components/audio-bridge';
 import { MiniPlayer } from '@/components/mini-player';
+import { NoticeBanner } from '@/components/notice-banner';
 import { Colors, TabBarBaseHeight } from '@/constants/theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -77,6 +78,7 @@ export default function RootLayout() {
       <View style={[styles.root, { backgroundColor: Colors[theme].background }]}>
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
         <AudioBridge />
+        <NoticeBanner />
         <Stack
           screenOptions={{
             headerShown: false,

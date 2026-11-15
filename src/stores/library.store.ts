@@ -15,6 +15,8 @@ import {
 import { migrateLegacyLibrary } from '@/services/legacy-migration.service';
 import { logError } from '@/services/error-log.service';
 import { hasAudioPermission, listDeviceAudioIds, loadDeviceAudio, requestAudioAccess } from '@/services/media.service';
+import { setPermissionSnapshot } from '@/services/capabilities';
+import { useNoticeStore } from '@/stores/notice.store';
 import type { Playlist } from '@/types/playlist';
 import type { Album, Artist, Song } from '@/types/song';
 
@@ -81,6 +83,26 @@ async function loadLocal(): Promise<
 }
 
 let scanPromise: Promise<boolean> | null = null;
+
+/** Publica un fallo en el canal de avisos en vez de dejarlo solo en logs. */
+function notifyFailure(
+  code: string,
+  title: string,
+  message: string,
+  onRetry?: () => void
+): void {
+  useNoticeStore.getState().push({
+    code,
+    severity: 'error',
+    title,
+    message,
+    action: onRetry ? { label: 'Reintentar', onPress: onRetry } : undefined,
+  });
+}
+
+function clearNotice(code: string): void {
+  useNoticeStore.getState().dismiss(code);
+}
 
 /**
  * Escanea la mediateca (consulta + portadas + upsert) y sincroniza SQLite.
@@ -164,6 +186,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         // anterior aparece al instante, sin esperar el escaneo del
         // dispositivo (consulta de mediateca + portadas + upsert).
         const [granted, local] = await Promise.all([hasAudioPermission(), loadLocal()]);
+        setPermissionSnapshot({ mediaLibrary: granted });
         // Primera ejecución (BD vacía): no hay nada persistido que mostrar,
         // se mantiene el loader hasta que la sincronización inicial termine
         // (`sync` baja `isLoading` al finalizar).
@@ -182,6 +205,12 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         }
       } catch (error) {
         logError('library-store', 'hydrate', error);
+        notifyFailure(
+          'library.load-failed',
+          'No se pudo cargar la biblioteca',
+          'La copia local no está disponible. Reintenta en unos segundos.',
+          () => void get().refresh()
+        );
         set({
           error: error instanceof Error ? error.message : 'No se pudo cargar la biblioteca',
           hydrated: true,
@@ -201,19 +230,38 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({ isScanning: true, error: null });
     try {
       const granted = await hasAudioPermission();
+      setPermissionSnapshot({ mediaLibrary: granted });
       set({ hasPermission: granted });
       if (granted) {
         const scanned = await scanLibrary();
         if (!scanned) {
-          set({ error: 'No se pudo leer la mediateca del dispositivo. Inténtalo de nuevo.' });
+          const message =
+            'No se pudo leer la mediateca del dispositivo. Inténtalo de nuevo.';
+          set({ error: message });
+          notifyFailure(
+            'library.scan-failed',
+            'No se pudo escanear tu música',
+            message,
+            () => void get().refresh()
+          );
+        } else {
+          clearNotice('library.scan-failed');
         }
       }
       const local = await loadLocal();
       set({ ...local, isLoading: false });
     } catch (error) {
       logError('library-store', 'refresh', error);
+      const message =
+        error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca';
+      notifyFailure(
+        'library.scan-failed',
+        'No se pudo escanear tu música',
+        message,
+        () => void get().refresh()
+      );
       set({
-        error: error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca',
+        error: message,
         isLoading: false,
       });
     } finally {
@@ -235,6 +283,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({ isSyncing: true, error: null });
     try {
       const granted = await hasAudioPermission();
+      setPermissionSnapshot({ mediaLibrary: granted });
       set({ hasPermission: granted });
       let changed = false;
       if (granted) {
@@ -247,6 +296,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           changed = await migrateLegacyLibrary();
         }
       }
+      clearNotice('library.scan-failed');
+      clearNotice('library.sync-failed');
       if (changed) {
         const local = await loadLocal();
         set({ ...local, isLoading: false });
@@ -257,8 +308,16 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
     } catch (error) {
       logError('library-store', 'sync', error);
+      const message =
+        error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca';
+      notifyFailure(
+        'library.sync-failed',
+        'No se pudo sincronizar tu biblioteca',
+        message,
+        () => void get().refresh()
+      );
       set({
-        error: error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca',
+        error: message,
         isLoading: false,
       });
     } finally {
@@ -269,10 +328,17 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   requestAccess: async () => {
     set({ isLoading: true });
     const granted = await requestAudioAccess();
+    setPermissionSnapshot({ mediaLibrary: granted });
     set({ hasPermission: granted });
     if (granted) {
+      clearNotice('library.permission-denied');
       await get().refresh();
     } else {
+      notifyFailure(
+        'library.permission-denied',
+        'Permiso de audio denegado',
+        'Revisa los permisos de la app en los ajustes del sistema para ver tu música.'
+      );
       set({ isLoading: false });
     }
   },

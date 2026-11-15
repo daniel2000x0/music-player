@@ -16,7 +16,9 @@ import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useCapabilities } from '@/hooks/use-capabilities';
 import { useTheme } from '@/hooks/use-theme';
+import type { Capability } from '@/services/capabilities';
 import {
   applyAppUpdate,
   checkForAppUpdate,
@@ -29,6 +31,16 @@ import type { ThemeMode } from '@/types/settings';
 const THEMES: readonly CategoryOption<ThemeMode>[] = [
   { key: 'dark', label: 'Oscuro' },
   { key: 'light', label: 'Claro' },
+];
+
+const CAPABILITY_LABELS: readonly { key: Capability; label: string }[] = [
+  { key: 'playback.background', label: 'Reproducción en segundo plano' },
+  { key: 'playback.lockScreen', label: 'Controles del sistema' },
+  { key: 'playback.notifications', label: 'Notificaciones de reproducción' },
+  { key: 'mediaLibrary.read', label: 'Lectura de la mediateca' },
+  { key: 'widget.homeScreen', label: 'Widget de pantalla de inicio' },
+  { key: 'library.incrementalScan', label: 'Escaneo incremental' },
+  { key: 'library.albumFolderGrouping', label: 'Agrupación por álbum/carpeta' },
 ];
 
 type RowProps = {
@@ -167,6 +179,7 @@ function UpdateSection({ onCheckUpdates }: UpdateSectionProps) {
 /** Pantalla de configuración: apariencia y administración. */
 export default function SettingsScreen() {
   const theme = useTheme();
+  const capabilities = useCapabilities();
 
   const themeMode = useSettingsStore((state) => state.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
@@ -401,6 +414,32 @@ export default function SettingsScreen() {
             onPress={() => router.push('/logs')}
           />
         </View>
+
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.backgroundElement, marginTop: Spacing.two },
+          ]}
+        >
+          <ThemedText type="smallBold">Capacidades del dispositivo</ThemedText>
+
+          {CAPABILITY_LABELS.map(({ key, label }) => (
+            <View key={key} style={styles.capabilityRow}>
+              <Ionicons
+                name={capabilities[key] ? 'checkmark-circle' : 'close-circle'}
+                size={16}
+                color={capabilities[key] ? theme.accent : theme.danger}
+              />
+              <ThemedText type="small" themeColor="textSecondary">
+                {label}
+              </ThemedText>
+            </View>
+          ))}
+
+          <ThemedText type="small" themeColor="textSecondary">
+            Se actualizan cuando cambian los permisos.
+          </ThemedText>
+        </View>
       </View>
 
       {/* ACERCA DE */}
@@ -443,6 +482,11 @@ export default function SettingsScreen() {
 
 // ESTILOS
 const styles = StyleSheet.create({
+  capabilityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
   card: {
     borderRadius: Radius.medium,
     padding: Spacing.three,

@@ -150,13 +150,13 @@ Total orientativo: **26–35 jornadas**. No es un mes de trabajo: es un ciclo de
 3. **`capabilities.ts`** con las 7 capacidades de `05-architecture-proposal.md` §6.
 4. **Canal de avisos** con deduplicación por `code` y severidad.
 5. **Estados vacíos honestos** en biblioteca, audiolibros y playlists.
-6. **Poda de dependencias** tras verificar con `grep` que siguen sin uso **y** que no son peers obligatorios de `expo-router@58`: `expo-symbols`, `expo-glass-effect`, `expo-font`, `expo-device`, `expo-system-ui`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`. Las tres últimas se retiran solo si `peerDependenciesMeta` de `expo-router` las marca como opcionales.
+6. **Poda de dependencias** tras verificar con `grep` que siguen sin uso **y** que no son peers obligatorios de `expo-router@58`: `expo-symbols`, `expo-glass-effect`, `expo-device`, `expo-system-ui`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`. Las tres últimas se retiran solo si `peerDependenciesMeta` de `expo-router` las marca como opcionales. **`expo-font` se conserva**: `expo-doctor` falla con «Missing peer dependency: expo-font Required by: @expo/vector-icons» si se retira. El plugin `expo-font` que añade `expo install` sí se retira de `app.json`.
 7. **Poda de permisos:** `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_VISUAL_USER_SELECTED`, `MODIFY_AUDIO_SETTINGS`.
 
 ### Dependencias
 
 - **Ninguna nueva.**
-- **Retiradas:** las 8 dependencias y 2 plugins sin uso, **solo tras** confirmar con `grep -r` que no hay imports y ejecutar `npx expo-doctor` después. Si `expo-doctor` se queja por peers de `expo-router`, se conservan y se anota el motivo (ver `07-dependencies-and-tools.md`).
+- **Retiradas:** 7 dependencias (`expo-symbols`, `expo-glass-effect`, `expo-device`, `expo-system-ui`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`) y 2 plugins sin uso, **solo tras** confirmar con `grep` que no hay imports y ejecutar `npx expo-doctor` después. `expo-font` se conserva por ser peer obligatorio de `@expo/vector-icons` (ver `07-dependencies-and-tools.md`).
 
 ### Skills a consultar
 
@@ -180,7 +180,7 @@ Context7 ✅ · Expo MCP ❌ (sustituido por `webfetch` a docs v58) · GitHub MC
 - `capabilities` con `Platform.OS` y `executionEnvironment` mockeados (4 combinaciones).
 - `notice.store`: alta, deduplicación por `code`, descarte, acción.
 - `session.ts`: transiciones válidas e inválidas (tabla de estados; toda transición no declarada lanza en desarrollo).
-- Regresión: las 111 pruebas existentes deben seguir pasando **sin modificarlas**.
+- Regresión: las 123 pruebas existentes deben seguir pasando **sin modificarlas** (resultado: **139/139**).
 
 ### Criterios de salida
 
@@ -191,6 +191,18 @@ Context7 ✅ · Expo MCP ❌ (sustituido por `webfetch` a docs v58) · GitHub MC
 5. `package.json` no contiene las dependencias retiradas y `expo-doctor` sigue en 20/20.
 6. `app.json` no declara los 3 permisos retirados.
 7. Verdes: `tsc`, `jest`, `expo-doctor`, `expo lint`.
+
+### Estado al cierre de FASE 2
+
+| Criterio | Resultado |
+| --- | --- |
+| `audio-engine.ts` | 8 líneas (`export *`) |
+| Módulos `services/audio/` | `index` 40, `audio-mode` 70, `events` 72, `session` 98, `playlist-edits` 100, `native-playlist` 166, `queue` 174, `lock-screen` 200 |
+| `capabilities` | 7 capacidades; consumido en `player.tsx` y `settings.tsx` |
+| Aviso por fallo de escaneo | `library.scan-failed` con acción «Reintentar» |
+| Dependencias | 7 retiradas; `expo-font` conservada como peer |
+| Permisos | 3 retirados (`app.json` con 5) |
+| Verdes | `tsc` limpio · `jest` 139/139 · `expo-doctor` 20/20 · `expo lint` 0 problemas · bundle Android exportado |
 
 ---
 
