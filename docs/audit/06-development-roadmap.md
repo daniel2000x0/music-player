@@ -151,7 +151,7 @@ Total orientativo: **26–35 jornadas**. No es un mes de trabajo: es un ciclo de
 4. **Canal de avisos** con deduplicación por `code` y severidad.
 5. **Estados vacíos honestos** en biblioteca, audiolibros y playlists.
 6. **Poda de dependencias** tras verificar con `grep` que siguen sin uso **y** que no son peers obligatorios de `expo-router@58`: `expo-symbols`, `expo-glass-effect`, `expo-device`, `expo-system-ui`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`. Las tres últimas se retiran solo si `peerDependenciesMeta` de `expo-router` las marca como opcionales. **`expo-font` se conserva**: `expo-doctor` falla con «Missing peer dependency: expo-font Required by: @expo/vector-icons» si se retira. El plugin `expo-font` que añade `expo install` sí se retira de `app.json`.
-7. **Poda de permisos:** `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_VISUAL_USER_SELECTED`, `MODIFY_AUDIO_SETTINGS`.
+7. **Poda de permisos:** `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_VISUAL_USER_SELECTED`, `MODIFY_AUDIO_SETTINGS`. Se quitan de `android.permissions` **y** se añaden a `android.blockedPermissions`, porque los plugins `expo-media-library` y `expo-audio` los re-añaden al manifest.
 
 ### Dependencias
 
@@ -189,7 +189,7 @@ Context7 ✅ · Expo MCP ❌ (sustituido por `webfetch` a docs v58) · GitHub MC
 3. `capabilities.ts` cubierto por pruebas y consumido al menos en 2 pantallas.
 4. Un fallo simulado de escaneo produce un aviso visible, no solo una fila en `error_logs`.
 5. `package.json` no contiene las dependencias retiradas y `expo-doctor` sigue en 20/20.
-6. `app.json` no declara los 3 permisos retirados.
+6. Los 3 permisos retirados no aparecen en el manifest final (`android.blockedPermissions` + `expo config --type introspect`).
 7. Verdes: `tsc`, `jest`, `expo-doctor`, `expo lint`.
 
 ### Estado al cierre de FASE 2
@@ -201,8 +201,29 @@ Context7 ✅ · Expo MCP ❌ (sustituido por `webfetch` a docs v58) · GitHub MC
 | `capabilities` | 7 capacidades; consumido en `player.tsx` y `settings.tsx` |
 | Aviso por fallo de escaneo | `library.scan-failed` con acción «Reintentar» |
 | Dependencias | 7 retiradas; `expo-font` conservada como peer |
-| Permisos | 3 retirados (`app.json` con 5) |
+| Permisos | 3 bloqueados con `android.blockedPermissions` (manifest con 5 + `READ_EXTERNAL_STORAGE` limitado a `maxSdkVersion=32`) |
 | Verdes | `tsc` limpio · `jest` 139/139 · `expo-doctor` 20/20 · `expo lint` 0 problemas · bundle Android exportado |
+
+### Verificación en dispositivo (FASE 2)
+
+Dispositivo: Infinix X6826 (`09729372AM004325`), Android 12 (SDK 31), APK release 1.0.0 canal `preview`.
+OTA aplicada: grupo `f609e8b8-df66-4460-9778-e031ac65005f`, update Android `01a1dd7c-03c2-7cea-aa2d-26225d1946fe`, commit `c5b9782`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| Arranque del bundle nuevo | ✅ `Ajustes → Diagnóstico → Capacidades del dispositivo` muestra las 7 capacidades |
+| Biblioteca | ✅ 1792 canciones / 671 artistas tras escaneo completo; sin errores JS ni crashes |
+| Reproducción | ✅ cola completa desde «Reproducir»; notificación `expo_audio_channel` con Anterior/Pausa/Siguiente y metadatos correctos |
+| Segundo plano | ✅ 40 s con la app en background y la posición avanzando (`state=3`) |
+| Controles de notificación | ✅ pausa, play y siguiente funcionan (`active item id` y metadatos cambian) |
+| Estado sin permiso | ✅ «Sin acceso a tu música» + «Conceder permiso» (no confunde vacío con error) |
+| Reanudación tras permiso | ✅ vuelve a escanear y muestra la biblioteca |
+
+**Observaciones abiertas (no bloquean FASE 2):**
+
+1. `KEYCODE_MEDIA_PLAY_PAUSE` pausa pero no reanuda; `KEYCODE_MEDIA_PLAY`, los botones de la notificación y el botón de la app sí. Es comportamiento del handler nativo de `expo-audio`, no de la fachada; se anota para FASE 4.
+2. El aviso `Cargando tu biblioteca…` cubre también el escaneo completo (≈30 s con 1792 pistas); en FASE 3/6 conviene separar «cargando copia local» de «escaneando».
+3. Android 12 no expone `POST_NOTIFICATIONS` ni `READ_MEDIA_AUDIO` como permisos en tiempo de ejecución: su comportamiento (incluido el canal de avisos de FASE 2) queda pendiente de validar en un dispositivo Android 13+.
 
 ---
 

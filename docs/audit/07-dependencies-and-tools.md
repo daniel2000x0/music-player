@@ -132,11 +132,34 @@ Leyenda de veredicto:
 | `POST_NOTIFICATIONS` | Sí, controles de reproducción | **MANTENER** |
 | `FOREGROUND_SERVICE` | Sí, reproducción en segundo plano | **MANTENER** |
 | `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | Sí | **MANTENER** |
-| `WRITE_EXTERNAL_STORAGE` | No | **RETIRADO en FASE 2** (`A-06`) |
-| `READ_MEDIA_VISUAL_USER_SELECTED` | No (es para fotos/vídeo) | **RETIRADO en FASE 2** (`A-06`) |
-| `MODIFY_AUDIO_SETTINGS` | No necesario para reproducir | **RETIRADO en FASE 2** (`A-06`) |
+| `WRITE_EXTERNAL_STORAGE` | No | **BLOQUEADO en FASE 2** (`A-06`) |
+| `READ_MEDIA_VISUAL_USER_SELECTED` | No (es para fotos/vídeo) | **BLOQUEADO en FASE 2** (`A-06`) |
+| `MODIFY_AUDIO_SETTINGS` | Solo lo declara `expo-audio`; su código únicamente lee `ringerMode` (no requiere permiso) | **BLOQUEADO en FASE 2** (`A-06`) |
 
 **Nota de plataforma:** `WRITE_EXTERNAL_STORAGE` está ignorado en Android 11+ y es motivo de fricción/observación en la revisión de Play. Su retirada es segura.
+
+**Cómo se retiraron de verdad.** Quitarlos de `android.permissions` no basta: los plugins `expo-media-library` y `expo-audio` los vuelven a añadir al manifest. Desde SDK 58 `android.blockedPermissions` los elimina del manifest final con `tools:node="remove"`. La lista quedó así:
+
+```json
+"blockedPermissions": [
+  "android.permission.WRITE_EXTERNAL_STORAGE",
+  "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+  "android.permission.MODIFY_AUDIO_SETTINGS"
+]
+```
+
+Verificación con `npx expo config --type introspect` (manifest resultante, sin generar `android/`):
+
+| Permiso | Resultado en el manifest |
+| --- | --- |
+| `READ_EXTERNAL_STORAGE` | presente con `android:maxSdkVersion="32"` |
+| `READ_MEDIA_AUDIO` | presente |
+| `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` | presentes |
+| `WRITE_EXTERNAL_STORAGE` | `tools:node="remove"` |
+| `READ_MEDIA_VISUAL_USER_SELECTED` | `tools:node="remove"` |
+| `MODIFY_AUDIO_SETTINGS` | `tools:node="remove"` |
+
+**Riesgo controlado:** en Android ≤ 12 `expo-media-library` pide `WRITE_EXTERNAL_STORAGE` solo si está declarado en el manifest (`SystemPermissionsDelegate.getManifestPermissions`), así que al bloquearlo la petición queda en `READ_EXTERNAL_STORAGE` y `granted` sigue siendo correcto. En Android 13+ pide solo `READ_MEDIA_AUDIO`. El manifest definitivo se comprobará en el próximo build nativo (EAS), porque un OTA no cambia permisos.
 
 ### 3.3 `eas.json`
 
@@ -207,7 +230,7 @@ Estado **real** de esta sesión de auditoría, sin inventar capacidades:
 2. ✅ **Hecho en FASE 2** (una por una, con `expo-doctor` después): retiradas `expo-device`, `expo-symbols`, `expo-glass-effect`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`. `expo-font` **se conserva** por ser peer obligatorio de `@expo/vector-icons` (sin él, `expo-doctor` falla con «Missing peer dependency»).
 3. ✅ **Verificado** en `node_modules/expo-router/package.json`: `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets` y `expo-symbols` son peers **opcionales** (`peerDependenciesMeta`). `expo-glass-effect` es dependencia dura, por lo que permanece instalada de forma transitiva aunque no se declare.
 4. **Decidir sobre web** (`react-dom`, `react-native-web`, `web.output`, headers COEP/COOP): si el producto es Android/iOS, retirar y simplificar `app.json` (`M-03`). Si se mantiene web, justificarlo.
-5. ✅ **Hecho en FASE 2**: retirados los 3 permisos sin uso (`A-06`). Quedan `READ_EXTERNAL_STORAGE`, `READ_MEDIA_AUDIO`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK`.
+5. ✅ **Hecho en FASE 2**: retirados de `android.permissions` y **bloqueados con `android.blockedPermissions`** los 3 permisos sin uso (`A-06`), porque los plugins los re-añadían. Quedan `READ_EXTERNAL_STORAGE`, `READ_MEDIA_AUDIO`, `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK`.
 6. **Instalar solo con `npx expo install`** en el futuro; nunca `npm install <paquete>` a secas, para no romper la matriz del SDK.
 7. **Reevaluar `react-native-reanimated`** únicamente si la FASE 6 la necesita de verdad, y entonces reinstalarla con `expo install` y documentar el motivo.
 8. **`@expo/ngrok`**: mover a `devDependencies` o retirar; es una herramienta de túnel, no una dependencia de producto.
@@ -236,7 +259,7 @@ Estado **real** de esta sesión de auditoría, sin inventar capacidades:
 | **EVALUAR** | 4 | `@expo/ngrok`, `expo-asset`, `expo-splash-screen`, `react-dom` + `react-native-web` (decisión web) |
 | **EVALUAR (plugin sin uso)** | 1 | `expo-web-browser` |
 | **RETIRADAS en FASE 2** | 7 | `expo-device`, `expo-symbols`, `expo-glass-effect`, `expo-system-ui`, `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets` |
-| **RETIRADOS en FASE 2 (permisos)** | 3 | `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_VISUAL_USER_SELECTED`, `MODIFY_AUDIO_SETTINGS` |
+| **BLOQUEADOS en FASE 2 (permisos)** | 3 | `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_VISUAL_USER_SELECTED`, `MODIFY_AUDIO_SETTINGS` |
 
 **Conclusión:** no había ninguna dependencia «equivocada». Se retiraron **7 dependencias y 3 permisos** en FASE 2 manteniendo `expo-doctor` en **20/20**, `tsc` limpio, `jest` en **139/139** y `expo lint` sin problemas. Lo que queda es decisión de producto (web, `@expo/ngrok`, `expo-asset`/`expo-splash-screen`), no deuda técnica.
 
