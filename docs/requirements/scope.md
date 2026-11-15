@@ -58,8 +58,11 @@ Incluye:
 - Repetición.
 - Cola de reproducción.
 - Reproductor minimizado y completo.
+- Notificación de reproducción con controles del sistema.
+- Controles en la pantalla de bloqueo.
+- Widget de pantalla de inicio con portada, título, artista, barra de progreso y controles.
 
-La reproducción en segundo plano y los controles del sistema estarán sujetos a las capacidades de los módulos nativos utilizados.
+La reproducción en segundo plano, los controles del sistema y el widget requieren un Development Build o una compilación standalone; Expo Go no incluye los módulos nativos correspondientes.
 
 ### 4.3. Administración musical
 
@@ -200,7 +203,6 @@ Las siguientes funcionalidades no forman parte de la primera versión.
 - Letras sincronizadas.
 - Recomendaciones mediante inteligencia artificial.
 - Temporizador de apagado.
-- Widgets.
 - Estadísticas avanzadas.
 - Integración con Android Auto.
 

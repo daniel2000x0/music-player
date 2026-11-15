@@ -49,6 +49,8 @@ Criterios de aceptación:
 - Debe mostrar el progreso de reproducción.
 - Debe permitir desplazarse a una posición específica.
 - Debe mostrar información de la canción actual.
+- Debe reflejar la canción y el progreso en la notificación y en la pantalla de bloqueo.
+- Debe reflejar la canción, el progreso y los controles en el widget de pantalla de inicio.
 
 ### US-003. Consultar la pantalla de inicio
 

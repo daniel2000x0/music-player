@@ -90,6 +90,9 @@ El sistema permitirá explorar los archivos musicales disponibles en el disposit
 - Repetición de canción.
 - Repetición de lista.
 - Reproducción en segundo plano, cuando sea compatible con la configuración nativa.
+- Notificación de reproducción con título, artista, carátula y controles anterior/pausar/siguiente.
+- Controles de reproducción en la pantalla de bloqueo.
+- Widget de pantalla de inicio con portada, título, artista, barra de progreso, tiempos y controles.
 - Mantener los controles de reproducción durante la navegación.
 
 ## RF-003. Pantalla de inicio
@@ -462,6 +465,8 @@ La primera versión deberá cumplir con lo siguiente:
 - Mantener los datos después de reiniciar la aplicación.
 - Permitir alternar entre tema claro y oscuro.
 - Funcionar sin conexión a Internet.
+- Mostrar la notificación y los controles de pantalla de bloqueo durante la reproducción.
+- Mantener el widget de pantalla de inicio sincronizado con portada, título, artista, barra de progreso y controles.
 
 # 10. Evolución futura
 
@@ -469,7 +474,6 @@ Las siguientes funcionalidades quedan fuera de la primera versión:
 
 - Ecualizador.
 - Temporizador de apagado.
-- Widgets.
 - Estadísticas avanzadas.
 - Letras de canciones.
 - Integración con servicios externos.

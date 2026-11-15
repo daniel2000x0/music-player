@@ -1,56 +1,64 @@
-# Welcome to your Expo app 👋
+# Mi Música
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Reproductor y administrador de música local para Android, construido con React Native, Expo y TypeScript. Lee la mediateca del dispositivo, guarda la información administrativa en SQLite y permite reproducir, organizar y buscar canciones sin conexión.
 
-## Get started
+## Funcionalidades
 
-1. Install dependencies
+- Biblioteca local de canciones, álbumes, artistas y audiolibros.
+- Reproductor completo y minimizado con barra de progreso, búsqueda de posición, aleatorio, repetición y cola.
+- Notificación de reproducción con carátula y controles anterior/pausar/siguiente.
+- Controles en la pantalla de bloqueo mediante una sesión de medios (Media3).
+- Widget de pantalla de inicio con portada, título, artista, barra de progreso, tiempos y controles.
+- Favoritos, playlists manuales y automáticas, historial y contadores de reproducción.
+- Búsqueda, filtros y ordenamientos.
+- Temas claro y oscuro, configuración y registro local de errores.
+- Funciona sin conexión a Internet.
 
-   ```bash
-   npm install
-   ```
+## Requisitos
 
-2. Start the app
+- Node.js 22.13 o superior (el proyecto fija `engines` en `package.json`).
+- Un dispositivo o emulador Android.
+- Para las funciones nativas (reproducción en segundo plano, pantalla de bloqueo y widget), un Development Build o una compilación standalone. **Expo Go no las incluye**: allí el widget y la sesión de medios se desactivan automáticamente.
 
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Puesta en marcha
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Comandos útiles:
 
-### Other setup steps
+```bash
+npx tsc --noEmit   # verificación de tipos
+npx eslint .       # lint
+npx jest           # pruebas
+npx expo-doctor    # diagnóstico de dependencias y configuración
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## Compilación
 
-## Learn more
+El proyecto usa EAS. El perfil `preview` genera un APK instalable:
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npx eas-cli@latest build --profile preview --platform android
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Los cambios de `app.json` (plugins, permisos, configuración del widget) requieren una compilación nueva; no se pueden aplicar con una actualización OTA.
 
-## Join the community
+## Estructura
 
-Join our community of developers creating universal apps.
+- `src/app/`: rutas de Expo Router (pantallas y layouts).
+- `src/components/`: componentes de interfaz; `audio-bridge-inner.tsx` conecta el motor con los stores y el widget.
+- `src/services/`: acceso a la mediateca, motor de audio (`expo-audio`), portadas, persistencia y sincronización del widget.
+- `src/stores/`: estado con Zustand (biblioteca, reproductor, ajustes) y el progreso aislado en `playback-progress.ts`.
+- `src/widgets/`: contrato y layout del widget de pantalla de inicio (`expo-widgets` + `@expo/ui`).
+- `src/domain/`: lógica pura (metadatos, filtros, ordenamientos, playlists automáticas).
+- `docs/requirements/`: alcance, SRS, historias de usuario y casos de uso.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Documentación
+
+- [Alcance](docs/requirements/scope.md)
+- [SRS](docs/requirements/SRS.md)
+- [Historias de usuario](docs/requirements/user-stories.md)
+- [Casos de uso](docs/requirements/uses-cases.md)

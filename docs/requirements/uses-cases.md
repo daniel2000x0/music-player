@@ -350,6 +350,29 @@ Proporciona acceso autorizado a los archivos de audio, almacenamiento del dispos
 3. El sistema consulta la tabla local de errores.
 4. El sistema muestra los errores con contexto, contador y última fecha.
 
+### UC-019. Controlar la reproducción desde el sistema y el widget
+
+**Actor:** Usuario.
+
+**Objetivo:** Controlar la música sin abrir la aplicación.
+
+**Precondiciones:**
+- Existe una canción cargada en el reproductor.
+- La aplicación se ejecuta en un Development Build o compilación standalone.
+
+**Flujo principal:**
+1. El sistema publica la notificación y los controles de pantalla de bloqueo con título, artista, carátula y acciones anterior/pausar/siguiente.
+2. El widget de pantalla de inicio muestra portada, título, artista, barra de progreso, tiempo transcurrido y duración.
+3. El usuario pulsa un control del widget, la notificación o la pantalla de bloqueo.
+4. El sistema aplica la acción sobre la misma cola de reproducción de la aplicación.
+5. El sistema actualiza el estado del reproductor, la notificación, la pantalla de bloqueo y el widget.
+
+**Flujos alternativos:**
+- Si la aplicación no tiene una canción cargada, el widget muestra un estado vacío y deshabilita sus controles.
+- Si el proceso de la aplicación no está activo, las pulsaciones del widget actualizan su vista y se aplican al abrir la aplicación.
+
+**Postcondición:** La reproducción y las vistas del sistema quedan sincronizadas.
+
 ## 4. Relaciones entre casos de uso
 
 - UC-001 es el proceso inicial.
@@ -362,6 +385,7 @@ Proporciona acceso autorizado a los archivos de audio, almacenamiento del dispos
 - UC-016 mantiene actualizada la biblioteca.
 - UC-017 administra la clasificación de audiolibros consumida por UC-002 y UC-003.
 - UC-018 consulta el registro de errores generado por el resto de casos de uso.
+- UC-019 reutiliza las acciones de UC-004 desde la notificación, la pantalla de bloqueo y el widget.
 
 ## 5. Consideraciones técnicas
 

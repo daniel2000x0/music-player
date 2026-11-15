@@ -1,33 +1,78 @@
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect } from 'react';
 
-import { configureAudioSession, registerPlayer } from '@/services/audio-engine';
+import {
+  configureAudioSession,
+  requestNotificationPermission,
+  subscribePlaylistStatus,
+  subscribeTrackChange,
+} from '@/services/audio-engine';
+import {
+  registerMediaWidgetInteractions,
+  syncMediaWidget,
+} from '@/services/media-widget.service';
+import {
+  getPlaybackDuration,
+  getPlaybackPosition,
+  subscribePlaybackProgress,
+} from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
 
 /**
- * Puente entre `expo-audio` y Zustand. Monta un único reproductor cuyo ciclo
- * de vida coincide con la app y publica el estado nativo en el store.
+ * Puente entre `expo-audio` y Zustand. El motor crea una única
+ * `AudioPlaylist` fuera de React; aquí solo se configura la sesión de audio y
+ * se publican los eventos nativos en el store.
+ *
+ * También mantiene el widget de pantalla de inicio: le empuja pista/estado y
+ * traduce sus botones a las mismas acciones del store (un solo motor para la
+ * app, la notificación, la pantalla de bloqueo y el widget).
  */
 export function AudioBridge() {
-  const player = useAudioPlayer(null, { updateInterval: 500 });
-  const status = useAudioPlayerStatus(player);
   const syncStatus = usePlayerStore((state) => state.syncStatus);
-  const handleDidFinish = usePlayerStore((state) => state.handleDidFinish);
+  const syncTrack = usePlayerStore((state) => state.syncTrack);
 
   useEffect(() => {
-    registerPlayer(player);
     void configureAudioSession();
-  }, [player]);
+    void requestNotificationPermission();
 
-  useEffect(() => {
-    syncStatus(status);
-  }, [status, syncStatus]);
+    // El motor conserva la cola entre montajes; las suscripciones solo
+    // conectan los eventos nativos con el estado de la app.
+    const unsubscribeStatus = subscribePlaylistStatus(syncStatus);
+    const unsubscribeTrack = subscribeTrackChange(syncTrack);
 
-  useEffect(() => {
-    if (status.didJustFinish) {
-      handleDidFinish();
-    }
-  }, [status.didJustFinish, handleDidFinish]);
+    const unsubscribeWidgetInteractions = registerMediaWidgetInteractions();
+    const initial = usePlayerStore.getState();
+    syncMediaWidget(
+      initial.currentSong,
+      initial.isPlaying,
+      getPlaybackPosition(),
+      getPlaybackDuration()
+    );
+    const unsubscribeWidgetState = usePlayerStore.subscribe((state, previous) => {
+      if (state.currentSong === previous.currentSong && state.isPlaying === previous.isPlaying) {
+        return;
+      }
+      syncMediaWidget(
+        state.currentSong,
+        state.isPlaying,
+        getPlaybackPosition(),
+        getPlaybackDuration()
+      );
+    });
+    // El progreso se publica por separado: el servicio filtra los ticks y solo
+    // escribe cuando cambia la pista/estado, hay un seek o pasan ~5 segundos.
+    const unsubscribeWidgetProgress = subscribePlaybackProgress((position, duration) => {
+      const player = usePlayerStore.getState();
+      syncMediaWidget(player.currentSong, player.isPlaying, position, duration);
+    });
+
+    return () => {
+      unsubscribeStatus();
+      unsubscribeTrack();
+      unsubscribeWidgetState();
+      unsubscribeWidgetProgress();
+      unsubscribeWidgetInteractions();
+    };
+  }, [syncStatus, syncTrack]);
 
   return null;
 }

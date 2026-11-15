@@ -3,7 +3,24 @@ import { create } from 'zustand';
 import { historyRepository } from '@/data/repositories/history.repository';
 import { isValidPlay } from '@/domain/playback/valid-play';
 import { moveItem } from '@/domain/playlists/reorder';
-import { clearLockScreenControls, getPlayer, loadAndPlay } from '@/services/audio-engine';
+import {
+  appendSong,
+  getCurrentIndex,
+  getTrackCount,
+  insertAfterCurrent,
+  nextTrack,
+  pause,
+  previousTrack,
+  rebuildQueue,
+  removeSongById,
+  seekTo,
+  setLoop,
+  startQueue,
+  stopPlayback,
+  togglePlayback,
+  type PlaybackStatus,
+  type RepeatMode,
+} from '@/services/audio-engine';
 import { logError } from '@/services/error-log.service';
 import { useLibraryStore } from '@/stores/library.store';
 import {
@@ -15,15 +32,7 @@ import {
 } from '@/stores/playback-progress';
 import type { Song } from '@/types/song';
 
-export type RepeatMode = 'none' | 'all' | 'single';
-
-export type PlaybackStatus = {
-  playing: boolean;
-  currentTime: number;
-  duration: number;
-  isBuffering: boolean;
-  didJustFinish: boolean;
-};
+export type { RepeatMode };
 
 type PlayerState = {
   currentSong: Song | null;
@@ -51,7 +60,7 @@ type PlayerState = {
   moveInQueue: (from: number, to: number) => void;
   clearQueue: () => void;
   syncStatus: (status: PlaybackStatus) => void;
-  handleDidFinish: () => void;
+  syncTrack: (song: Song) => void;
 };
 
 let lastPosition = 0;
@@ -75,13 +84,6 @@ function clearSeekTarget(): void {
   seekTarget = null;
 }
 
-/** Envía un seek al motor sin dejar promesas rechazadas sin manejar. */
-function safeSeekTo(seconds: number): void {
-  void getPlayer()
-    .seekTo(seconds)
-    .catch((error: unknown) => logError('player-store', 'seekTo', error));
-}
-
 /**
  * Registra un seek optimista y lo envía al motor.
  *
@@ -96,16 +98,7 @@ function requestSeek(seconds: number): void {
   seekRequestedAt = Date.now();
   lastPosition = clamped;
   setPlaybackPosition(clamped);
-  safeSeekTo(clamped);
-}
-
-/** Reproduce una pista registrando fallos (archivo borrado, códec, etc.). */
-function safeLoadAndPlay(song: Song): void {
-  try {
-    loadAndPlay(song);
-  } catch (error) {
-    logError('player-store', 'loadAndPlay', error);
-  }
+  seekTo(clamped);
 }
 
 function resolveQueue(current: Song[], song: Song, nextQueue?: Song[]): Song[] {
@@ -116,6 +109,13 @@ function resolveQueue(current: Song[], song: Song, nextQueue?: Song[]): Song[] {
     return current;
   }
   return [song];
+}
+
+/** Cancela la cola actual y deja el reproductor listo para otra pista. */
+function stopAndClear(): void {
+  stopPlayback();
+  clearSeekTarget();
+  lastPosition = 0;
 }
 
 export const usePlayerStore = create<PlayerState>((set, get) => ({
@@ -130,6 +130,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   play: (song, nextQueue) => {
     const queue = resolveQueue(get().queue, song, nextQueue);
+    const { repeatMode, shuffle } = get();
     lastPosition = 0;
     clearSeekTarget();
     set({
@@ -140,11 +141,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isPlaying: true,
     });
     resetPlaybackProgress(song.duration);
-    safeLoadAndPlay(song);
+    try {
+      startQueue(queue, { startSongId: song.id, loop: repeatMode, shuffle, restart: true });
+    } catch (error) {
+      logError('player-store', 'startQueue', error);
+    }
   },
 
   playQueueIndex: (index) => {
-    const { queue, currentSong } = get();
+    const { queue, currentSong, repeatMode, shuffle } = get();
     const song = queue[index];
     if (!song) {
       return;
@@ -158,71 +163,49 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       isPlaying: true,
     });
     resetPlaybackProgress(song.duration);
-    safeLoadAndPlay(song);
+    try {
+      startQueue(queue, { startSongId: song.id, loop: repeatMode, shuffle, restart: true });
+    } catch (error) {
+      logError('player-store', 'startQueue', error);
+    }
+    // Repetir la misma pista desde la cola reinicia su reproducción.
     if (currentSong?.id === song.id) {
       requestSeek(0);
     }
   },
 
   toggle: () => {
-    const player = getPlayer();
-    if (player.playing) {
-      player.pause();
-    } else {
-      player.play();
-    }
+    togglePlayback();
   },
 
   next: () => {
-    const { queue, currentSong, shuffle, repeatMode } = get();
+    const { queue, repeatMode } = get();
     if (queue.length === 0) {
       return;
     }
-    const index = queue.findIndex((item) => item.id === currentSong?.id);
-
-    if (shuffle && queue.length > 1) {
-      let randomIndex = index;
-      while (randomIndex === index) {
-        randomIndex = Math.floor(Math.random() * queue.length);
-      }
-      get().playQueueIndex(randomIndex);
+    // Al final del orden de reproducción y sin repetición total se detiene,
+    // igual que hacía el motor anterior.
+    if (repeatMode !== 'all' && getCurrentIndex() >= getTrackCount() - 1) {
+      // Conserva la notificación (con el botón de reproducir) en vez de
+      // retirarla al llegar al final de la cola.
+      pause();
+      clearSeekTarget();
+      lastPosition = 0;
+      set({ isPlaying: false });
       return;
     }
-
-    const nextIndex = index + 1;
-    if (nextIndex >= queue.length) {
-      if (repeatMode === 'all') {
-        get().playQueueIndex(0);
-      } else {
-        getPlayer().pause();
-        clearLockScreenControls();
-        set({ isPlaying: false });
-      }
-      return;
-    }
-    get().playQueueIndex(nextIndex);
+    nextTrack();
   },
 
   previous: () => {
-    const { queue, currentSong, repeatMode } = get();
-    if (queue.length === 0) {
+    if (get().queue.length === 0) {
       return;
     }
     if (getPlaybackPosition() > 3) {
       requestSeek(0);
       return;
     }
-    const index = queue.findIndex((item) => item.id === currentSong?.id);
-    const previousIndex = index - 1;
-    if (previousIndex < 0) {
-      if (repeatMode === 'all') {
-        get().playQueueIndex(queue.length - 1);
-      } else {
-        requestSeek(0);
-      }
-      return;
-    }
-    get().playQueueIndex(previousIndex);
+    previousTrack();
   },
 
   seek: (seconds) => {
@@ -233,11 +216,27 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   cycleRepeat: () => {
-    set({ repeatMode: get().repeatMode === 'none' ? 'all' : get().repeatMode === 'all' ? 'single' : 'none' });
+    const repeatMode = get().repeatMode;
+    const nextMode =
+      repeatMode === 'none' ? 'all' : repeatMode === 'all' ? 'single' : 'none';
+    set({ repeatMode: nextMode });
+    setLoop(nextMode);
   },
 
   toggleShuffle: () => {
-    set({ shuffle: !get().shuffle });
+    const shuffle = !get().shuffle;
+    set({ shuffle });
+    const { queue, currentSong, repeatMode, isPlaying } = get();
+    if (!currentSong || queue.length === 0) {
+      return;
+    }
+    // La cola nativa se reordena conservando la pista y su posición.
+    rebuildQueue(queue, {
+      currentSongId: currentSong.id,
+      loop: repeatMode,
+      shuffle,
+      playing: isPlaying,
+    });
   },
 
   enqueue: (song) => {
@@ -245,18 +244,25 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       return;
     }
     set({ queue: [...get().queue, song] });
+    appendSong(song);
   },
 
   playNext: (song) => {
     const { queue, currentSong } = get();
+    if (currentSong?.id === song.id) {
+      return;
+    }
     const withoutSong = queue.filter((item) => item.id !== song.id);
     const index = withoutSong.findIndex((item) => item.id === currentSong?.id);
     const insertAt = index < 0 ? withoutSong.length : index + 1;
-    set({ queue: [...withoutSong.slice(0, insertAt), song, ...withoutSong.slice(insertAt)] });
+    set({
+      queue: [...withoutSong.slice(0, insertAt), song, ...withoutSong.slice(insertAt)],
+    });
+    insertAfterCurrent(song);
   },
 
   removeFromQueue: (index) => {
-    const { queue, currentSong } = get();
+    const { queue, currentSong, repeatMode, shuffle } = get();
     const song = queue[index];
     if (!song) {
       return;
@@ -264,31 +270,94 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     const nextQueue = queue.filter((_, position) => position !== index);
     if (song.id !== currentSong?.id) {
       set({ queue: nextQueue });
+      removeSongById(song.id);
       return;
     }
     if (nextQueue.length === 0) {
-      getPlayer().pause();
-      clearLockScreenControls();
+      stopAndClear();
       set({ queue: [], currentSong: null, isPlaying: false });
       setPlaybackProgress(0, 0);
       return;
     }
-    const target = Math.min(index, nextQueue.length - 1);
-    set({ queue: nextQueue });
-    get().playQueueIndex(target);
+    const target = nextQueue[Math.min(index, nextQueue.length - 1)];
+    if (!target) {
+      return;
+    }
+    lastPosition = 0;
+    clearSeekTarget();
+    set({
+      queue: nextQueue,
+      currentSong: target,
+      listenedSeconds: 0,
+      recordedSongId: null,
+      isPlaying: true,
+    });
+    resetPlaybackProgress(target.duration);
+    rebuildQueue(nextQueue, {
+      currentSongId: target.id,
+      loop: repeatMode,
+      shuffle,
+      position: 0,
+      playing: true,
+    });
   },
 
   moveInQueue: (from, to) => {
-    set({ queue: moveItem(get().queue, from, to) });
+    const queue = moveItem(get().queue, from, to);
+    set({ queue });
+    const { currentSong, repeatMode, shuffle, isPlaying } = get();
+    // Con aleatorio activo la cola visible no es el orden de reproducción:
+    // reordenarla no debe cortar la pista actual.
+    if (shuffle || !currentSong) {
+      return;
+    }
+    rebuildQueue(queue, {
+      currentSongId: currentSong.id,
+      loop: repeatMode,
+      shuffle: false,
+      playing: isPlaying,
+    });
   },
 
   clearQueue: () => {
-    const current = get().currentSong;
-    set({ queue: current ? [current] : [] });
+    const { queue, currentSong, repeatMode, shuffle, isPlaying } = get();
+    if (!currentSong) {
+      set({ queue: [] });
+      return;
+    }
+    set({ queue: [currentSong] });
+    if (queue.length <= 1) {
+      return;
+    }
+    rebuildQueue([currentSong], {
+      currentSongId: currentSong.id,
+      loop: repeatMode,
+      shuffle,
+      playing: isPlaying,
+    });
+  },
+
+  /**
+   * Refleja en el store la pista que el motor nativo puso a sonar.
+   *
+   * LÓGICA: la playlist avanza sola al terminar una pista o al usar los
+   * botones de la notificación/auriculares. El motor resuelve el índice real
+   * (incluido el orden aleatorio) y avisa aquí para que la UI, el historial y
+   * los metadatos compartan la misma canción.
+   */
+  syncTrack: (song) => {
+    if (get().currentSong?.id === song.id) {
+      return;
+    }
+    clearSeekTarget();
+    lastPosition = 0;
+    set({ currentSong: song, listenedSeconds: 0, recordedSongId: null });
+    resetPlaybackProgress(song.duration);
   },
 
   syncStatus: (status) => {
-    const { currentSong, recordedSongId, listenedSeconds } = get();
+    const state = get();
+    const currentSong = state.currentSong;
 
     // Confirma (o descarta por timeout) el seek pendiente. Mientras siga
     // pendiente se muestra el destino, no el tick viejo del motor, para que
@@ -308,7 +377,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     lastPosition = position;
     const countedDelta = status.playing && delta > 0 && delta < 2.5 ? delta : 0;
 
-    const nextListened = listenedSeconds + countedDelta;
+    const nextListened = state.listenedSeconds + countedDelta;
 
     // La posición y la duración van al almacén de progreso aislado: los ticks
     // de 500 ms no re-renderizan las pantallas del reproductor.
@@ -322,6 +391,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       listenedSeconds: nextListened,
     });
 
+    const recordedSongId = state.recordedSongId;
     if (
       currentSong &&
       recordedSongId !== currentSong.id &&
@@ -336,15 +406,5 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           logError('player-store', 'historyRepository.record', error)
         );
     }
-  },
-
-  handleDidFinish: () => {
-    if (get().repeatMode === 'single') {
-      requestSeek(0);
-      getPlayer().play();
-      set({ listenedSeconds: 0, recordedSongId: null });
-      return;
-    }
-    get().next();
   },
 }));

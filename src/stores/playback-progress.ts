@@ -12,14 +12,19 @@ import { useSyncExternalStore } from 'react';
  * lógica no-React usa los getters y los componentes usan los hooks.
  */
 type Listener = () => void;
+type ProgressListener = (position: number, duration: number) => void;
 
 let position = 0;
 let duration = 0;
 const listeners = new Set<Listener>();
+const progressListeners = new Set<ProgressListener>();
 
 function emit(): void {
   for (const listener of listeners) {
     listener();
+  }
+  for (const listener of progressListeners) {
+    listener(position, duration);
   }
 }
 
@@ -27,6 +32,18 @@ function subscribe(listener: Listener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+/**
+ * Suscripción sin React para lógica que necesita la posición/duración fuera
+ * de un componente (el puente que alimenta el widget de pantalla de inicio).
+ * No emite al suscribirse: el llamador lee los getters para el estado inicial.
+ */
+export function subscribePlaybackProgress(listener: ProgressListener): () => void {
+  progressListeners.add(listener);
+  return () => {
+    progressListeners.delete(listener);
   };
 }
 
