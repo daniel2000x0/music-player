@@ -336,6 +336,25 @@ Context7 ✅ (consultas separadas por concepto: paginación de media library / t
 | Tamaño de archivos | `library-scan.service` 121, `scan-diff` 94, `scan-report` 54, `scan-progress` 55, `media.service` 202 |
 | Verdes | `tsc` limpio · `jest` **25 suites / 187 pruebas** · `expo-doctor` 20/20 · `expo lint` 0 problemas |
 
+### Verificación en dispositivo (FASE 3)
+
+Dispositivo: Infinix X6826 (`09729372AM004325`), Android 12 (SDK 31), APK release 1.0.0 canal `preview`.
+OTA aplicada: grupo `ace5fe3e-ad0d-442f-8eb5-503f7275fc47`, update Android `01a1e247-2ffb-7881-ab7d-75f19492ec7d`, commit `846d2ba`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| OTA aplicada | ✅ `expo-updates` reporta la rama `preview` al día (`CheckCompleteUnavailable`, `isUpdateAvailable=false`) tras descargar y reiniciar |
+| Migración v5 sin pérdida de datos | ✅ 1792 canciones / 671 artistas / 995 álbumes y 8 favoritos tras la migración aditiva |
+| Escaneo incremental | ✅ `Configuración → Último escaneo: sin cambios · 1 s` en el segundo escaneo (el primero, tras la migración, relee todas las filas una vez) |
+| Re-escaneo manual | ✅ «Volver a escanear» corre el pipeline y refresca el resumen sin errores |
+| Sin errores en runtime | ✅ sin `ReactNativeJS` con errores ni `FATAL`/`AndroidRuntime` de la app |
+| Widget | ✅ proveedor `MediaWidgetProvider` enlazado en el launcher (`dumpsys appwidget`, id 58); sin errores de widget |
+
+**Observaciones (no bloquean FASE 3):**
+
+1. El banner de progreso por fases (`songs.tsx`) no se pudo capturar con `uiautomator dump`: el escaneo incremental sin cambios termina en ~1 s, más rápido de lo que tarda un dump. La evidencia del pipeline es el resumen de Configuración y las pruebas unitarias.
+2. La reconciliación del widget (`reconcileMediaWidget`) no se pudo confirmar visualmente: el texto del `RemoteViews` no se expone a `uiautomator` y el launcher quedó fuera de foco. Queda como comprobación manual pendiente (colocar el widget, reproducir, matar el proceso y volver).
+
 ---
 
 ## FASE 4 · Motor de reproducción y sesión persistente
