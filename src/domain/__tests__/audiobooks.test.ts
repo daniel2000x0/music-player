@@ -26,6 +26,34 @@ describe('detectAudiobookSongIds (heurística de escaneo)', () => {
     expect(detectAudiobookSongIds(songs)).toEqual(new Set([9]));
   });
 
+  it('agrupa por carpeta cuando el álbum es desconocido (URIs content://)', () => {
+    const songs = [
+      makeSong({
+        id: 11,
+        album: UNKNOWN_ALBUM,
+        artist: 'Autora',
+        folder: 'La Odisea',
+        duration: AUDIOBOOK_AVG_DURATION,
+      }),
+      makeSong({
+        id: 12,
+        album: UNKNOWN_ALBUM,
+        artist: 'Autora',
+        folder: 'La Odisea',
+        duration: AUDIOBOOK_AVG_DURATION,
+      }),
+      makeSong({
+        id: 13,
+        album: UNKNOWN_ALBUM,
+        artist: 'Autora',
+        folder: 'Otra Carpeta',
+        duration: 120,
+      }),
+    ];
+
+    expect(detectAudiobookSongIds(songs)).toEqual(new Set([11, 12]));
+  });
+
   it('marca por palabra clave aunque la duración sea corta', () => {
     const songs = [
       makeSong({ id: 1, album: 'Mi Audiolibro', artist: 'Autor', duration: 300 }),

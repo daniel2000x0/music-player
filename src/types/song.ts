@@ -64,4 +64,6 @@ export type ScannedSong = {
   folder: string | null;
   duration: number;
   artwork: string | null;
+  /** Fecha de modificación del asset (ms); `null` si el proveedor no la da. */
+  modificationTime: number | null;
 };

@@ -12,9 +12,12 @@ import {
   songsOfAlbum,
   songsOfArtist,
 } from '@/domain/library/selection';
+import type { ScanProgress } from '@/domain/library/scan-progress';
+import { scanReportHasChanges, type ScanReport } from '@/domain/library/scan-report';
 import { migrateLegacyLibrary } from '@/services/legacy-migration.service';
 import { logError } from '@/services/error-log.service';
-import { hasAudioPermission, listDeviceAudioIds, loadDeviceAudio, requestAudioAccess } from '@/services/media.service';
+import { runLibraryScan } from '@/services/library-scan.service';
+import { hasAudioPermission, requestAudioAccess } from '@/services/media.service';
 import { setPermissionSnapshot } from '@/services/capabilities';
 import { useNoticeStore } from '@/stores/notice.store';
 import type { Playlist } from '@/types/playlist';
@@ -32,12 +35,18 @@ type LibraryState = {
   isScanning: boolean;
   /** Sincronización automática en segundo plano (sin spinners de usuario). */
   isSyncing: boolean;
+  /** Progreso del escaneo en curso; `null` cuando no hay ninguno. */
+  scanProgress: ScanProgress | null;
+  /** Resumen del último escaneo terminado en esta sesión. */
+  lastScanReport: ScanReport | null;
   hydrated: boolean;
   error: string | null;
 
   hydrate: () => Promise<void>;
   refresh: () => Promise<void>;
   sync: () => Promise<void>;
+  /** Ejecuta (o comparte) el pipeline de escaneo; `null` si la mediateca falló. */
+  scanOnce: () => Promise<ScanReport | null>;
   requestAccess: () => Promise<void>;
   toggleFavorite: (songId: number) => Promise<void>;
   isFavorite: (songId: number) => boolean;
@@ -82,7 +91,7 @@ async function loadLocal(): Promise<
   };
 }
 
-let scanPromise: Promise<boolean> | null = null;
+let scanPromise: Promise<ScanReport | null> | null = null;
 
 /** Publica un fallo en el canal de avisos en vez de dejarlo solo en logs. */
 function notifyFailure(
@@ -104,61 +113,6 @@ function clearNotice(code: string): void {
   useNoticeStore.getState().dismiss(code);
 }
 
-/**
- * Escanea la mediateca (consulta + portadas + upsert) y sincroniza SQLite.
- *
- * Devuelve `true` si la biblioteca se actualizó y `false` si la consulta a
- * la mediateca falló: en ese caso NO se toca SQLite, para no marcar todas
- * las canciones como no disponibles por un fallo transitorio.
- *
- * RENDIMIENTO: deduplica ejecuciones simultáneas — el escaneo de arranque
- * corre en background y un refresh manual durante ese tiempo comparte el
- * mismo trabajo en vuelo en lugar de duplicarlo.
- */
-function scanLibrary(): Promise<boolean> {
-  if (!scanPromise) {
-    scanPromise = (async () => {
-      try {
-        const scanned = await loadDeviceAudio();
-        if (!scanned) {
-          return false;
-        }
-        await songRepository.upsertScannedSongs(scanned);
-        await songRepository.reclassifyAudiobooks();
-        await migrateLegacyLibrary();
-        return true;
-      } finally {
-        scanPromise = null;
-      }
-    })();
-  }
-  return scanPromise;
-}
-
-/**
- * `true` si la mediateca tiene exactamente las mismas canciones que la BD.
- *
- * LÓGICA: la consulta liviana de ids evita releer etiquetas y portadas de
- * todos los archivos en cada arranque. Si algo no se puede comprobar, se
- * devuelve `false` para forzar un escaneo completo (nunca se asume vacío).
- */
-async function libraryMatchesDevice(): Promise<boolean> {
-  const deviceIds = await listDeviceAudioIds();
-  if (!deviceIds) {
-    return false;
-  }
-  const storedIds = await songRepository.getAvailableMediaIds();
-  if (deviceIds.size !== storedIds.size) {
-    return false;
-  }
-  for (const id of deviceIds) {
-    if (!storedIds.has(id)) {
-      return false;
-    }
-  }
-  return true;
-}
-
 export const useLibraryStore = create<LibraryState>((set, get) => ({
   songs: [],
   artists: [],
@@ -170,6 +124,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   isLoading: true,
   isScanning: false,
   isSyncing: false,
+  scanProgress: null,
+  lastScanReport: null,
   hydrated: false,
   error: null,
 
@@ -223,6 +179,33 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     return hydratePromise;
   },
 
+  /**
+   * Pipeline de escaneo compartido.
+   *
+   * RENDIMIENTO: deduplica ejecuciones simultáneas — el escaneo de arranque
+   * corre en segundo plano y un refresh manual durante ese tiempo comparte
+   * el mismo trabajo en vuelo en lugar de duplicarlo.
+   */
+  scanOnce: async () => {
+    if (scanPromise) {
+      return scanPromise;
+    }
+    scanPromise = (async () => {
+      set({ scanProgress: { phase: 'enumerate', processed: 0, total: 0 } });
+      try {
+        const report = await runLibraryScan((scanProgress) => set({ scanProgress }));
+        if (report) {
+          set({ lastScanReport: report });
+        }
+        return report;
+      } finally {
+        set({ scanProgress: null });
+        scanPromise = null;
+      }
+    })();
+    return scanPromise;
+  },
+
   refresh: async () => {
     if (get().isScanning) {
       return;
@@ -233,8 +216,8 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       setPermissionSnapshot({ mediaLibrary: granted });
       set({ hasPermission: granted });
       if (granted) {
-        const scanned = await scanLibrary();
-        if (!scanned) {
+        const report = await get().scanOnce();
+        if (!report) {
           const message =
             'No se pudo leer la mediateca del dispositivo. Inténtalo de nuevo.';
           set({ error: message });
@@ -246,6 +229,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
           );
         } else {
           clearNotice('library.scan-failed');
+          await migrateLegacyLibrary();
         }
       }
       const local = await loadLocal();
@@ -272,9 +256,9 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   /**
    * Sincronización automática: silenciosa (no toca `isScanning`).
    *
-   * LÓGICA: si la mediateca tiene los mismos ids que la BD, no se releen
-   * etiquetas ni portadas; solo se recarga el estado local. El escaneo
-   * completo queda para el refresco manual del usuario.
+   * LÓGICA: el pipeline es incremental por `modificationTime`, así que un
+   * arranque sin cambios no relee etiquetas ni portadas. El progreso se
+   * publica igual para que el arranque en frío tenga fase y conteo (`UI-06`).
    */
   sync: async () => {
     if (get().isSyncing) {
@@ -287,13 +271,13 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set({ hasPermission: granted });
       let changed = false;
       if (granted) {
-        if (!(await libraryMatchesDevice())) {
-          changed = await scanLibrary();
-        } else if (get().songs.length > 0) {
-          // La BD ya está al día: se reintenta la importación heredada sin
-          // escanear. Solo con canciones resueltas, para no marcarla como
-          // hecha antes de que existan ids de mediateca que mapear.
-          changed = await migrateLegacyLibrary();
+        const report = await get().scanOnce();
+        changed = report ? scanReportHasChanges(report) : false;
+        if (changed || get().songs.length > 0) {
+          // La importación heredada es idempotente y barata tras la primera
+          // vez; solo con canciones resueltas para no marcarla como hecha
+          // antes de que existan ids de mediateca que mapear.
+          changed = (await migrateLegacyLibrary()) || changed;
         }
       }
       clearNotice('library.scan-failed');

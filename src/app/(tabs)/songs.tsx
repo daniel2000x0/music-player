@@ -14,6 +14,7 @@ import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { filterSongs } from '@/domain/library/filters';
+import { describeScanProgress } from '@/domain/library/scan-progress';
 import { sortDirectionOf, sortFieldOf, sortSongs } from '@/domain/library/sorting';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useTheme } from '@/hooks/use-theme';
@@ -66,6 +67,7 @@ export default function SongsScreen() {
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
   const isScanning = useLibraryStore((state) => state.isScanning);
+  const scanProgress = useLibraryStore((state) => state.scanProgress);
   const error = useLibraryStore((state) => state.error);
   const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
@@ -185,6 +187,16 @@ export default function SongsScreen() {
           ) : null
         }
         header={header}>
+        {/* Escaneo observable: fase y conteo, también en la sincronización
+            silenciosa del arranque en frío (`UI-06`). */}
+        {scanProgress ? (
+          <View style={[styles.scanBanner, { backgroundColor: theme.backgroundElement }]}>
+            <ActivityIndicator size="small" color={theme.accent} />
+            <ThemedText type="small" themeColor="textSecondary" style={styles.scanText}>
+              {describeScanProgress(scanProgress)}
+            </ThemedText>
+          </View>
+        ) : null}
         {isLoading ? (
           <ActivityIndicator color={theme.accent} style={styles.loader} />
         ) : error && songs.length === 0 ? (
@@ -304,5 +316,17 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginTop: Spacing.five,
+  },
+  scanBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Radius.medium,
+    marginBottom: Spacing.two,
+  },
+  scanText: {
+    flex: 1,
   },
 });

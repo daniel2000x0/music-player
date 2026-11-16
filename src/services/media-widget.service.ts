@@ -5,6 +5,11 @@ import type { Widget } from 'expo-widgets';
 
 import { resolveArtworkUri } from '@/services/artwork.service';
 import { logError } from '@/services/error-log.service';
+import {
+  getPlaybackDuration,
+  getPlaybackPosition,
+} from '@/stores/playback-progress';
+import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
 import {
@@ -279,6 +284,42 @@ function pruneArtwork(directory: Directory, keep: string | null): void {
   } catch (error) {
     logError('media-widget', 'pruneArtwork', error);
   }
+}
+
+/**
+ * Revalida el widget contra el estado recién hidratado (`M-06`).
+ *
+ * LÓGICA: tras una muerte de proceso el widget nativo conserva el último
+ * snapshot, que puede apuntar a una pista ya escaneada de nuevo o inexistente.
+ * Cuando la biblioteca termina de hidratar o de escanear, esta función:
+ * - refresca la pista actual y su entrada en la cola con los metadatos
+ *   guardados (portada incluida),
+ * - invalida `publishedState`/`lastSnapshotKey` para forzar una escritura
+ *   aunque las props coincidan con las últimas publicadas.
+ */
+export function reconcileMediaWidget(): void {
+  if (!WIDGET_SUPPORTED) {
+    return;
+  }
+  const player = usePlayerStore.getState();
+  const current = player.currentSong;
+  const fresh = current ? useLibraryStore.getState().getSongById(current.id) : undefined;
+
+  if (current && fresh && fresh !== current) {
+    usePlayerStore.setState({
+      currentSong: fresh,
+      queue: player.queue.map((song) => (song.id === fresh.id ? fresh : song)),
+    });
+  }
+
+  publishedState = null;
+  lastSnapshotKey = null;
+  syncMediaWidget(
+    fresh ?? current ?? null,
+    player.isPlaying,
+    getPlaybackPosition(),
+    getPlaybackDuration()
+  );
 }
 
 /**

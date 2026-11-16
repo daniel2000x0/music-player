@@ -246,14 +246,20 @@ OTA aplicada: grupo `f609e8b8-df66-4460-9778-e031ac65005f`, update Android `01a1
 
 | Archivo | Acción |
 | --- | --- |
-| `src/domain/library/scan-diff.ts` | **Nuevo.** Diff puro nuevos/modificados/ausentes |
-| `src/domain/library/audiobooks.ts` | Aceptar `album` antes de caer a carpeta desconocida |
-| `src/services/media.service.ts` | Pipeline por fases, `ScanProgress`, paginación por cursor |
-| `src/data/repositories/song.repository.ts` | `upsertBatch` transaccional, `findByIds`, `markMissing` |
-| `src/data/db/migrations.ts` | Nueva migración: columna `is_missing`, índice por `modification_time` |
-| `src/stores/library.store.ts` | Orquestación por fases, progreso observable, reconciliación |
-| `src/components/refresh-button.tsx` | Mostrar progreso real, no spinner indeterminado |
-| `src/app/(tabs)/songs.tsx` | Indicador de escaneo con fase y conteo |
+| `src/domain/library/scan-diff.ts` | **Nuevo.** Diff puro nuevos/modificados/sin cambios/ausentes |
+| `src/domain/library/scan-progress.ts` | **Nuevo.** `ScanPhase`, `ScanProgress` y su formato |
+| `src/domain/library/scan-report.ts` | **Nuevo.** `ScanReport` y `describeScanReport` (dominio puro) |
+| `src/services/library-scan.service.ts` | **Nuevo.** Pipeline por fases `enumerate → diff → hydrate → persist → prune → done` |
+| `src/services/media.service.ts` | Enumeración paginada y lectura de un asset; `folderFromUri` para `content://` |
+| `src/services/media.service.web.ts` | API sincronizada con la variante nativa |
+| `src/data/repositories/song.repository.ts` | `getScanState`, `upsertBatch` transaccional, `markMissing`; chunks de 500 ids |
+| `src/data/db/migrations.ts` | Migración v5: columna `modification_time` + índices de fecha y disponibilidad |
+| `src/stores/library.store.ts` | `scanOnce` deduplicado, `scanProgress`, `lastScanReport`; sin `libraryMatchesDevice` |
+| `src/services/media-widget.service.ts` | `reconcileMediaWidget()` revalida el snapshot contra el store |
+| `src/components/audio-bridge-inner.tsx` | Suscripción a `hydrated`/`lastScanReport` para reconciliar el widget |
+| `src/components/refresh-button.tsx` | Mostrar porcentaje real, no spinner indeterminado |
+| `src/app/(tabs)/songs.tsx` | Banner de escaneo con fase y conteo |
+| `src/app/(tabs)/settings.tsx` | Progreso en curso y resumen del último escaneo |
 
 ### Funcionalidades a implementar
 
@@ -282,8 +288,8 @@ Context7 ✅ (consultas separadas por concepto: paginación de media library / t
 
 | Riesgo | Nivel | Mitigación |
 | --- | --- | --- |
-| `expo-media-library` no soporta cursor por id en SDK 58 | MEDIO | Verificar en docs; si no, paginar por `offset` y medir tiempo |
-| `markMissing` rompe consultas que asumen `songs` completa | MEDIO | Todas las consultas filtran `is_missing = 0`; prueba de regresión por repositorio |
+| `expo-media-library` no soporta cursor por id en SDK 58 | MEDIO | **Confirmado:** no hay cursor; se pagina con `limit`/`offset` y se detecta la página repetida para cortar y advertir |
+| `markMissing` rompe consultas que asumen `songs` completa | MEDIO | **Desviación:** `is_available` sigue siendo la columna canónica; no hay `is_missing` ni cambios en las consultas existentes |
 | Migración sobre datos existentes falla en dispositivos reales | ALTO | Migración aditiva (`ALTER TABLE … ADD COLUMN`), prueba con base sembrada, backup previo en `legacy-migration.service` |
 | Escaneo largo bloquea la UI | MEDIO | Lotes con `await` entre fases y progreso; nunca un bucle síncrono sobre 10 000 filas |
 | `modificationTime` viene en `0` en algunos proveedores | MEDIO | Detección y caída a escaneo completo con aviso |
@@ -304,6 +310,31 @@ Context7 ✅ (consultas separadas por concepto: paginación de media library / t
 4. Una canción borrada del dispositivo desaparece de la lista y conserva su favorito si vuelve.
 5. Audiolibros sin álbum con `content://` se agrupan por carpeta cuando el proveedor la expone, y por álbum cuando no.
 6. `tsc`, `jest`, `expo-doctor` verdes; migración probada con base sembrada.
+
+### Desviaciones respecto al plan
+
+| Plan | Ejecutado | Motivo |
+| --- | --- | --- |
+| Columna `is_missing` | Se conserva `is_available` (ya existente) | Evita una segunda fuente de verdad y no obliga a tocar las consultas; la poda lógica es la misma |
+| `findByIds` renombrado | `getByIds` con chunks de 500 ids | No se rompe la API que consumen `player.store` y `audio-bridge-inner` |
+| Paginación por cursor | `limit`/`offset` con detección de página repetida | SDK 58 no expone cursor; el proveedor que ignora `offset` se detecta y se corta con advertencia |
+| `ScanReport.truncated` | `ScanReport` con `mode` (`incremental`/`full`) y `skipped` | No hay truncado posible sin tope; `mode` declara si el proveedor permitió el incremental |
+| Pipeline dentro de `media.service.ts` | `media.service.ts` (permisos + enumeración + lectura) y `library-scan.service.ts` (fases) | Cada archivo con una responsabilidad declarada, sin crecer el servicio de medios |
+| `capabilities.library.albumFolderGrouping` en FASE 3 | Ya declarada en FASE 2 | La capacidad existía desde la separación del motor |
+
+### Estado al cierre de FASE 3
+
+| Criterio | Resultado |
+| --- | --- |
+| Enumeración sin tope | `AUDIO_PAGE_SIZE` 1000, `MAX_PAGES` 1000; prueba con 12 000 pistas → 12 000 filas y 13 páginas |
+| Segundo escaneo sin cambios | `readDeviceTrack` no se llama; `upsertBatch`/`markMissing`/`reclassifyAudiobooks` tampoco |
+| Progreso en UI | Banner en `songs.tsx` (fase + conteo), porcentaje en `refresh-button.tsx`, resumen en `settings.tsx` |
+| Poda lógica | `markMissing` por chunks de 500; sin `DELETE` ni reset global de `is_available` |
+| Agrupación de audiolibros | `folderFromUri` resuelve documentos SAF (`content://…/document/…`) y `file://`; ignora `content://media/…` y `ph://` |
+| Migración | v5 aditiva (`ALTER TABLE songs ADD COLUMN modification_time INTEGER` + índices); idempotente |
+| Widget | `reconcileMediaWidget()` revalida pista y cola al hidratar o al terminar un escaneo |
+| Tamaño de archivos | `library-scan.service` 121, `scan-diff` 94, `scan-report` 54, `scan-progress` 55, `media.service` 202 |
+| Verdes | `tsc` limpio · `jest` **25 suites / 187 pruebas** · `expo-doctor` 20/20 · `expo lint` 0 problemas |
 
 ---
 

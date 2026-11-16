@@ -8,6 +8,7 @@ import {
   subscribeTrackChange,
 } from '@/services/audio-engine';
 import {
+  reconcileMediaWidget,
   registerMediaWidgetInteractions,
   syncMediaWidget,
 } from '@/services/media-widget.service';
@@ -16,6 +17,7 @@ import {
   getPlaybackPosition,
   subscribePlaybackProgress,
 } from '@/stores/playback-progress';
+import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 
 /**
@@ -69,6 +71,16 @@ export function AudioBridge() {
       const player = usePlayerStore.getState();
       syncMediaWidget(player.currentSong, player.isPlaying, position, duration);
     });
+    // El widget nativo sobrevive a la muerte del proceso: al hidratar la
+    // biblioteca (o terminar un escaneo) se revalida contra el store (`M-06`).
+    const unsubscribeWidgetReconcile = useLibraryStore.subscribe((state, previous) => {
+      if (
+        state.hydrated !== previous.hydrated ||
+        state.lastScanReport !== previous.lastScanReport
+      ) {
+        reconcileMediaWidget();
+      }
+    });
 
     return () => {
       unsubscribeStatus();
@@ -76,6 +88,7 @@ export function AudioBridge() {
       unsubscribeLockScreen();
       unsubscribeWidgetState();
       unsubscribeWidgetProgress();
+      unsubscribeWidgetReconcile();
       unsubscribeWidgetInteractions();
     };
   }, [syncStatus, syncTrack, syncLockScreen]);

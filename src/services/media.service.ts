@@ -1,4 +1,5 @@
 import {
+  Asset,
   AssetField,
   MediaType,
   Query,
@@ -6,27 +7,23 @@ import {
   requestPermissionsAsync,
 } from 'expo-media-library';
 
+import type { DeviceTrack } from '@/domain/library/scan-diff';
 import { resolveSongMetadata } from '@/domain/metadata';
 import { logError, logWarning } from '@/services/error-log.service';
-import { assignAlbumArtwork } from '@/services/artwork.service';
 import { readAudioTags } from '@/services/tag.service';
 import type { ScannedSong } from '@/types/song';
-import { mapLimit } from '@/utils/async';
 
 /**
  * Servicio de acceso al almacenamiento de audio del dispositivo.
  *
- * LÓGICA: pide permisos y consulta la mediateca del sistema para construir
- * la biblioteca de canciones. En el SDK 58 `expo-media-library` expone la
- * API nueva basada en `Query`/`Asset`.
+ * RESPONSABILIDAD ÚNICA: permisos, enumeración de la mediateca y lectura del
+ * asset. El orden de las fases, la comparación con SQLite y la persistencia
+ * viven en `library-scan.service`.
  *
- * CÓDIGO:
- * - `loadDeviceAudio()` filtra por `MediaType.AUDIO`.
- * - La mediateca NO expone etiquetas ID3/MP4 (título/artista/álbum/pista),
- *   así que `readAudioTags` las lee del archivo y `resolveSongMetadata`
- *   aplica la cadena tag → nombre de archivo → carpeta.
- * - El arte embebido se lee aparte (ID3v2/MP4) vía `assignAlbumArtwork`.
- * - La deduplicación y la fecha de incorporación se resuelven en SQLite.
+ * LÓGICA: en el SDK 58 `expo-media-library` expone la API nueva basada en
+ * `Query`/`Asset`. La mediateca NO expone etiquetas ID3/MP4, así que
+ * `readAudioTags` las lee del archivo y `resolveSongMetadata` aplica la
+ * cadena tag → nombre de archivo → carpeta.
  */
 
 /**
@@ -42,8 +39,8 @@ export const AUDIO_PAGE_SIZE = 1000;
 /** Tope defensivo: 1 000 000 de pistas, evita un bucle si se ignora `offset`. */
 const MAX_PAGES = 1000;
 
-/** Archivos leídos en paralelo durante el escaneo. */
-const TAG_CONCURRENCY = 4;
+/** Archivos leídos en paralelo durante la hidratación. */
+export const TAG_CONCURRENCY = 4;
 
 function audioQuery(offset: number): Query {
   return new Query()
@@ -118,18 +115,20 @@ export async function requestAudioAccess(): Promise<boolean> {
 }
 
 /**
- * Ids de los audios presentes en la mediateca, sin resolver rutas ni leer
- * etiquetas (`exeForMetadata` es una sola consulta liviana al MediaStore).
+ * Pistas de audio presentes en la mediateca (consulta liviana).
  *
- * LÓGICA: el arranque compara estos ids con los guardados en SQLite; si son
- * iguales no hace falta releer etiquetas de todos los archivos. Devuelve
- * `null` si la consulta falla, para que el llamador haga un escaneo completo
- * en lugar de asumir que la biblioteca está vacía.
+ * LÓGICA: `exeForMetadata` no resuelve rutas ni lee etiquetas; devuelve id y
+ * fecha de modificación en una sola consulta paginada. Es la entrada del
+ * escaneo incremental (`M-04`). Devuelve `null` si la consulta falla, para
+ * que el llamador NO toque SQLite por un fallo transitorio.
  */
-export async function listDeviceAudioIds(): Promise<Set<string> | null> {
+export async function enumerateDeviceAudio(): Promise<DeviceTrack[] | null> {
   try {
     const metadata = await collectPages((offset) => audioQuery(offset).exeForMetadata());
-    return new Set(metadata.map((item) => item.id));
+    return metadata.map((item) => ({
+      mediaId: item.id,
+      modificationTime: item.modificationTime,
+    }));
   } catch (error) {
     logError('media-service', 'query.exeForMetadata', error);
     return null;
@@ -137,35 +136,65 @@ export async function listDeviceAudioIds(): Promise<Set<string> | null> {
 }
 
 /**
+ * Ids de los audios presentes en la mediateca.
+ *
+ * Se mantiene como utilidad liviana para diagnósticos; el escaneo usa
+ * `enumerateDeviceAudio` porque necesita además la fecha de modificación.
+ */
+export async function listDeviceAudioIds(): Promise<Set<string> | null> {
+  const tracks = await enumerateDeviceAudio();
+  return tracks ? new Set(tracks.map((track) => track.mediaId)) : null;
+}
+
+/**
  * Carpeta contenedora según el URI.
  *
- * Solo `file://` expone la ruta real; `content://`/`ph://` no permiten
- * deducirla. La decisión de usar la carpeta como álbum (o ignorarla si es
- * genérica) vive en `resolveSongMetadata`.
+ * LÓGICA: `file://` expone la ruta real y los documentos SAF (`content://…
+ * /document/primary%3AMusic%2FBook%2Fpista.mp3`) llevan la ruta codificada
+ * en el id del documento; ambos casos permiten deducir la carpeta. Los URI
+ * de MediaStore (`content://media/…`) y `ph://` de iOS no la exponen.
+ * La decisión de usar la carpeta como álbum (o ignorarla si es genérica)
+ * vive en `resolveSongMetadata`.
  */
-function folderFromUri(uri: string): string | null {
+export function folderFromUri(uri: string): string | null {
   try {
-    const clean = decodeURIComponent(uri.split('?')[0]);
-    if (!clean.startsWith('file://')) {
+    const clean = uri.split('?')[0];
+    if (!clean) {
       return null;
     }
-    const parts = clean.split('/').filter(Boolean);
-    return parts[parts.length - 2] ?? null;
+    if (clean.startsWith('content://media/')) {
+      return null;
+    }
+    const documentMarker = '/document/';
+    const documentIndex = clean.indexOf(documentMarker);
+    if (!clean.startsWith('file://') && documentIndex < 0) {
+      return null;
+    }
+
+    const path =
+      documentIndex >= 0
+        ? decodeURIComponent(clean.slice(documentIndex + documentMarker.length))
+        : decodeURIComponent(clean.replace(/^[a-z][a-z0-9+.-]*:\/\//i, ''));
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length < 2) {
+      return null;
+    }
+    return segments[segments.length - 2] ?? null;
   } catch {
     return null;
   }
 }
 
-async function toSong(asset: {
-  getInfo: () => Promise<{
-    id: string;
-    filename: string;
-    uri: string;
-    duration: number | null;
-  }>;
-}): Promise<ScannedSong | null> {
+/**
+ * Lee una pista concreta: asset → etiquetas → metadatos resueltos.
+ *
+ * Devuelve `null` si el archivo ya no se puede leer; el llamador lo omite sin
+ * marcar la biblioteca como vacía. `modificationTime` se copia del listado
+ * (no del asset) para que la siguiente comparación sea exacta.
+ */
+export async function readDeviceTrack(track: DeviceTrack): Promise<ScannedSong | null> {
   try {
-    const info = await asset.getInfo();
+    const info = await new Asset(track.mediaId).getInfo();
     const filename = info.filename ?? '';
     const folder = folderFromUri(info.uri);
     const tags = await readAudioTags(info.uri);
@@ -181,38 +210,10 @@ async function toSong(asset: {
       folder,
       duration: info.duration ? info.duration / 1000 : 0,
       artwork: null,
+      modificationTime: track.modificationTime,
     };
   } catch (error) {
     logError('media-service', 'asset.getInfo', error);
     return null;
   }
-}
-
-/**
- * Carga las canciones de audio del dispositivo (requiere permiso).
- *
- * Devuelve `null` si la consulta a la mediateca falla, para que el llamador
- * NO interprete el fallo como "el dispositivo no tiene canciones" y marque
- * toda la biblioteca como no disponible.
- */
-export async function loadDeviceAudio(): Promise<ScannedSong[] | null> {
-  let assets;
-  try {
-    assets = await collectPages((offset) => audioQuery(offset).exe());
-  } catch (error) {
-    logError('media-service', 'query.exec', error);
-    return null;
-  }
-
-  const resolved = await mapLimit(assets, TAG_CONCURRENCY, (asset) => toSong(asset));
-  const songs = resolved.filter((song): song is ScannedSong => song !== null);
-
-  // Extrae el arte embebido (una pasada por álbum) antes de persistir.
-  try {
-    await assignAlbumArtwork(songs);
-  } catch (error) {
-    logError('media-service', 'assignAlbumArtwork', error);
-  }
-
-  return songs;
 }

@@ -2,18 +2,17 @@
  * Criterio de salida de FASE 2: un fallo de escaneo debe producir un aviso
  * visible, no solo una fila en `error_logs`.
  *
- * Se sustituyen las dependencias de datos porque la prueba solo verifica la
- * orquestación del store: mediateca fallida → canal de avisos.
+ * Se sustituyen las dependencias de datos y el pipeline porque la prueba solo
+ * verifica la orquestación del store: mediateca fallida → canal de avisos.
  */
+import { runLibraryScan } from '@/services/library-scan.service';
 import { useLibraryStore } from '@/stores/library.store';
 import { useNoticeStore } from '@/stores/notice.store';
 
 jest.mock('@/data/repositories/song.repository', () => ({
   songRepository: {
     getAll: jest.fn(async () => []),
-    upsertScannedSongs: jest.fn(),
-    reclassifyAudiobooks: jest.fn(),
-    getAvailableMediaIds: jest.fn(async () => new Set<string>()),
+    setAudiobook: jest.fn(),
   },
 }));
 
@@ -53,17 +52,29 @@ jest.mock('@/services/error-log.service', () => ({
 jest.mock('@/services/media.service', () => ({
   hasAudioPermission: jest.fn(async () => true),
   requestAudioAccess: jest.fn(async () => false),
-  listDeviceAudioIds: jest.fn(async () => null),
-  loadDeviceAudio: jest.fn(async () => null),
 }));
+
+jest.mock('@/services/library-scan.service', () => ({
+  runLibraryScan: jest.fn(async () => null),
+}));
+
+const mockedRunLibraryScan = jest.mocked(runLibraryScan);
 
 beforeEach(() => {
   useNoticeStore.getState().clear();
-  useLibraryStore.setState({ hasPermission: true, error: null });
+  useLibraryStore.setState({
+    hasPermission: true,
+    error: null,
+    scanProgress: null,
+    lastScanReport: null,
+  });
+  jest.clearAllMocks();
 });
 
 describe('library.store: fallos visibles en la UI', () => {
   it('publica un aviso cuando la mediateca no se puede leer', async () => {
+    mockedRunLibraryScan.mockResolvedValueOnce(null);
+
     await useLibraryStore.getState().refresh();
 
     const notices = useNoticeStore.getState().notices;
@@ -74,6 +85,7 @@ describe('library.store: fallos visibles en la UI', () => {
       action: { label: 'Reintentar' },
     });
     expect(useLibraryStore.getState().error).toBeTruthy();
+    expect(useLibraryStore.getState().scanProgress).toBeNull();
   });
 
   it('publica un aviso cuando el usuario deniega el permiso de audio', async () => {
@@ -83,5 +95,32 @@ describe('library.store: fallos visibles en la UI', () => {
       code: 'library.permission-denied',
       severity: 'error',
     });
+  });
+
+  it('guarda el resumen del escaneo y limpia el progreso al terminar', async () => {
+    mockedRunLibraryScan.mockImplementationOnce(async (onProgress) => {
+      onProgress?.({ phase: 'enumerate', processed: 0, total: 0 });
+      onProgress?.({ phase: 'done', processed: 3, total: 3, mode: 'incremental' });
+      return {
+        mode: 'incremental',
+        deviceTotal: 3,
+        added: 2,
+        updated: 0,
+        unchanged: 1,
+        missing: 0,
+        skipped: 0,
+        durationMs: 1_500,
+        finishedAt: 10,
+      };
+    });
+
+    await useLibraryStore.getState().refresh();
+
+    expect(useLibraryStore.getState().lastScanReport).toMatchObject({
+      added: 2,
+      unchanged: 1,
+    });
+    expect(useLibraryStore.getState().scanProgress).toBeNull();
+    expect(useLibraryStore.getState().error).toBeNull();
   });
 });

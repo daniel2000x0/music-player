@@ -1,5 +1,6 @@
 import { getDatabase } from '@/data/db/database';
 import { detectAudiobookSongIds } from '@/domain/library/audiobooks';
+import type { StoredTrack } from '@/domain/library/scan-diff';
 import type { Song, ScannedSong } from '@/types/song';
 
 type SongRow = {
@@ -49,6 +50,22 @@ function mapSong(row: SongRow): Song {
     playCount: row.play_count,
     lastPlayedAt: row.last_played_at,
   };
+}
+
+/**
+ * Límite de parámetros por sentencia preparada.
+ *
+ * SQLite acepta 999 variables en compilaciones antiguas; con ids de mediática
+ * (una variable por fila) se usa 500 para dejar margen a otros parámetros.
+ */
+const ID_CHUNK_SIZE = 500;
+
+function chunksOf<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let start = 0; start < items.length; start += size) {
+    chunks.push(items.slice(start, start + size));
+  }
+  return chunks;
 }
 
 /**
@@ -147,15 +164,47 @@ async function getOrCreateAlbumId(
 }
 
 export const songRepository = {
-  /** Sincroniza el escaneo con SQLite sin duplicar canciones. */
-  async upsertScannedSongs(scanned: ScannedSong[]): Promise<void> {
+  /**
+   * Estado guardado que necesita el diff del escaneo (`M-04`).
+   *
+   * Incluye las filas no disponibles para distinguir «reapareció» de «nueva»
+   * y para no re-marcar ausentes ya podadas.
+   */
+  async getScanState(): Promise<StoredTrack[]> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{
+      media_id: string;
+      modification_time: number | null;
+      is_available: number;
+    }>('SELECT media_id, modification_time, is_available FROM songs');
+    return rows.map((row) => ({
+      mediaId: row.media_id,
+      modificationTime: row.modification_time,
+      isAvailable: row.is_available === 1,
+    }));
+  },
+
+  /**
+   * Upsert transaccional de un lote de pistas escaneadas.
+   *
+   * LÓGICA: el llamador entrega lotes acotados (ver `PERSIST_BATCH`). Dentro
+   * de una sola transacción se resuelven artistas/álbumes con caché y se
+   * escriben sentencias de 50 filas: en bibliotecas grandes esto reduce miles
+   * de viajes al bridge nativo a decenas.
+   *
+   * NO resetea `is_available` de toda la tabla: la poda es explícita con
+   * `markMissing` y solo con los ids que el diff demostró ausentes.
+   */
+  async upsertBatch(scanned: ScannedSong[]): Promise<void> {
+    if (scanned.length === 0) {
+      return;
+    }
     const db = await getDatabase();
     const now = Date.now();
 
     await db.withTransactionAsync(async () => {
-      await db.runAsync('UPDATE songs SET is_available = 0');
-      // Cachés de IDs por escaneo: los artistas/álbumes se repiten entre
-      // canciones, así que se resuelven una sola vez (ver helpers arriba).
+      // Cachés por lote: los artistas/álbumes se repiten entre canciones, así
+      // que se resuelven una sola vez (ver helpers arriba).
       const artistCache = new Map<string, number>();
       const albumCache = new Map<string, AlbumCacheEntry>();
       const rows: { item: ScannedSong; artistId: number; albumId: number }[] = [];
@@ -172,13 +221,10 @@ export const songRepository = {
         rows.push({ item, artistId, albumId });
       }
 
-      // Upsert por lotes: 50 filas por sentencia (600 parámetros, por debajo
-      // del límite de 999 de SQLite) reduce ~5.000 viajes al bridge nativo a
-      // ~100 en bibliotecas grandes.
+      // 50 filas × 12 parámetros = 600, por debajo del límite de SQLite.
       const CHUNK_SIZE = 50;
-      for (let start = 0; start < rows.length; start += CHUNK_SIZE) {
-        const chunk = rows.slice(start, start + CHUNK_SIZE);
-        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').join(',');
+      for (const chunk of chunksOf(rows, CHUNK_SIZE)) {
+        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').join(',');
         const params = chunk.flatMap(({ item, artistId, albumId }) => [
           item.mediaId,
           item.uri,
@@ -191,11 +237,12 @@ export const songRepository = {
           item.artwork,
           now,
           now,
+          item.modificationTime,
         ]);
         await db.runAsync(
           `INSERT INTO songs
             (media_id, uri, title, artist_id, album_id, track_number, folder_name,
-             duration, artwork_uri, added_at, last_seen_at, is_available)
+             duration, artwork_uri, added_at, last_seen_at, modification_time, is_available)
            VALUES ${placeholders}
            ON CONFLICT(media_id) DO UPDATE SET
              uri = excluded.uri,
@@ -207,11 +254,30 @@ export const songRepository = {
              duration = excluded.duration,
              artwork_uri = excluded.artwork_uri,
              last_seen_at = excluded.last_seen_at,
+             modification_time = excluded.modification_time,
              is_available = 1`,
           ...params
         );
       }
     });
+  },
+
+  /**
+   * Poda lógica: marca como no disponibles las pistas que el diff declaró
+   * ausentes. No borra filas para conservar favoritos, historial y playlists.
+   */
+  async markMissing(mediaIds: string[]): Promise<void> {
+    if (mediaIds.length === 0) {
+      return;
+    }
+    const db = await getDatabase();
+    for (const chunk of chunksOf(mediaIds, ID_CHUNK_SIZE)) {
+      const placeholders = chunk.map(() => '?').join(',');
+      await db.runAsync(
+        `UPDATE songs SET is_available = 0 WHERE media_id IN (${placeholders})`,
+        ...chunk
+      );
+    }
   },
 
   /** Ids de mediateca de las canciones disponibles (para detectar cambios). */
@@ -243,12 +309,18 @@ export const songRepository = {
       return [];
     }
     const db = await getDatabase();
-    const placeholders = ids.map(() => '?').join(',');
-    const rows = await db.getAllAsync<SongRow>(
-      `${SELECT_SONGS} WHERE s.id IN (${placeholders})`,
-      ...ids
-    );
-    const map = new Map(rows.map((row) => [row.id, mapSong(row)]));
+    const map = new Map<number, Song>();
+    // Bibliotecas grandes pueden pedir más de 999 ids; se consulta por bloques.
+    for (const chunk of chunksOf([...new Set(ids)], ID_CHUNK_SIZE)) {
+      const placeholders = chunk.map(() => '?').join(',');
+      const rows = await db.getAllAsync<SongRow>(
+        `${SELECT_SONGS} WHERE s.id IN (${placeholders})`,
+        ...chunk
+      );
+      for (const row of rows) {
+        map.set(row.id, mapSong(row));
+      }
+    }
     return ids.map((id) => map.get(id)).filter((song): song is Song => song !== undefined);
   },
 
@@ -293,12 +365,12 @@ export const songRepository = {
     );
     const detected = detectAudiobookSongIds(rows);
     await db.runAsync('UPDATE songs SET is_audiobook = 0 WHERE audiobook_manual = 0');
-    if (detected.size > 0) {
-      const placeholders = [...detected].map(() => '?').join(',');
+    for (const chunk of chunksOf([...detected], ID_CHUNK_SIZE)) {
+      const placeholders = chunk.map(() => '?').join(',');
       await db.runAsync(
         `UPDATE songs SET is_audiobook = 1
          WHERE audiobook_manual = 0 AND id IN (${placeholders})`,
-        ...detected
+        ...chunk
       );
     }
   },
@@ -309,11 +381,13 @@ export const songRepository = {
       return;
     }
     const db = await getDatabase();
-    const placeholders = songIds.map(() => '?').join(',');
-    await db.runAsync(
-      `UPDATE songs SET is_audiobook = ?, audiobook_manual = 1 WHERE id IN (${placeholders})`,
-      isAudiobook ? 1 : 0,
-      ...songIds
-    );
+    for (const chunk of chunksOf(songIds, ID_CHUNK_SIZE)) {
+      const placeholders = chunk.map(() => '?').join(',');
+      await db.runAsync(
+        `UPDATE songs SET is_audiobook = ?, audiobook_manual = 1 WHERE id IN (${placeholders})`,
+        isAudiobook ? 1 : 0,
+        ...chunk
+      );
+    }
   },
 };

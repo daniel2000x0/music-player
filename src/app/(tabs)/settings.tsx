@@ -16,6 +16,8 @@ import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { describeScanProgress } from '@/domain/library/scan-progress';
+import { describeScanReport } from '@/domain/library/scan-report';
 import { useCapabilities } from '@/hooks/use-capabilities';
 import { useTheme } from '@/hooks/use-theme';
 import type { Capability } from '@/services/capabilities';
@@ -188,6 +190,8 @@ export default function SettingsScreen() {
   const playlists = useLibraryStore((state) => state.playlists);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isScanning = useLibraryStore((state) => state.isScanning);
+  const scanProgress = useLibraryStore((state) => state.scanProgress);
+  const lastScanReport = useLibraryStore((state) => state.lastScanReport);
 
   const requestAccess = useLibraryStore((state) => state.requestAccess);
   const refresh = useLibraryStore((state) => state.refresh);
@@ -367,7 +371,13 @@ export default function SettingsScreen() {
               <ActivityIndicator color={theme.accent} />
 
               <ThemedText type="small" themeColor="textSecondary">
-                Escaneando biblioteca…
+                {scanProgress ? describeScanProgress(scanProgress) : 'Escaneando biblioteca…'}
+              </ThemedText>
+            </View>
+          ) : lastScanReport ? (
+            <View style={styles.scanSummary}>
+              <ThemedText type="small" themeColor="textSecondary">
+                Último escaneo: {describeScanReport(lastScanReport)}
               </ThemedText>
             </View>
           ) : null}
@@ -519,6 +529,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
     paddingVertical: Spacing.two,
+  },
+
+  scanSummary: {
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.three,
   },
 
   updateCard: {
