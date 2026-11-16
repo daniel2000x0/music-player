@@ -60,7 +60,7 @@ jest.mock('@/services/error-log.service', () => ({
   logWarning: jest.fn(),
 }));
 
-type Engine = typeof import('@/services/audio-engine');
+type Engine = typeof import('@/services/audio');
 
 let engine: Engine;
 let audioMock: {
@@ -83,7 +83,7 @@ beforeEach(() => {
   // `resetModules` borra el registro: este require crea un motor limpio para
   // que el estado del lock screen no se filtre entre pruebas.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  engine = require('@/services/audio-engine') as Engine;
+  engine = require('@/services/audio') as Engine;
   audioMock.__setLockScreenFailures(0);
 });
 

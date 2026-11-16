@@ -16,12 +16,16 @@ import { MiniPlayer } from '@/components/mini-player';
 import { NoticeBanner } from '@/components/notice-banner';
 import { Colors, TabBarBaseHeight } from '@/constants/theme';
 import { useLibraryStore } from '@/stores/library.store';
+import { usePlayerStore } from '@/stores/player.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useAppUpdatePrompt } from '@/hooks/use-app-update-prompt';
 
 /**
  * Layout raíz. Hidrata SQLite y los stores globales (biblioteca, ajustes y
  * motor de audio) y mantiene el mini-reproductor sobre toda la navegación.
+ *
+ * ORDEN: la sesión de reproducción se restaura después de la biblioteca,
+ * porque sus ids se filtran contra las canciones que existen hoy (`A-01`).
  */
 export default function RootLayout() {
   useAppUpdatePrompt();
@@ -43,7 +47,8 @@ export default function RootLayout() {
     void useSettingsStore
       .getState()
       .hydrate()
-      .then(() => useLibraryStore.getState().hydrate());
+      .then(() => useLibraryStore.getState().hydrate())
+      .then(() => usePlayerStore.getState().hydrateSession());
   }, []);
 
   // En web, `color-scheme` alinea las barras de desplazamiento y los

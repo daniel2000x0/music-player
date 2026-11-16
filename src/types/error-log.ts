@@ -23,7 +23,7 @@ export type ErrorLogEntry = {
 /** Datos mínimos para registrar un suceso. */
 export type ErrorLogInput = {
   level: ErrorLogLevel;
-  /** Módulo/servicio/pantalla donde ocurrió (ej. "audio-engine"). */
+  /** Módulo/servicio/pantalla donde ocurrió (ej. "audio/lock-screen"). */
   scope: string;
   /** Operación en curso (ej. "setActiveForLockScreen"). */
   action: string;

@@ -1,12 +1,18 @@
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import {
+  clearDegradation,
   configureAudioSession,
+  degradeSession,
+  getSession,
   requestNotificationPermission,
   subscribeLockScreenHealth,
   subscribePlaylistStatus,
+  subscribeSession,
   subscribeTrackChange,
-} from '@/services/audio-engine';
+} from '@/services/audio';
+import { flushSessionPersistence } from '@/services/audio/session-persistence';
 import {
   reconcileMediaWidget,
   registerMediaWidgetInteractions,
@@ -28,11 +34,15 @@ import { usePlayerStore } from '@/stores/player.store';
  * También mantiene el widget de pantalla de inicio: le empuja pista/estado y
  * traduce sus botones a las mismas acciones del store (un solo motor para la
  * app, la notificación, la pantalla de bloqueo y el widget).
+ *
+ * La sesión de reproducción se persiste en segundo plano (`A-01`): al pasar a
+ * `background` se vuelca lo pendiente, porque el proceso puede morir sin más.
  */
 export function AudioBridge() {
   const syncStatus = usePlayerStore((state) => state.syncStatus);
   const syncTrack = usePlayerStore((state) => state.syncTrack);
   const syncLockScreen = usePlayerStore((state) => state.syncLockScreen);
+  const syncSessionState = usePlayerStore((state) => state.syncSessionState);
 
   useEffect(() => {
     void configureAudioSession();
@@ -42,9 +52,24 @@ export function AudioBridge() {
     // conectan los eventos nativos con el estado de la app.
     const unsubscribeStatus = subscribePlaylistStatus(syncStatus);
     const unsubscribeTrack = subscribeTrackChange(syncTrack);
+    // La máquina de estados publica cada transición: la UI puede comunicar una
+    // sesión degradada (`C-01`) en vez de fallar en silencio.
+    const unsubscribeSession = subscribeSession(syncSessionState);
     // La salud del lock screen se publica de inmediato y en cada reintento:
-    // la UI puede avisar de una sesión degradada en vez de fallar en silencio.
-    const unsubscribeLockScreen = subscribeLockScreenHealth(syncLockScreen);
+    // si se degrada, la sesión de UI lo refleja; si se recupera, vuelve al
+    // estado real de reproducción.
+    const unsubscribeLockScreen = subscribeLockScreenHealth((health) => {
+      syncLockScreen(health);
+      if (health.status === 'degraded') {
+        degradeSession(
+          health.lastError ?? 'Controles de pantalla de bloqueo no disponibles'
+        );
+        return;
+      }
+      if (health.status === 'active' || health.status === 'unsupported') {
+        clearDegradation(usePlayerStore.getState().isPlaying);
+      }
+    });
 
     const unsubscribeWidgetInteractions = registerMediaWidgetInteractions();
     const initial = usePlayerStore.getState();
@@ -81,17 +106,30 @@ export function AudioBridge() {
         reconcileMediaWidget();
       }
     });
+    // Al pasar a segundo plano se fuerza la escritura de la sesión pendiente:
+    // Android puede matar el proceso sin dar otra oportunidad (`05` §7.3).
+    const appStateSubscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') {
+        void flushSessionPersistence();
+      }
+    });
+
+    // Estado inicial de la sesión: si el motor ya arrancó antes de montar el
+    // puente, la UI no debe quedarse en `idle`.
+    syncSessionState(getSession());
 
     return () => {
       unsubscribeStatus();
       unsubscribeTrack();
+      unsubscribeSession();
       unsubscribeLockScreen();
       unsubscribeWidgetState();
       unsubscribeWidgetProgress();
       unsubscribeWidgetReconcile();
       unsubscribeWidgetInteractions();
+      appStateSubscription.remove();
     };
-  }, [syncStatus, syncTrack, syncLockScreen]);
+  }, [syncStatus, syncTrack, syncLockScreen, syncSessionState]);
 
   return null;
 }

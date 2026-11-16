@@ -51,7 +51,7 @@ export function handleTrack(song: Song): void {
     try {
       listener(song);
     } catch (error) {
-      logError('audio-engine', 'trackListener', error);
+      logError('audio/events', 'trackListener', error);
     }
   }
 }

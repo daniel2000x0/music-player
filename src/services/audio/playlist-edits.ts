@@ -28,7 +28,7 @@ function restoreIosPosition(
   if (position > 0) {
     void instance
       .seekTo(position)
-      .catch((error: unknown) => logError('audio-engine', 'playlist.seekTo', error));
+      .catch((error: unknown) => logError('audio/playlist', 'playlist.seekTo', error));
   }
   if (playing) {
     instance.play();
@@ -63,7 +63,7 @@ export function insertAfterCurrent(song: Song): void {
       playlist.remove(existing);
       order.splice(existing, 1);
     } catch (error) {
-      logError('audio-engine', 'playlist.remove', error);
+      logError('audio/playlist', 'playlist.remove', error);
       return;
     }
   }

@@ -5,6 +5,11 @@
  * transiciones son legales. No toca expo-audio; la fachada informa de cada
  * cambio y la UI puede leer un estado que representa la realidad del motor.
  *
+ * La persistencia de la sesión NO vive aquí: la decide
+ * `services/audio/session-persistence` y la guarda
+ * `data/repositories/playback-session.repository`, para que este módulo siga
+ * siendo puro y probable sin mocks.
+ *
  * LÓGICA: las transiciones no declaradas se rechazan. En desarrollo lanzan
  * para detectar bugs de integración al instante; en producción se ignoran y se
  * conserva el estado anterior para no romper la reproducción.
@@ -17,22 +22,30 @@ export type SessionState =
   | 'playing'
   | 'paused'
   | 'failed'
-  | 'recovering';
+  | 'recovering'
+  /**
+   * Reproduce, pero sin alguna capacidad del sistema (p. ej. los controles de
+   * pantalla de bloqueo). No es terminal: al recuperarse la capacidad se
+   * vuelve al estado real de reproducción. Vive solo en la sesión de UI, nunca
+   * en disco.
+   */
+  | 'degraded';
 
 export type SessionSnapshot = {
   state: SessionState;
-  /** Motivo legible cuando `state === 'failed'`. */
+  /** Motivo legible cuando `state === 'failed'` o `'degraded'`. */
   error: string | null;
 };
 
 const TRANSITIONS: Record<SessionState, readonly SessionState[]> = {
   idle: ['preparing'],
-  preparing: ['ready', 'playing', 'failed', 'idle'],
-  ready: ['playing', 'paused', 'preparing', 'failed', 'idle'],
-  playing: ['paused', 'ready', 'preparing', 'recovering', 'failed', 'idle'],
-  paused: ['playing', 'ready', 'preparing', 'failed', 'idle'],
-  failed: ['recovering', 'preparing', 'idle'],
-  recovering: ['ready', 'playing', 'paused', 'failed', 'idle'],
+  preparing: ['ready', 'playing', 'failed', 'degraded', 'idle'],
+  ready: ['playing', 'paused', 'preparing', 'failed', 'degraded', 'idle'],
+  playing: ['paused', 'ready', 'preparing', 'recovering', 'failed', 'degraded', 'idle'],
+  paused: ['playing', 'ready', 'preparing', 'failed', 'degraded', 'idle'],
+  failed: ['recovering', 'degraded', 'preparing', 'idle'],
+  recovering: ['ready', 'playing', 'paused', 'failed', 'degraded', 'idle'],
+  degraded: ['ready', 'playing', 'paused', 'preparing', 'recovering', 'failed', 'idle'],
 };
 
 let current: SessionState = 'idle';
@@ -93,14 +106,51 @@ export function transitionTo(
     if (__DEV__) {
       throw new Error(message);
     }
-    console.warn(`[audio-engine] ${message}`);
+    console.warn(`[audio/session] ${message}`);
     return false;
   }
 
   current = next;
-  lastError = next === 'failed' ? (options.error ?? 'Error de reproducción') : null;
+  if (next === 'failed') {
+    lastError = options.error ?? 'Error de reproducción';
+  } else if (next === 'degraded') {
+    // Degradarse no borra el motivo anterior: describe la capacidad ausente.
+    lastError = options.error ?? lastError;
+  } else {
+    lastError = null;
+  }
   emit();
   return true;
+}
+
+/**
+ * Declara la sesión degradada: reproduce, pero sin alguna capacidad del
+ * sistema (`A-04`). Se ignora si el estado actual no lo permite (p. ej.
+ * `idle`: no hay nada que degradar todavía).
+ */
+export function degradeSession(reason: string): void {
+  if (current === 'degraded') {
+    if (lastError !== reason) {
+      lastError = reason;
+      emit();
+    }
+    return;
+  }
+  if (!canTransitionTo('degraded')) {
+    return;
+  }
+  transitionTo('degraded', { error: reason });
+}
+
+/**
+ * Vuelve a la realidad de reproducción cuando la capacidad degradada se
+ * recupera. `playing` es el estado real del motor en ese momento.
+ */
+export function clearDegradation(playing: boolean): void {
+  if (current !== 'degraded') {
+    return;
+  }
+  transitionTo(playing ? 'playing' : 'paused');
 }
 
 /** Vuelve al estado inicial (playlist liberada). */

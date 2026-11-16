@@ -1,5 +1,7 @@
 import {
   canTransitionTo,
+  clearDegradation,
+  degradeSession,
   getSession,
   resetSession,
   subscribeSession,
@@ -64,5 +66,35 @@ describe('session: máquina de estados del motor', () => {
     transitionTo('playing');
 
     expect(seen).toEqual(['idle', 'preparing', 'ready']);
+  });
+
+  it('degrada la sesión con motivo y vuelve al estado real al recuperarse', () => {
+    transitionTo('preparing');
+    transitionTo('playing');
+
+    degradeSession('Controles de pantalla de bloqueo no disponibles');
+    expect(getSession()).toEqual({
+      state: 'degraded',
+      error: 'Controles de pantalla de bloqueo no disponibles',
+    });
+
+    // El motor seguía sonando: al recuperarse vuelve a `playing`.
+    clearDegradation(true);
+    expect(getSession()).toEqual({ state: 'playing', error: null });
+  });
+
+  it('degrada a `paused` si la reproducción no estaba activa', () => {
+    transitionTo('preparing');
+    transitionTo('ready');
+
+    degradeSession('sin notificaciones');
+    clearDegradation(false);
+
+    expect(getSession()).toEqual({ state: 'paused', error: null });
+  });
+
+  it('ignora la degradación en idle y no lanza', () => {
+    expect(() => degradeSession('nada que degradar')).not.toThrow();
+    expect(getSession()).toEqual({ state: 'idle', error: null });
   });
 });

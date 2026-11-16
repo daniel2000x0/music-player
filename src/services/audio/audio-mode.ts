@@ -28,7 +28,7 @@ async function applyAudioMode(attempt: number): Promise<void> {
       interruptionMode: 'doNotMix',
     });
   } catch (error) {
-    logError('audio-engine', 'setAudioModeAsync', error);
+    logError('audio/mode', 'setAudioModeAsync', error);
     const delay = AUDIO_MODE_RETRY_DELAYS_MS[attempt];
     if (delay === undefined) {
       return;
@@ -68,10 +68,10 @@ export async function requestNotificationPermission(): Promise<void> {
     setPermissionSnapshot({ notifications: granted });
     if (!granted && __DEV__) {
       console.warn(
-        '[audio-engine] Permiso de notificaciones denegado: los controles de reproducción podrían no mostrarse.'
+        '[audio/mode] Permiso de notificaciones denegado: los controles de reproducción podrían no mostrarse.'
       );
     }
   } catch (error) {
-    logError('audio-engine', 'requestNotificationPermissionsAsync', error);
+    logError('audio/mode', 'requestNotificationPermissionsAsync', error);
   }
 }

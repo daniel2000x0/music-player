@@ -8,7 +8,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Nunca se borran datos del usuario en una migración.
  */
 
-export const DATABASE_VERSION = 5;
+export const DATABASE_VERSION = 6;
 
 const V1 = `
 CREATE TABLE IF NOT EXISTS artists (
@@ -110,6 +110,19 @@ CREATE INDEX IF NOT EXISTS idx_error_logs_last_seen ON error_logs(last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_error_logs_level ON error_logs(level, last_seen_at);
 `;
 
+/**
+ * V6: sesión de reproducción persistida (`A-01`). Una sola fila (`id = 1`):
+ * la app reproduce una cosa a la vez. El payload es el JSON de
+ * `PlaybackSession` (ids de canción, no canciones completas).
+ */
+const V6 = `
+CREATE TABLE IF NOT EXISTS playback_sessions (
+  id         INTEGER PRIMARY KEY CHECK (id = 1),
+  payload    TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+`;
+
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   /**
    * Cada paso se decide por el ESQUEMA real (tablas/columnas presentes), no
@@ -136,6 +149,11 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
 
   if (!(await tableExists('error_logs'))) {
     await db.execAsync(V2);
+  }
+
+  // V6: sesión de reproducción persistida (`A-01`).
+  if (!(await tableExists('playback_sessions'))) {
+    await db.execAsync(V6);
   }
 
   if (!(await columnExists('songs', 'is_audiobook'))) {

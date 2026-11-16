@@ -40,6 +40,11 @@ type QueueStartOptions = {
   shuffle: boolean;
   /** Reinicia desde 0 si la pista solicitada ya es la actual. */
   restart?: boolean;
+  /**
+   * Carga la cola SIN iniciar la reproducción (restauración de sesión: se
+   * restaura el estado, no la acción).
+   */
+  startPaused?: boolean;
 };
 
 type QueueRebuildOptions = {
@@ -85,7 +90,7 @@ function createAndPlay(
   if (position > 0) {
     void instance
       .seekTo(position)
-      .catch((error: unknown) => logError('audio-engine', 'playlist.seekTo', error));
+      .catch((error: unknown) => logError('audio/queue', 'playlist.seekTo', error));
   }
   if (play) {
     instance.play();
@@ -106,7 +111,7 @@ export function startQueue(songs: Song[], options: QueueStartOptions): void {
   if (songs.length === 0) {
     return;
   }
-  const { startSongId, loop, shuffle, restart = false } = options;
+  const { startSongId, loop, shuffle, restart = false, startPaused = false } = options;
   const startSong = songs.find((song) => song.id === startSongId) ?? songs[0];
   advance('preparing');
 
@@ -121,16 +126,23 @@ export function startQueue(songs: Song[], options: QueueStartOptions): void {
         seekTo(0);
         updateLockScreenMetadata(existing, startSong);
       }
+      if (startPaused) {
+        // Restauración: la sesión de medios se registra pero sin sonar.
+        ensureLockScreenActive();
+        existing.pause();
+        advance('paused');
+        return;
+      }
       ensureLockScreenActive();
       withPlaylist('playlist.play', (instance) => instance.play());
       advance('playing');
       return;
     }
 
-    createAndPlay(songs, startSong, loop, shuffle, 0, true);
+    createAndPlay(songs, startSong, loop, shuffle, 0, !startPaused);
   } catch (error) {
     advance('failed', error instanceof Error ? error.message : String(error));
-    logError('audio-engine', 'startQueue', error);
+    logError('audio/queue', 'startQueue', error);
     throw error;
   }
 }
@@ -155,7 +167,7 @@ export function rebuildQueue(songs: Song[], options: QueueRebuildOptions): void 
     createAndPlay(songs, startSong, loop, shuffle, position, playing);
   } catch (error) {
     advance('failed', error instanceof Error ? error.message : String(error));
-    logError('audio-engine', 'rebuildQueue', error);
+    logError('audio/queue', 'rebuildQueue', error);
     throw error;
   }
 }

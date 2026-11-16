@@ -72,7 +72,7 @@ function emitHealth(): void {
     try {
       listener(snapshot);
     } catch (error) {
-      logError('audio-engine', 'lockScreenHealthListener', error);
+      logError('audio/lock-screen', 'lockScreenHealthListener', error);
     }
   }
 }
@@ -109,7 +109,7 @@ export function updateLockScreenMetadata(instance: AudioPlaylist, song: Song): v
   try {
     instance.updateLockScreenMetadata(lockScreenMetadata(song));
   } catch (error) {
-    logError('audio-engine', 'updateLockScreenMetadata', error);
+    logError('audio/lock-screen', 'updateLockScreenMetadata', error);
   }
 }
 
@@ -122,7 +122,7 @@ function tryRegister(instance: AudioPlaylist, song: Song): boolean {
     return true;
   } catch (error) {
     lastError = messageOf(error);
-    logError('audio-engine', 'setActiveForLockScreen', error);
+    logError('audio/lock-screen', 'setActiveForLockScreen', error);
     return false;
   }
 }
@@ -135,7 +135,7 @@ function scheduleRetry(instance: AudioPlaylist, song: Song): void {
     emitHealth();
     if (__DEV__) {
       console.warn(
-        '[audio-engine] Controles de pantalla de bloqueo degradados tras agotar reintentos:',
+        '[audio/lock-screen] Controles de pantalla de bloqueo degradados tras agotar reintentos:',
         lastError
       );
     }
@@ -222,6 +222,6 @@ export function clearLockScreenControls(): void {
   try {
     instance.clearLockScreenControls();
   } catch (error) {
-    logError('audio-engine', 'clearLockScreenControls', error);
+    logError('audio/lock-screen', 'clearLockScreenControls', error);
   }
 }

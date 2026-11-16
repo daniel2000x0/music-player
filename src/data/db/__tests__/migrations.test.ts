@@ -3,7 +3,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { DATABASE_VERSION, migrateDatabase } from '@/data/db/migrations';
 
 /**
- * Pruebas de la migración v5 con un SQLite falso.
+ * Pruebas de la migración v6 con un SQLite falso.
  *
  * LÓGICA: se controla el esquema visible (`sqlite_master` y `PRAGMA
  * table_info`) para verificar que la columna y los índices del escaneo
@@ -65,6 +65,9 @@ describe('migrateDatabase: base nueva', () => {
     expect(mockExecLog.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS error_logs'))).toBe(
       true
     );
+    expect(
+      mockExecLog.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS playback_sessions'))
+    ).toBe(true);
     expect(mockRunLog).toContain(
       'ALTER TABLE songs ADD COLUMN modification_time INTEGER'
     );
@@ -85,7 +88,7 @@ describe('migrateDatabase: base nueva', () => {
   it('deja PRAGMA user_version en la versión actual', async () => {
     await migrateDatabase(db);
 
-    expect(DATABASE_VERSION).toBe(5);
+    expect(DATABASE_VERSION).toBe(6);
     expect(mockExecLog).toContain(`PRAGMA user_version = ${DATABASE_VERSION}`);
   });
 });
@@ -94,6 +97,7 @@ describe('migrateDatabase: esquema ya migrado', () => {
   it('no repite ALTER cuando la columna ya existe', async () => {
     mockTables.add('songs');
     mockTables.add('error_logs');
+    mockTables.add('playback_sessions');
     for (const column of SONG_COLUMNS) {
       mockColumns.add(column);
     }

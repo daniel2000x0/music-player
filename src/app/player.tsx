@@ -17,6 +17,7 @@ import { PlaylistPicker } from '@/components/playlist-picker';
 import { SeekBar } from '@/components/seek-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { VolumeControl } from '@/components/volume-control';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCapabilities } from '@/hooks/use-capabilities';
@@ -73,6 +74,9 @@ export default function PlayerScreen() {
   const seek = usePlayerStore((state) => state.seek);
   const cycleRepeat = usePlayerStore((state) => state.cycleRepeat);
   const toggleShuffle = usePlayerStore((state) => state.toggleShuffle);
+  const volume = usePlayerStore((state) => state.volume);
+  const setVolume = usePlayerStore((state) => state.setVolume);
+  const sessionState = usePlayerStore((state) => state.sessionState);
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
   const lockScreen = usePlayerStore((state) => state.lockScreen);
@@ -119,7 +123,9 @@ export default function PlayerScreen() {
           </Pressable>
         </View>
 
-        {!capabilities['playback.lockScreen'] || lockScreen.status === 'degraded' ? (
+        {!capabilities['playback.lockScreen'] ||
+        sessionState === 'degraded' ||
+        lockScreen.status === 'degraded' ? (
           <View
             style={[
               styles.lockNotice,
@@ -205,6 +211,8 @@ export default function PlayerScreen() {
               </View>
             </Pressable>
           </View>
+
+          <VolumeControl volume={volume} onChange={setVolume} />
 
           <View style={styles.actions}>
             <Pressable

@@ -1,5 +1,6 @@
 import { createAudioPlaylist, type AudioPlaylist } from 'expo-audio';
 
+import type { RepeatMode } from '@/domain/playback/session';
 import { logError } from '@/services/error-log.service';
 import type { Song } from '@/types/song';
 
@@ -15,7 +16,12 @@ import type { Song } from '@/types/song';
  * guarda `order`, que coincide con ella salvo cuando el aleatorio la reordena.
  */
 
-export type RepeatMode = 'none' | 'all' | 'single';
+/**
+ * Modos de repetición. La definición canónica vive en el dominio
+ * (`domain/playback/session`) porque la sesión persistida también los guarda;
+ * aquí se re-exportan para no duplicar el tipo.
+ */
+export type { RepeatMode } from '@/domain/playback/session';
 
 /** Subconjunto de `AudioPlaylistStatus` que consume la app. */
 export type PlaybackStatus = {
@@ -39,10 +45,39 @@ const UPDATE_INTERVAL_MS = 500;
 let playlist: AudioPlaylist | null = null;
 let order: Song[] = [];
 let subscriptions: { remove(): void }[] = [];
+/**
+ * Volumen del motor (0–1). Vive aquí y no en la playlist para sobrevivir a
+ * cada reconstrucción de la cola: `createPlaylist` lo vuelve a aplicar.
+ */
+let volume = 1;
 
 /** Playlist nativa actual, o `null` si no hay cola cargada. */
 export function getPlaylist(): AudioPlaylist | null {
   return playlist;
+}
+
+/**
+ * ¿El motor tiene una cola cargada?
+ *
+ * Se consulta al motor y no a una copia en el store: así el estado no puede
+ * desincronizarse (p. ej. tras restaurar una sesión en pausa, que deja la cola
+ * en el store pero el motor todavía vacío).
+ */
+export function hasQueue(): boolean {
+  return playlist !== null;
+}
+
+/** Volumen aplicado al motor (0–1). */
+export function getVolume(): number {
+  return volume;
+}
+
+/** Fija el volumen del motor; se conserva entre playlists. */
+export function setVolume(next: number): void {
+  volume = Math.max(0, Math.min(1, next));
+  withPlaylist('playlist.volume', (instance) => {
+    instance.volume = volume;
+  });
 }
 
 /** Orden de reproducción actual (`order[index]` es la pista nativa `index`). */
@@ -61,7 +96,7 @@ export function withPlaylist(
   try {
     run(playlist);
   } catch (error) {
-    logError('audio-engine', action, error);
+    logError('audio/playlist', action, error);
   }
 }
 
@@ -70,7 +105,7 @@ function detachListeners(): void {
     try {
       subscription.remove();
     } catch (error) {
-      logError('audio-engine', 'playlist.removeListener', error);
+      logError('audio/playlist', 'playlist.removeListener', error);
     }
   }
   subscriptions = [];
@@ -89,6 +124,8 @@ export function createPlaylist(
   });
   playlist = instance;
   order = songs;
+  // El volumen es del motor, no de la playlist: se reaplica al reconstruir.
+  instance.volume = volume;
 
   subscriptions = [
     instance.addListener('playlistStatusUpdate', (status) => {
@@ -138,17 +175,17 @@ export function disposePlaylist(): void {
   try {
     instance.pause();
   } catch (error) {
-    logError('audio-engine', 'playlist.pause', error);
+    logError('audio/playlist', 'playlist.pause', error);
   }
   try {
     instance.destroy();
   } catch (error) {
-    logError('audio-engine', 'playlist.destroy', error);
+    logError('audio/playlist', 'playlist.destroy', error);
   }
   try {
     instance.release();
   } catch (error) {
-    logError('audio-engine', 'playlist.release', error);
+    logError('audio/playlist', 'playlist.release', error);
   }
 }
 
@@ -169,7 +206,7 @@ export function seekTo(seconds: number): void {
   withPlaylist('playlist.seekTo', (instance) => {
     void instance
       .seekTo(seconds)
-      .catch((error: unknown) => logError('audio-engine', 'playlist.seekTo', error));
+      .catch((error: unknown) => logError('audio/playlist', 'playlist.seekTo', error));
   });
 }
 
