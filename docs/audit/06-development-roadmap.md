@@ -521,7 +521,18 @@ pausar durante el buffering).
 | `jest` | **31 suites / 236 pruebas** |
 | `expo lint` | 0 problemas |
 | `expo-doctor` | 20/20 |
-| Dispositivo | ⏳ verificación manual del usuario en el móvil pendiente |
+| Dispositivo (adb) | recentrados 101→182→201 manteniendo `state=3`; sin ANR ni errores JS; pausa/reanudación `3→2→3` |
+
+### Subidas (GitHub y OTA)
+
+| Subida | Detalle |
+| --- | --- |
+| Commit ANR | `5472b46` — «ventana de cola para evitar el ANR al publicar miles de pistas (FASE 4)» |
+| Commit recentrado | `8dda1f4` — «el recentrado de la ventana ya no pausa la reproducción» |
+| Rama | `fix/4-anr-ventana-cola` empujada a `origin` |
+| Fusión | `master` por **fast-forward** hasta `8dda1f4` (mismo commit que la OTA) |
+| OTA `preview` | grupo `b06fff6b-c902-4505-8b5b-388ac17244e5`; Android `01a1e775-4ff9-7bd7-bb7d-96a07c413021`; runtime 1.0.0 |
+| Estado OTA | descargada y aplicada en el Infinix X6826 (`CheckCompleteUnavailable`, `isUpdatePending=false`) |
 
 ---
 
