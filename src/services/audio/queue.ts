@@ -67,6 +67,23 @@ type QueueRebuildOptions = {
   playing?: boolean;
 };
 
+/**
+ * ¿El usuario pretende que la música siga sonando?
+ *
+ * NO se puede leer `playlist.playing`: ese getter nativo devuelve
+ * `ExoPlayer.isPlaying` en crudo, que es `false` mientras el motor está en
+ * buffering (p. ej. al cambiar de pista o al recrear la ventana). La sesión, en
+ * cambio, se alimenta del `playing` que el módulo nativo ya corrige con
+ * `intendedPlayingState` durante el buffering, así que refleja la intención real.
+ *
+ * `degraded` reproduce igual (solo perdió los controles del sistema), por eso
+ * también cuenta como "debe sonar".
+ */
+function intendsPlayback(): boolean {
+  const { state } = getSession();
+  return state === 'playing' || state === 'degraded';
+}
+
 /** Retira la sesión de medios y libera la playlist actual. */
 function releaseCurrentPlaylist(): void {
   clearLockScreenControls();
@@ -194,7 +211,7 @@ export function rebuildQueue(songs: Song[], options: QueueRebuildOptions): void 
   }
   const { currentSongId, loop, shuffle } = options;
   const position = options.position ?? getPlaylist()?.currentTime ?? 0;
-  const playing = options.playing ?? getPlaylist()?.playing ?? false;
+  const playing = options.playing ?? intendsPlayback();
   const startSong = songs.find((song) => song.id === currentSongId) ?? songs[0];
   advance('recovering');
 
@@ -212,6 +229,10 @@ export function rebuildQueue(songs: Song[], options: QueueRebuildOptions): void 
  *
  * La cola completa no cambia: solo se vuelve a recortar el tramo que el motor
  * tiene cargado. Conserva pista, posición y estado de reproducción.
+ *
+ * El estado se toma de la intención (`intendsPlayback`), no de
+ * `playlist.playing`: durante el buffering de un cambio de pista ese getter
+ * devuelve `false` y la reproducción se detendría al recentrar.
  */
 export function refreshWindow(currentSongId: number | null): void {
   const instance = getPlaylist();
@@ -220,7 +241,7 @@ export function refreshWindow(currentSongId: number | null): void {
     return;
   }
   const position = instance.currentTime ?? 0;
-  const playing = instance.playing;
+  const playing = intendsPlayback();
   const found = currentSongId === null ? -1 : songs.findIndex((song) => song.id === currentSongId);
   const index = found >= 0 ? found : Math.max(0, getCurrentIndex());
   createPlaylistWithOrder(songs, index, getLoop(), position, playing);
@@ -246,8 +267,12 @@ export function pause(): void {
 }
 
 export function togglePlayback(): void {
+  // Se decide por la intención, no por `instance.playing`: durante el buffering
+  // de un cambio de pista ese getter devuelve `false` y el botón de pausa
+  // reanudaría en vez de pausar.
+  const shouldPause = intendsPlayback();
   withPlaylist('playlist.toggle', (instance) => {
-    if (instance.playing) {
+    if (shouldPause) {
       instance.pause();
       advance('paused');
       return;

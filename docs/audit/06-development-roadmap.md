@@ -494,12 +494,31 @@ repetición total, da la vuelta para no cortar la reproducción continua.
 **Pruebas:** `src/domain/__tests__/queue-window.test.ts` (ventana y recentrado,
 puros) y `src/services/__tests__/audio-queue-window.test.ts` (integración: el
 motor recibe 201 pistas de una cola de 1801; recentrado; vuelta con repetición
-total).
+total; **recentrar no pausa** con el motor en buffering).
+
+### Segundo hallazgo: el recentrado pausaba la reproducción
+
+Verificado en dispositivo con taps reales en «Siguiente»: al cruzar el borde de
+la ventana (tramo de 90 avances) la cola pasó de 101 a 182 pistas (recentrado
+correcto) pero el estado pasó de `state=3` (PLAYING) a `state=2` (PAUSED).
+
+**Causa raíz:** `refreshWindow` decidía el estado con `playlist.playing`, que
+`expo-audio` expone como `ExoPlayer.isPlaying` **en crudo**
+(`AudioModule.kt`, `Property("playing")`). Durante el buffering de un cambio de
+pista —o de un seek— `isPlaying` es `false`, mientras que el evento de estado ya
+lo corrige con `intendedPlayingState` (`AudioPlaylist.kt`). La playlist recreada
+arrancaba en pausa.
+
+**Arreglo:** el estado se toma de la intención de la sesión
+(`services/audio/session`, alimentada por el `playing` buffering-aware) mediante
+`intendsPlayback()`; se aplica en `refreshWindow`, en `rebuildQueue` (por
+defecto) y en `togglePlayback` (el botón de pausa también reanudaba en vez de
+pausar durante el buffering).
 
 | Verificación | Resultado |
 | --- | --- |
 | `tsc --noEmit` | limpio |
-| `jest` | **31 suites / 233 pruebas** |
+| `jest` | **31 suites / 236 pruebas** |
 | `expo lint` | 0 problemas |
 | `expo-doctor` | 20/20 |
 | Dispositivo | ⏳ verificación manual del usuario en el móvil pendiente |

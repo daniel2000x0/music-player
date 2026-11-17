@@ -191,4 +191,52 @@ describe('ventana de cola: el motor no recibe la cola completa (ANR)', () => {
     instance.currentIndex = 101;
     expect(engine.getCurrentIndex()).toBe(0);
   });
+
+  it('recentrar NO pausa aunque el motor reporte playing=false (buffering)', () => {
+    engine.startQueue(library(1801), { startSongId: 900, loop: 'none', shuffle: false });
+    const first = lastInstance();
+    // Durante un cambio de pista el módulo nativo expone `playing=false`
+    // (ExoPlayer en buffering), aunque la intención sea seguir sonando.
+    first.playing = false;
+    first.currentIndex = 190;
+
+    engine.maintainWindow();
+
+    const recentered = lastInstance();
+    expect(recentered).not.toBe(first);
+    expect(recentered.play).toHaveBeenCalled();
+    expect(recentered.playing).toBe(true);
+  });
+
+  it('recentrar respeta la pausa real', () => {
+    engine.startQueue(library(1801), {
+      startSongId: 900,
+      loop: 'none',
+      shuffle: false,
+      startPaused: true,
+    });
+    const first = lastInstance();
+    first.currentIndex = 190;
+
+    engine.maintainWindow();
+
+    const recentered = lastInstance();
+    expect(recentered).not.toBe(first);
+    expect(recentered.play).not.toHaveBeenCalled();
+    expect(recentered.playing).toBe(false);
+  });
+
+  it('el botón de pausa pausa aunque el motor esté en buffering', () => {
+    engine.startQueue(library(30), { startSongId: 1, loop: 'none', shuffle: false });
+    const instance = lastInstance();
+    // El motor sigue reproduciendo pero reporta `playing=false` por buffering.
+    instance.play.mockClear();
+    instance.pause.mockClear();
+    instance.playing = false;
+
+    engine.togglePlayback();
+
+    expect(instance.pause).toHaveBeenCalledTimes(1);
+    expect(instance.play).not.toHaveBeenCalled();
+  });
 });
