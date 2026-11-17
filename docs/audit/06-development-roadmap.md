@@ -429,6 +429,39 @@ Context7 ✅ · Expo MCP ❌ · GitHub MCP ❌.
 4. `audio-engine.ts` ya no existe y `grep -r "audio-engine" src/` no devuelve nada.
 5. Verdes: `tsc`, `jest`, `expo-doctor`.
 
+### Desviaciones respecto al plan
+
+| Plan | Implementado | Motivo |
+| --- | --- | --- |
+| Persistencia en `services/audio/session.ts` | `session-persistence.ts` como módulo aparte; `session.ts` queda como máquina de estados pura | Separar la política de escritura (throttle/debounce/flush) de las transiciones facilita probar cada una por separado |
+| `setVolume` en `session.ts` | `volume` vive en `player.store` y se persiste en `app_settings` (debounce 500 ms) | El volumen es una preferencia del usuario, no parte de la sesión; no se serializa en `playback_sessions` |
+| Pista/modo/pausa con escritura inmediata | Añadido `seek` a la lista de escrituras inmediatas | Un salto de posición debe sobrevivir a una muerte del proceso; con throttle se perdía |
+| `degraded` "persistente en la sesión de UI" | Añadido a `SessionState` con `degradeSession`/`clearDegradation`; **no** se persiste en disco | Un estado degradado es transitorio de la ejecución; restaurarlo desde disco daría un falso positivo |
+| `RepeatMode` en `services/audio/native-playlist.ts` | Movido a `src/domain/playback/session.ts`; `native-playlist.ts` lo re-exporta | La sesión serializable necesita el tipo sin depender de la capa de motor |
+
+### Estado al cierre de FASE 4
+
+| Criterio | Resultado |
+| --- | --- |
+| Persistencia de sesión | Tabla `playback_sessions` (migración **v6**, fila única `id = 1`); política §7.3 de `05`: posición throttle 5 s, cola debounce 1 s (reinicia temporizador), pista/modo/pausa/seek inmediatas |
+| Restauración | `hydrateSession` deja `isPlaying: false` y sin playlist nativa; la primera acción carga el motor (`ensureEngineQueue`). **Nunca auto-play** |
+| Volumen | `volume` en `player.store` (0–1) con `VolumeControl`; persistido en `app_settings` con debounce 500 ms |
+| Estado `degraded` | `SessionState` + `degradeSession`/`clearDegradation`; visible en `player.tsx`; ignorado en `idle`; no se persiste |
+| `audio-engine.ts` | **Eliminado**; `grep -r "audio-engine" src/` vacío (ámbitos de `logError` y prefijos renombrados a `audio/session`, `audio/queue`, `audio/playlist`, `audio/events`, `audio/lock-screen`, `audio/mode`, `audio/session-persistence`) |
+| Pruebas | `playback-session`, `playback-session.repository`, `session-persistence`, `player-session` (500 con 3 ausentes → 497), `session` (degraded), `migrations` (v6 + tabla) |
+| Verdes | `tsc` limpio · `jest` **29 suites / 216 pruebas** · `expo-doctor` 20/20 · `expo lint` 0 problemas |
+
+### Verificación en dispositivo (FASE 4)
+
+Dispositivo: Infinix X6826 (`09729372AM004325`), Android 12 (SDK 31), APK release 1.0.0 canal `preview`.
+OTA aplicada: grupo `2ca33c8c-bb5f-4bce-82b0-adac3d9cfafb`, update Android `01a1e720-b566-7826-8bd6-59f424741e0c`, commit `ae6f5cf`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| OTA aplicada | ✅ primer arranque descarga el manifest `01a1e720-…`; segundo arranque `isUpdateAvailable=false` / `CheckCompleteUnavailable` |
+| Sin errores en runtime | ✅ sin `ReactNativeJS` con errores ni `FATAL`/`AndroidRuntime` de la app |
+| Criterios 1–3 (restaurar en pausa, posición ≤ 5 s, volumen) | ⏳ verificación manual del usuario en el móvil pendiente; cubiertos por pruebas unitarias |
+
 ---
 
 ## FASE 5 · Notificaciones, pantalla de bloqueo y widget
