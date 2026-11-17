@@ -462,6 +462,48 @@ OTA aplicada: grupo `2ca33c8c-bb5f-4bce-82b0-adac3d9cfafb`, update Android `01a1
 | Sin errores en runtime | ✅ sin `ReactNativeJS` con errores ni `FATAL`/`AndroidRuntime` de la app |
 | Criterios 1–3 (restaurar en pausa, posición ≤ 5 s, volumen) | ⏳ verificación manual del usuario en el móvil pendiente; cubiertos por pruebas unitarias |
 
+### Corrección del ANR tras FASE 4 (desviación)
+
+Tras aplicar la OTA de FASE 4 el dispositivo registró dos ANR
+(`Input dispatching timed out ... Waited 8003ms for MotionEvent`). El hilo
+`main` quedaba bloqueado ~8 s en `android.media.session.MediaSession.setQueue`
+→ `ParcelableListBinder.send` → `BinderProxy.transactNative`; el hilo JS
+(`mqt_v_js`) estaba inactivo, así que el bloqueo era **puramente nativo**.
+
+**Causa raíz (confirmada con traces y `dumpsys media_session`):** al
+crear/reconstruir la cola, `AudioControlsService.setActivePlayableInternal`
+publicaba la lista **completa** de pistas (~65 KB, 1801 pistas) en la
+`MediaSession` del sistema mediante una única transacción binder del hilo
+principal.
+
+**Arreglo (solo JS, apto para OTA):** el motor nativo ya no recibe el orden de
+reproducción completo, sino una **ventana** acotada alrededor de la pista actual
+(100 por detrás, 100 por delante); la cola completa sigue viviendo en el store.
+La ventana se recentra al acercarse a sus bordes (margen de 20 pistas) y, con
+repetición total, da la vuelta para no cortar la reproducción continua.
+
+| Aspecto | Detalle |
+| --- | --- |
+| Dominio | `src/domain/playback/queue-window.ts` (`computeQueueWindow`, `needsWindowRecenter`; constantes `QUEUE_WINDOW_BACK`/`FORWARD`/`EDGE` = 100/100/20) |
+| Motor | `native-playlist.ts` recorta la ventana, conserva `order` completo y traduce índices nativo↔global (`getCurrentIndex`, `getCurrentSong`, `skipToFullIndex`, `isInWindow`, `windowNeedsRecenterNow`) |
+| Orquestación | `queue.ts`: `createPlaylistWithOrder`, `refreshWindow`, `maintainWindow`; `startQueue` salta dentro de la ventana o reconstruye |
+| Ediciones | `playlist-edits.ts` muta el orden completo y recrea la ventana (evita traducir índices en cada edición) |
+| Store | `player.store.ts` llama `maintainWindow()` en `syncTrack`, `next`, `previous` y `cycleRepeat` |
+| Límite | `toggleShuffle` sigue reconstruyendo la cola completa (`rebuildQueue`), comportamiento ya presente en `2e04e02`; **no** es regresión de FASE 4 |
+
+**Pruebas:** `src/domain/__tests__/queue-window.test.ts` (ventana y recentrado,
+puros) y `src/services/__tests__/audio-queue-window.test.ts` (integración: el
+motor recibe 201 pistas de una cola de 1801; recentrado; vuelta con repetición
+total).
+
+| Verificación | Resultado |
+| --- | --- |
+| `tsc --noEmit` | limpio |
+| `jest` | **31 suites / 233 pruebas** |
+| `expo lint` | 0 problemas |
+| `expo-doctor` | 20/20 |
+| Dispositivo | ⏳ verificación manual del usuario en el móvil pendiente |
+
 ---
 
 ## FASE 5 · Notificaciones, pantalla de bloqueo y widget

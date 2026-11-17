@@ -1,6 +1,7 @@
 import { createAudioPlaylist, type AudioPlaylist } from 'expo-audio';
 
 import type { RepeatMode } from '@/domain/playback/session';
+import { computeQueueWindow, needsWindowRecenter } from '@/domain/playback/queue-window';
 import { logError } from '@/services/error-log.service';
 import type { Song } from '@/types/song';
 
@@ -12,8 +13,12 @@ import type { Song } from '@/types/song';
  * el modo de audio ni la máquina de estados: la fachada (`audio/index.ts`)
  * coordina esos módulos.
  *
- * La cola canónica (`queue`) vive en Zustand (`player.store`); aquí solo se
- * guarda `order`, que coincide con ella salvo cuando el aleatorio la reordena.
+ * La cola canónica (`queue`) vive en Zustand (`player.store`); aquí se guarda
+ * el orden de reproducción completo. El motor nativo NO recibe ese orden
+ * entero: recibe una ventana (`domain/playback/queue-window`) para que
+ * `MediaSession` no publique miles de pistas en una transacción binder que
+ * bloquee el hilo principal. Los índices que se exponen hacia fuera son
+ * siempre índices del orden completo.
  */
 
 /**
@@ -25,7 +30,7 @@ export type { RepeatMode } from '@/domain/playback/session';
 
 /** Subconjunto de `AudioPlaylistStatus` que consume la app. */
 export type PlaybackStatus = {
-  /** Índice de la pista actual dentro del orden de reproducción. */
+  /** Índice de la pista actual dentro del orden de reproducción completo. */
   currentIndex: number;
   playing: boolean;
   currentTime: number;
@@ -43,7 +48,14 @@ export type PlaylistEvents = {
 const UPDATE_INTERVAL_MS = 500;
 
 let playlist: AudioPlaylist | null = null;
+/** Orden de reproducción COMPLETO (no solo el tramo que tiene el motor). */
 let order: Song[] = [];
+/** Índice del orden completo de cada pista de la playlist nativa. */
+let windowIndices: number[] = [];
+/** Repetición total: la ventana da la vuelta para no cortar la reproducción. */
+let windowCyclic = false;
+/** Modo de repetición con el que está cargada la playlist. */
+let loopMode: RepeatMode = 'none';
 let subscriptions: { remove(): void }[] = [];
 /**
  * Volumen del motor (0–1). Vive aquí y no en la playlist para sobrevivir a
@@ -80,9 +92,19 @@ export function setVolume(next: number): void {
   });
 }
 
-/** Orden de reproducción actual (`order[index]` es la pista nativa `index`). */
+/**
+ * Orden de reproducción completo (`order[index]` es la pista `index`).
+ *
+ * NO coincide con lo que contiene la playlist nativa (esa solo tiene una
+ * ventana), pero es la referencia para todos los índices de la app.
+ */
 export function getOrder(): Song[] {
   return order;
+}
+
+/** Modo de repetición con el que está cargada la playlist nativa. */
+export function getLoop(): RepeatMode {
+  return loopMode;
 }
 
 /** Ejecuta una operación sobre la playlist registrando fallos sin propagarlos. */
@@ -111,21 +133,44 @@ function detachListeners(): void {
   subscriptions = [];
 }
 
-/** Crea la playlist nativa con los oyentes ya enlazados. */
+/**
+ * Crea la playlist nativa con una ventana del orden de reproducción.
+ *
+ * `startIndex` es un índice del orden completo; la pista que debe sonar se
+ * coloca dentro de la ventana. Los oyentes se enlazan ya con la ventana
+ * aplicada, así que los eventos siempre se traducen a índices del orden
+ * completo.
+ */
 export function createPlaylist(
   songs: Song[],
   loop: RepeatMode,
-  events: PlaylistEvents
+  events: PlaylistEvents,
+  startIndex: number
 ): AudioPlaylist {
+  const lastIndex = Math.max(0, songs.length - 1);
+  const safeStart = Math.max(0, Math.min(startIndex, lastIndex));
+  const cyclic = loop === 'all';
+  const indices = computeQueueWindow(songs.length, safeStart, cyclic);
   const instance = createAudioPlaylist({
-    sources: songs.map((song) => ({ uri: song.uri })),
+    sources: indices
+      .map((index) => songs[index])
+      .filter((song): song is Song => song !== undefined)
+      .map((song) => ({ uri: song.uri })),
     updateInterval: UPDATE_INTERVAL_MS,
     loop,
   });
   playlist = instance;
   order = songs;
+  windowIndices = indices;
+  windowCyclic = cyclic;
+  loopMode = loop;
   // El volumen es del motor, no de la playlist: se reaplica al reconstruir.
   instance.volume = volume;
+
+  const nativeStart = indices.indexOf(safeStart);
+  if (nativeStart > 0) {
+    instance.skipTo(nativeStart);
+  }
 
   subscriptions = [
     instance.addListener('playlistStatusUpdate', (status) => {
@@ -134,7 +179,7 @@ export function createPlaylist(
         return;
       }
       events.onStatus({
-        currentIndex: status.currentIndex,
+        currentIndex: windowIndices[status.currentIndex] ?? status.currentIndex,
         playing: status.playing,
         // ExoPlayer reporta `TIME_UNSET` mientras prepara la pista; se acota
         // para no enviar posiciones/duraciones negativas a la barra de UI.
@@ -147,7 +192,8 @@ export function createPlaylist(
       if (playlist !== instance) {
         return;
       }
-      const song = order[currentIndex];
+      const fullIndex = windowIndices[currentIndex];
+      const song = fullIndex === undefined ? undefined : order[fullIndex];
       if (song) {
         events.onTrack(song);
       }
@@ -169,6 +215,9 @@ export function disposePlaylist(): void {
   const instance = playlist;
   playlist = null;
   order = [];
+  windowIndices = [];
+  windowCyclic = false;
+  loopMode = 'none';
   if (!instance) {
     return;
   }
@@ -211,15 +260,106 @@ export function seekTo(seconds: number): void {
 }
 
 export function setLoop(loop: RepeatMode): void {
+  loopMode = loop;
   withPlaylist('playlist.setLoop', (instance) => {
     instance.loop = loop;
   });
 }
 
+/** Índice (del orden completo) de la pista actual; `-1` si no hay ninguna. */
 export function getCurrentIndex(): number {
-  return playlist?.currentIndex ?? -1;
+  if (!playlist) {
+    return -1;
+  }
+  return windowIndices[playlist.currentIndex] ?? -1;
 }
 
+/** Pista actual (del orden completo), o `null` si no hay ninguna. */
+export function getCurrentSong(): Song | null {
+  const index = getCurrentIndex();
+  if (index < 0) {
+    return null;
+  }
+  return order[index] ?? null;
+}
+
+/** Pistas de la cola completa (no solo el tramo cargado en el motor). */
 export function getTrackCount(): number {
-  return playlist?.trackCount ?? 0;
+  return order.length;
+}
+
+/** ¿El índice del orden completo está dentro de la ventana nativa? */
+export function isInWindow(fullIndex: number): boolean {
+  return windowIndices.includes(fullIndex);
+}
+
+/**
+ * Salta a un índice del orden completo si está dentro de la ventana nativa.
+ *
+ * Devuelve `false` cuando la pista está fuera de la ventana: entonces la
+ * fachada reconstruye la playlist en vez de saltar.
+ */
+export function skipToFullIndex(fullIndex: number): boolean {
+  if (!playlist) {
+    return false;
+  }
+  const nativeIndex = windowIndices.indexOf(fullIndex);
+  if (nativeIndex < 0) {
+    return false;
+  }
+  withPlaylist('playlist.skipTo', (instance) => instance.skipTo(nativeIndex));
+  return true;
+}
+
+/**
+ * ¿La ventana nativa se quedó corta?
+ *
+ * También devuelve `true` cuando cambió el modo de repetición y la ventana ya
+ * no refleja si debe dar la vuelta (p. ej. el usuario activó la repetición
+ * total): en ese caso hay que reconstruirla.
+ */
+export function windowNeedsRecenterNow(): boolean {
+  if (!playlist) {
+    return false;
+  }
+  const nativeIndex = playlist.currentIndex;
+  const fullIndex = windowIndices[nativeIndex] ?? -1;
+  if (fullIndex < 0) {
+    return false;
+  }
+  const cyclicNow = loopMode === 'all';
+  if (cyclicNow !== windowCyclic && windowIndices.length < order.length) {
+    return true;
+  }
+  return needsWindowRecenter({
+    nativeIndex,
+    windowLength: windowIndices.length,
+    fullIndex,
+    orderLength: order.length,
+    cyclic: windowCyclic,
+  });
+}
+
+/** Añade una pista al final del orden de reproducción. */
+export function appendToOrder(song: Song): void {
+  order.push(song);
+}
+
+/** Quita una pista del orden de reproducción. */
+export function removeFromOrder(songId: number): void {
+  const index = order.findIndex((song) => song.id === songId);
+  if (index >= 0) {
+    order.splice(index, 1);
+  }
+}
+
+/** Coloca una pista justo después de otra del orden (la mueve si ya estaba). */
+export function insertInOrderAfter(song: Song, afterSongId: number | null): void {
+  const existing = order.findIndex((item) => item.id === song.id);
+  if (existing >= 0) {
+    order.splice(existing, 1);
+  }
+  const after = afterSongId === null ? -1 : order.findIndex((item) => item.id === afterSongId);
+  const at = after < 0 ? order.length : after + 1;
+  order.splice(at, 0, song);
 }

@@ -15,6 +15,7 @@ import {
   getTrackCount,
   hasQueue,
   insertAfterCurrent,
+  maintainWindow,
   nextTrack,
   pause,
   previousTrack,
@@ -303,6 +304,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
       ensureEngineQueue(false);
+      // La ventana nativa se recentra si se acercó a sus bordes (ANR).
+      maintainWindow();
       // Al final del orden de reproducción y sin repetición total se detiene,
       // igual que hacía el motor anterior.
       if (repeatMode !== 'all' && getCurrentIndex() >= getTrackCount() - 1) {
@@ -324,6 +327,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
       ensureEngineQueue(false);
+      // La ventana nativa se recentra si se acercó a sus bordes (ANR).
+      maintainWindow();
       if (getPlaybackPosition() > 3) {
         requestSeek(0);
         saveSessionNow(() => buildSession(get()));
@@ -349,6 +354,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         repeatMode === 'none' ? 'all' : repeatMode === 'all' ? 'single' : 'none';
       set({ repeatMode: nextMode });
       setLoop(nextMode);
+      // Con repetición total la ventana debe dar la vuelta: se recentra.
+      maintainWindow();
       saveSessionNow(() => buildSession(get()));
     },
 
@@ -505,6 +512,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       resetPlaybackProgress(song.duration);
       // Cambio de pista: escritura inmediata (`05` §7.3).
       saveSessionNow(() => buildSession(get()));
+      // El motor solo tiene una ventana de la cola: se recentra al acercarse a
+      // sus bordes para que el avance automático no se corte (ANR).
+      maintainWindow();
     },
 
     syncStatus: (status) => {

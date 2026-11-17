@@ -13,11 +13,17 @@ import {
 import {
   createPlaylist,
   disposePlaylist,
+  getCurrentIndex,
+  getCurrentSong,
+  getLoop,
   getOrder,
   getPlaylist,
+  isInWindow,
   pausePlayback,
   seekTo,
   setLoop,
+  skipToFullIndex,
+  windowNeedsRecenterNow,
   withPlaylist,
   type RepeatMode,
 } from '@/services/audio/native-playlist';
@@ -31,6 +37,9 @@ import type { Song } from '@/types/song';
  * RESPONSABILIDAD ÚNICA: decidir cuándo crear o reconstruir la cola y cuándo
  * pausar o detener. Los eventos nativos los traduce `events.ts`; no conoce
  * Zustand: el puente de React conecta ambos.
+ *
+ * El motor nativo solo recibe una ventana del orden de reproducción
+ * (`domain/playback/queue-window`); aquí se decide cuándo hay que recentrarla.
  */
 
 type QueueStartOptions = {
@@ -64,29 +73,34 @@ function releaseCurrentPlaylist(): void {
   disposePlaylist();
 }
 
-function createAndPlay(
+/**
+ * Crea la playlist nativa a partir de un orden de reproducción completo.
+ *
+ * `startIndex` es un índice de `songs`; `createPlaylist` recorta la ventana que
+ * recibe el motor y coloca ahí la pista actual. Conserva posición y estado.
+ */
+function createPlaylistWithOrder(
   songs: Song[],
-  startSong: Song,
+  startIndex: number,
   loop: RepeatMode,
-  shuffle: boolean,
   position: number,
   play: boolean
 ): void {
   releaseCurrentPlaylist();
-  const nextOrder = buildPlaybackOrder(songs, startSong.id, shuffle);
-  const instance = createPlaylist(nextOrder, loop, {
-    onStatus: handleStatus,
-    onTrack: handleTrack,
-  });
-  const startIndex = nextOrder.findIndex((song) => song.id === startSong.id);
-  activateLockScreen(instance, startSong);
+  const instance = createPlaylist(
+    songs,
+    loop,
+    { onStatus: handleStatus, onTrack: handleTrack },
+    startIndex
+  );
+  const startSong = songs[startIndex];
+  if (startSong) {
+    activateLockScreen(instance, startSong);
+  }
   if (getSession().state === 'idle') {
     advance('preparing');
   }
   advance('ready');
-  if (startIndex > 0) {
-    instance.skipTo(startIndex);
-  }
   if (position > 0) {
     void instance
       .seekTo(position)
@@ -98,6 +112,22 @@ function createAndPlay(
   } else {
     advance('paused');
   }
+}
+
+function createAndPlay(
+  songs: Song[],
+  startSong: Song,
+  loop: RepeatMode,
+  shuffle: boolean,
+  position: number,
+  play: boolean
+): void {
+  const nextOrder = buildPlaybackOrder(songs, startSong.id, shuffle);
+  const startIndex = Math.max(
+    0,
+    nextOrder.findIndex((song) => song.id === startSong.id)
+  );
+  createPlaylistWithOrder(nextOrder, startIndex, loop, position, play);
 }
 
 /**
@@ -120,8 +150,13 @@ export function startQueue(songs: Song[], options: QueueStartOptions): void {
     if (existing && !shuffle && hasSamePlaybackOrder(songs, getOrder())) {
       setLoop(loop);
       const index = getOrder().findIndex((song) => song.id === startSong.id);
-      if (index >= 0 && index !== existing.currentIndex) {
-        withPlaylist('playlist.skipTo', (instance) => instance.skipTo(index));
+      if (index >= 0 && !isInWindow(index)) {
+        // La pista pedida quedó fuera de la ventana nativa: se reconstruye.
+        createAndPlay(songs, startSong, loop, shuffle, 0, !startPaused);
+        return;
+      }
+      if (index >= 0 && index !== getCurrentIndex()) {
+        skipToFullIndex(index);
       } else if (restart) {
         seekTo(0);
         updateLockScreenMetadata(existing, startSong);
@@ -170,6 +205,38 @@ export function rebuildQueue(songs: Song[], options: QueueRebuildOptions): void 
     logError('audio/queue', 'rebuildQueue', error);
     throw error;
   }
+}
+
+/**
+ * Recrea la ventana nativa desde el orden actual (sin reordenarlo).
+ *
+ * La cola completa no cambia: solo se vuelve a recortar el tramo que el motor
+ * tiene cargado. Conserva pista, posición y estado de reproducción.
+ */
+export function refreshWindow(currentSongId: number | null): void {
+  const instance = getPlaylist();
+  const songs = getOrder();
+  if (!instance || songs.length === 0) {
+    return;
+  }
+  const position = instance.currentTime ?? 0;
+  const playing = instance.playing;
+  const found = currentSongId === null ? -1 : songs.findIndex((song) => song.id === currentSongId);
+  const index = found >= 0 ? found : Math.max(0, getCurrentIndex());
+  createPlaylistWithOrder(songs, index, getLoop(), position, playing);
+}
+
+/**
+ * Recentra la ventana nativa si se acercó a sus bordes.
+ *
+ * Se llama tras cada cambio de pista: mantiene siempre margen por delante y por
+ * detrás para que el avance automático y `previous`/`next` no se corten.
+ */
+export function maintainWindow(): void {
+  if (!windowNeedsRecenterNow()) {
+    return;
+  }
+  refreshWindow(getCurrentSong()?.id ?? null);
 }
 
 /** Pausa la reproducción sin liberar la cola. */

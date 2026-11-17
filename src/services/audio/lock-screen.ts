@@ -5,7 +5,7 @@ import type {
   AudioPlaylist,
 } from 'expo-audio';
 
-import { getOrder, getPlaylist } from '@/services/audio/native-playlist';
+import { getCurrentSong, getPlaylist } from '@/services/audio/native-playlist';
 import { logError } from '@/services/error-log.service';
 import type { Song } from '@/types/song';
 
@@ -151,7 +151,7 @@ function scheduleRetry(instance: AudioPlaylist, song: Song): void {
     if (getPlaylist() !== instance) {
       return;
     }
-    const current = getOrder()[instance.currentIndex] ?? song;
+    const current = getCurrentSong() ?? song;
     attempt(instance, current, false);
   }, delay);
 }
@@ -200,7 +200,7 @@ export function ensureLockScreenActive(): void {
   if (status === 'degraded') {
     return;
   }
-  const song = getOrder()[instance.currentIndex];
+  const song = getCurrentSong();
   if (song) {
     activateLockScreen(instance, song);
   }

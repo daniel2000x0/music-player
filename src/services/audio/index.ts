@@ -43,6 +43,7 @@ export {
   subscribeTrackChange,
 } from '@/services/audio/events';
 export {
+  maintainWindow,
   pause,
   rebuildQueue,
   startQueue,

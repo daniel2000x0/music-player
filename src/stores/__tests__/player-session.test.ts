@@ -35,6 +35,7 @@ jest.mock('@/services/audio', () => ({
   getTrackCount: jest.fn(() => 0),
   hasQueue: jest.fn(() => false),
   insertAfterCurrent: jest.fn(),
+  maintainWindow: jest.fn(),
   nextTrack: jest.fn(),
   pause: jest.fn(),
   previousTrack: jest.fn(),
