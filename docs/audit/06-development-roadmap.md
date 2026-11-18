@@ -673,6 +673,66 @@ Context7 ✅ · Expo MCP ❌ (docs de `expo-widgets` vía `webfetch`).
 5. Verificación manual en build de desarrollo documentada con captura.
 6. Verdes: `tsc`, `jest`, `expo-doctor`.
 
+### Desviaciones respecto al plan
+
+| Plan | Implementado | Motivo |
+| --- | --- | --- |
+| `contentDescription` en **todos** los controles del widget | Portada (imagen) con `statusLabel`; los botones conservan glifos como texto visible | El conversor Glance de `expo-widgets` solo aplica `contentDescription` a imágenes (`ExpoWidgetEmittableTree.kt:253-257`); `toPeekButton` lo ignora (`:295-310`) y `toPeekModifier` no traduce `semantics` (`:402-425`). El modificador se descarta en silencio |
+| **Iconos reales** en el widget | Glifos `◀◀`/`▶`/`▮▮`/`▶▶` en `Text` dentro de `Button` | El subconjunto Glance que traduce `expo-widgets` no incluye `IconView`; los `Image` no admiten `target`/`onClick`, así que no pueden sustituir a un botón |
+| Metadatos y refresco en `src/services/audio/lock-screen.ts` | **Sin cambios**: ya quedaron completos en FASE 4 | La verificación en dispositivo confirma título/artista/álbum y las acciones «Previous Track»/«Play»/«Next Track» en cada cambio de pista; no había nada que arreglar |
+| Permiso de notificaciones «al montar» (estado previo) | Se pide en la **primera reproducción**, con explicación y acción «Permitir» | `M-01`: pedirlo al arrancar no explica para qué sirve y el usuario deniega sin información |
+| Tema del widget «actualizado al cambiar claro/oscuro» | El servicio **republica** el snapshot al cambiar el tema aunque la reproducción esté en pausa | `M-06`: sin esto, cambiar el tema con la app en pausa dejaba el widget con la paleta anterior |
+
+### Estado al cierre de FASE 5
+
+| Criterio | Resultado |
+| --- | --- |
+| Tema del widget | `theme` viaja en las props y se resuelve en `src/widgets/media-widget-theme.ts` (`resolveWidgetTheme(mode)`) desde `Colors`; `media-widget.tsx` tiene **0** literales `#` (y `media-widget-theme.ts` también) |
+| Botones honestos | `canGoPrevious = canGoNext = queue.length > 1`; el toggle se oculta sin canción (`!hasSong`). Nada inerte (`A-03`) |
+| Accesibilidad | `contentDescription={props.statusLabel}` en la portada (`Image`); `statusLabel` describe título, artista y estado (`«… , en pausa»`) |
+| Permiso contextual | `promptNotificationPermission()` en la primera reproducción; si se deniega, el aviso pasa a `warning` con «Abrir ajustes» (`Linking.openSettings()`); una sola vez por sesión (`notificationPromptShown`) |
+| Degradación en UI | `player.tsx` distingue el motivo (`lockScreenWarning`) y ofrece «Abrir ajustes» solo cuando falta el permiso de notificaciones (`canOpenNotificationSettings`) |
+| Reconciliación | `reconcileMediaWidget()` al hidratar la biblioteca y al terminar un escaneo; `shouldPublish` detecta cambios de tema y de capacidades aunque esté en pausa |
+| Pruebas | `media-widget.contract.test.ts` (paleta y valores iniciales), `notification-prompt.test.ts` (contexto, dedupe, denegación) e invariantes en `media-widget.test.ts` |
+| Verdes | `tsc` limpio · `jest` **35 suites / 258 pruebas** · `expo lint` 0 problemas · `expo-doctor` ⚠️ deriva de versiones upstream (9 paquetes; pre-existente, ver nota) |
+
+**Nota `expo-doctor`:** la comprobación de versiones falla por deriva del upstream (`expo` ~58.0.26 vs 58.0.25, `expo-widgets` ~58.0.29 vs 58.0.28, `expo-router`, `expo-sqlite`, `jest-expo`, `@expo/ui`, `expo-dev-client`, `expo-file-system`, `expo-web-browser`). Es **pre-existente** y no se toca: subir módulos nativos rompería la coincidencia con el APK instalado (los cambios de esta fase son solo JS y viajan por OTA). `package.json` y `package-lock.json` quedan sin cambios.
+
+### Verificación en dispositivo (FASE 5)
+
+Dispositivo: Infinix X6826 (`09729372AM004325`), Android 12 (SDK 31), APK release 1.0.0 canal `preview`, app `com.abelo.mimusicplayer`.
+OTA aplicada: grupo `e015edf0-0371-41d5-b9f2-d8abfbf1d698`, update Android `01a1ed22-c670-7e71-8a51-559ea6f2cbf2`, runtime `1.0.0`, commit `04e83d7` (dos arranques; `CheckCompleteUnavailable` con `isUpdateAvailable=false`).
+
+| Comprobación | Resultado |
+| --- | --- |
+| OTA aplicada | ✅ el widget usa el layout nuevo (tema por props) → el bundle principal es el de `04e83d7` |
+| Tema oscuro | ✅ `dark-surface #17171C` (10 702 px) y `dark-accent #1ED760`; `light-*` en 0 |
+| Tema claro (cambiado en Ajustes **en pausa**) | ✅ `light-surface #F0F0F3` (10 702 px) y `light-accent #12B76A`; `dark-*` en 0 → el tema se resuelve y **se republica sin reproducir** |
+| Accesibilidad de portada | ✅ `content-desc='Before You Go — Lewis Capaldi, en pausa'` en el `ImageView` de portada `[83,511][187,615]` |
+| Botones honestos (cola > 1) | ✅ tres `Button` en `y=[691,749]` |
+| Botones honestos (cola = 1) | ✅ un único `Button [286,672][434,730]` (solo el toggle); sin anterior/siguiente |
+| Formato con horas | ✅ `1:33 / 1:06:34` en una sola `TextView` `[299,632][420,660]` centrada |
+| Permiso contextual (`M-01`) | ✅ en la primera reproducción aparece «Controles en la pantalla de bloqueo» con la explicación y la acción «Permitir» (`bounds [32,88][688,410]`); al pulsarla se concede y el aviso desaparece |
+| Metadatos y controles del sistema | ✅ notificación `expo_audio_channel`, `category=transport`, `android.template=MediaStyle`, acciones «Previous Track»/«Play»/«Next Track», `android.title`/`android.text`(artista)/`android.subText`(álbum) correctos; `dumpsys media_session` con `metadata: size=6` |
+| Sin errores en runtime | ✅ sin `ReactNativeJS` con errores, sin `FATAL`/`AndroidRuntime` de la app, sin ANR |
+
+**Pendiente de reproducir en este dispositivo (limitación del entorno, no del código):**
+
+- **Denegación del permiso (`M-01`):** en Android 12 no existe `POST_NOTIFICATIONS` (API 33+), así que `requestNotificationPermissionsAsync()` concede sin diálogo y no hay ruta de denegación real. La rama de denegación (aviso `warning` con «Abrir ajustes») queda cubierta por `notification-prompt.test.ts`.
+- **Aviso de degradación (`C-01`):** solo se pinta cuando `sessionState` o `lockScreen.status` están degradados; en este dispositivo la sesión de medios funciona (`state=3`), así que no se pudo provocar sin simular un fallo.
+
+**Nota de medición:** con reproducción activa el widget se actualiza cada segundo y la ventana **nunca queda «idle»**: `uiautomator dump` no escribe el archivo (o devuelve el árbol anterior), lo que produce **falsos negativos** al leer el widget o los banners. Para leer el árbol hay que **pausar** antes (botón del widget o `adb shell input keyevent 127`); para el reloj se mide con `screencap` y comparación de píxeles.
+
+### Subidas (GitHub y OTA)
+
+| Subida | Detalle |
+| --- | --- |
+| Commit | `04e83d7` — «feat(widget,audio): tema, botones honestos, accesibilidad y permiso contextual (FASE 5)» (11 archivos, +530/−79) |
+| Rama | `fase/5-notificaciones-widget` empujada a `origin` |
+| Fusión | `master` por **fast-forward** (mismo commit que la OTA) |
+| OTA `preview` | grupo `e015edf0-0371-41d5-b9f2-d8abfbf1d698`; Android `01a1ed22-c670-7e71-8a51-559ea6f2cbf2`; runtime `1.0.0` |
+| Estado OTA | descargada y aplicada en el Infinix X6826 (`CheckCompleteUnavailable`, `isUpdatePending=false`) |
+
 ---
 
 ## FASE 6 · UI/UX, animaciones y accesibilidad
