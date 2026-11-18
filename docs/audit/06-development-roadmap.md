@@ -816,6 +816,7 @@ OTA aplicada: grupo `26d5bb22-e93c-4dab-98d1-71f321ee9629`, update Android `01a1
 | Fusión | `master` por **fast-forward** (mismo commit que la OTA) |
 | OTA `preview` | grupo `26d5bb22-e93c-4dab-98d1-71f321ee9629`; Android `01a1eed5-5cd9-73f8-83f8-c80229e277ca`; runtime `1.0.0` |
 | Estado OTA | descargada y aplicada en el Infinix X6826 (`CheckCompleteUnavailable`, `isUpdateAvailable=false`; la fila nueva de Ajustes confirma el bundle) |
+| `CHANGELOG.md` | creado en la raíz (Keep a Changelog + SemVer) con las versiones `1.0.0`/`1.0.1` y la sección «Sin publicar» que cubre las fases 1 a 5.1 |
 
 ---
 
@@ -1005,7 +1006,7 @@ Context7 ✅ · Expo MCP ❌ · GitHub MCP ❌ (no se puede crear el workflow po
 | `app.json` | `version` inicial, `android.versionCode`, iconos definitivos, splash, textos de Play |
 | `docs/` | `TESTING.md`, `ARCHITECTURE.md`, `DATABASE.md`, `CODING_STANDARDS.md` (`B-02`) |
 | `README.md` | Requisitos reales, comandos, limitaciones conocidas, proceso de release |
-| `CHANGELOG.md` | **Nuevo.** Primera versión |
+| `CHANGELOG.md` | **Ya existe** (creado en FASE 5.1 con formato Keep a Changelog + SemVer). En esta fase solo se sella la entrada de la versión publicada |
 
 ### Funcionalidades a implementar
 
