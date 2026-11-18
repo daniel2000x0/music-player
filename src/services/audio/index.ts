@@ -16,6 +16,7 @@ export type { SessionSnapshot, SessionState } from '@/services/audio/session';
 export { getLockScreenHealth, subscribeLockScreenHealth } from '@/services/audio/lock-screen';
 export {
   configureAudioSession,
+  promptNotificationPermission,
   requestNotificationPermission,
 } from '@/services/audio/audio-mode';
 export { getCapabilities } from '@/services/capabilities';

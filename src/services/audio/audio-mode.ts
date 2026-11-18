@@ -1,8 +1,9 @@
 import { requestNotificationPermissionsAsync, setAudioModeAsync } from 'expo-audio';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
-import { setPermissionSnapshot } from '@/services/capabilities';
+import { getCapabilities, setPermissionSnapshot } from '@/services/capabilities';
 import { logError } from '@/services/error-log.service';
+import { useNoticeStore } from '@/stores/notice.store';
 
 /**
  * Configuración del modo de audio y permisos del sistema.
@@ -15,6 +16,12 @@ import { logError } from '@/services/error-log.service';
 
 /** Esperas antes de reintentar la configuración de la sesión de audio. */
 const AUDIO_MODE_RETRY_DELAYS_MS = [1000, 3000] as const;
+
+/** Código del aviso de permiso: deduplica y permite reemplazarlo al denegar. */
+const NOTIFICATION_NOTICE_CODE = 'playback.notifications';
+
+/** El aviso se ofrece una sola vez por sesión: no se insiste al reproducir. */
+let notificationPromptShown = false;
 
 let configuring: Promise<void> | null = null;
 
@@ -74,4 +81,48 @@ export async function requestNotificationPermission(): Promise<void> {
   } catch (error) {
     logError('audio/mode', 'requestNotificationPermissionsAsync', error);
   }
+}
+
+/**
+ * Ofrece el permiso de notificaciones en contexto, en la primera reproducción.
+ *
+ * LÓGICA (`M-01`): pedirlo al montar la app no explica para qué sirve y el
+ * usuario lo deniega sin información. Aquí se explica y se ofrece una acción;
+ * si la deniega, el aviso pasa a advertencia y ofrece «Abrir ajustes», así la
+ * decisión es visible y reversible. `capabilities` refleja el resultado y el
+ * resto de la UI puede degradar con honestidad.
+ */
+export function promptNotificationPermission(): void {
+  if (Platform.OS !== 'android' || notificationPromptShown) {
+    return;
+  }
+  if (getCapabilities()['playback.notifications']) {
+    return;
+  }
+  notificationPromptShown = true;
+  useNoticeStore.getState().push({
+    code: NOTIFICATION_NOTICE_CODE,
+    severity: 'info',
+    title: 'Controles en la pantalla de bloqueo',
+    message:
+      'Permite las notificaciones para controlar la reproducción desde la pantalla de bloqueo y la barra de notificaciones.',
+    action: { label: 'Permitir', onPress: () => void grantNotificationPermission() },
+  });
+}
+
+/** Resuelve el diálogo del sistema y actualiza el aviso con el resultado. */
+async function grantNotificationPermission(): Promise<void> {
+  await requestNotificationPermission();
+  if (getCapabilities()['playback.notifications']) {
+    useNoticeStore.getState().dismiss(NOTIFICATION_NOTICE_CODE);
+    return;
+  }
+  useNoticeStore.getState().push({
+    code: NOTIFICATION_NOTICE_CODE,
+    severity: 'warning',
+    title: 'Notificaciones desactivadas',
+    message:
+      'Sin notificaciones, los controles del sistema no aparecerán. Actívalas en los ajustes del sistema.',
+    action: { label: 'Abrir ajustes', onPress: () => void Linking.openSettings() },
+  });
 }

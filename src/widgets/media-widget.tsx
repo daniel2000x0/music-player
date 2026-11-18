@@ -20,6 +20,7 @@ import {
   MEDIA_WIDGET_INITIAL_PROPS,
   MEDIA_WIDGET_NAME,
   type MediaWidgetProps,
+  type MediaWidgetTheme,
 } from './media-widget.contract';
 
 /**
@@ -29,8 +30,10 @@ import {
  * `services/media-widget.service`), así que este componente recibe TODOS los
  * datos por props. El runtime del widget es aislado (sin hooks ni estado
  * global) y el cuerpo de la función se serializa a texto, por lo que:
- * - No puede referenciar constantes ni ayudantes de módulo: colores, tamaños
- *   y textos literales van dentro de la función.
+ * - No puede referenciar constantes ni ayudantes de módulo: textos y medidas
+ *   literales van dentro de la función. Los COLORES llegan resueltos en
+ *   `props.theme` (la app los deriva de `Colors`); aquí no hay ningún literal
+ *   de paleta.
  * - Cada botón declara un `target` explícito; al pulsarlo, el lado nativo
  *   vuelve a evaluar esta función y fusiona el objeto devuelto por `onClick`
  *   con las props guardadas (respuesta optimista aunque la app esté cerrada).
@@ -44,12 +47,24 @@ import {
  *   (`ExpoWidgetEmittableTree.toPeekRow`) lo ignora y cae siempre en
  *   `Alignment.Start`. Por eso los tiempos van en una sola `Text` con
  *   separador, centrada con `horizontalAlignment="center"` (sí soportado).
+ * - ACCESIBILIDAD: el conversor Glance solo aplica `contentDescription` a las
+ *   imágenes (`ExpoWidgetEmittableTree.kt:253-257`); los botones lo ignoran
+ *   (`toPeekButton`, `:295-310`) y el modificador `semantics` no está entre
+ *   los soportados (`toPeekModifier`, `:402-425`). Por eso la portada lleva
+ *   `statusLabel` y los botones conservan glifos como texto visible.
+ * - Los botones laterales solo se pintan si `canGoPrevious`/`canGoNext`; con
+ *   una sola pista no habría nada que hacer y un botón inerte engaña (`A-03`).
  * - El formato replica `formatClock` de `src/utils/format.ts` (no se puede
  *   importar: la función se serializa a texto): horas `h:mm:ss` y `--:--` solo
  *   cuando la duración aún no se conoce. La posición 0 se muestra como `0:00`.
  */
 function MediaWidget(props: MediaWidgetProps) {
   'widget';
+
+  // Props nuevas pueden faltar en snapshots escritos por una versión anterior
+  // de la app (OTA sin abrir la app): se toleran y Glance aplica sus colores
+  // por defecto cuando el valor es `undefined`.
+  const theme: Partial<MediaWidgetTheme> = props.theme ?? {};
 
   const progress =
     props.duration > 0
@@ -70,36 +85,47 @@ function MediaWidget(props: MediaWidgetProps) {
   const durationLabel = props.duration > 0 ? formatClock(props.duration) : '--:--';
   const timeLabel = formatClock(props.position) + ' / ' + durationLabel;
 
+  const containerModifiers = [cornerRadius(24), fillMaxWidth(), padding(16, 12, 16, 12)];
+  if (theme.background) {
+    containerModifiers.push(background(theme.background));
+  }
+
+  const coverModifiers = [size(52, 52), cornerRadius(12)];
+  if (theme.surface) {
+    coverModifiers.push(background(theme.surface));
+  }
+
+  const sideButtonColors = { containerColor: theme.surface, contentColor: theme.text };
+  const toggleButtonColors = { containerColor: theme.accent, contentColor: theme.accentText };
+
   return (
-    <Column
-      modifiers={[
-        background('#0B0B0F'),
-        cornerRadius(24),
-        fillMaxWidth(),
-        padding(16, 12, 16, 12),
-      ]}>
+    <Column modifiers={containerModifiers}>
       <Row modifiers={[fillMaxWidth()]} verticalAlignment="center">
         {props.artwork ? (
           <Image
             source={{ uri: props.artwork }}
             contentScale="crop"
-            contentDescription={props.title}
+            contentDescription={props.statusLabel}
             modifiers={[size(52, 52), cornerRadius(12)]}
           />
         ) : (
-          <Column modifiers={[size(52, 52), cornerRadius(12), background('#1C1C26')]} />
+          <Column modifiers={coverModifiers} />
         )}
         <Column
           modifiers={[fillMaxWidth(), padding(12, 2, 0, 2)]}
           verticalArrangement="center">
           <Text
-            color="#FFFFFF"
+            color={theme.text}
             maxLines={1}
             overflow="ellipsis"
             style={{ fontSize: 15, fontWeight: 'bold' }}>
             {props.title}
           </Text>
-          <Text color="#9A9AA8" maxLines={1} overflow="ellipsis" style={{ fontSize: 12 }}>
+          <Text
+            color={theme.textSecondary}
+            maxLines={1}
+            overflow="ellipsis"
+            style={{ fontSize: 12 }}>
             {props.artist}
           </Text>
         </Column>
@@ -108,14 +134,14 @@ function MediaWidget(props: MediaWidgetProps) {
       <Column modifiers={[fillMaxWidth(), padding(0, 10, 0, 0)]}>
         <LinearProgressIndicator
           progress={progress}
-          color="#7C5CFF"
-          trackColor="#2A2A38"
+          color={theme.accent}
+          trackColor={theme.progressTrack}
           modifiers={[fillMaxWidth(), height(4), cornerRadius(2)]}
         />
         <Row
           modifiers={[fillMaxWidth(), padding(0, 4, 0, 0)]}
           horizontalAlignment="center">
-          <Text color="#9A9AA8" style={{ fontSize: 10 }}>
+          <Text color={theme.textSecondary} style={{ fontSize: 10 }}>
             {timeLabel}
           </Text>
         </Row>
@@ -125,33 +151,39 @@ function MediaWidget(props: MediaWidgetProps) {
         modifiers={[fillMaxWidth(), padding(0, 6, 0, 0)]}
         horizontalAlignment="center"
         verticalAlignment="center">
-        <Button
-          {...{ target: 'previous' }}
-          enabled={props.hasSong}
-          onClick={() => undefined}
-          contentPadding={{ start: 14, top: 5, end: 14, bottom: 5 }}
-          colors={{ containerColor: '#1C1C26', contentColor: '#FFFFFF' }}>
-          <Text style={{ fontSize: 13 }}>◀◀</Text>
-        </Button>
+        {props.canGoPrevious ? (
+          <Button
+            {...{ target: 'previous' }}
+            enabled={props.hasSong}
+            onClick={() => undefined}
+            contentPadding={{ start: 14, top: 5, end: 14, bottom: 5 }}
+            colors={sideButtonColors}>
+            <Text style={{ fontSize: 13 }}>◀◀</Text>
+          </Button>
+        ) : null}
 
-        <Button
-          {...{ target: 'toggle' }}
-          enabled={props.hasSong}
-          onClick={() => ({ isPlaying: !props.isPlaying })}
-          contentPadding={{ start: 18, top: 5, end: 18, bottom: 5 }}
-          colors={{ containerColor: '#7C5CFF', contentColor: '#FFFFFF' }}
-          modifiers={[padding(12, 0, 12, 0)]}>
-          <Text style={{ fontSize: 15 }}>{props.isPlaying ? '▮▮' : '▶'}</Text>
-        </Button>
+        {props.hasSong ? (
+          <Button
+            {...{ target: 'toggle' }}
+            enabled={props.hasSong}
+            onClick={() => ({ isPlaying: !props.isPlaying })}
+            contentPadding={{ start: 18, top: 5, end: 18, bottom: 5 }}
+            colors={toggleButtonColors}
+            modifiers={[padding(12, 0, 12, 0)]}>
+            <Text style={{ fontSize: 15 }}>{props.isPlaying ? '▮▮' : '▶'}</Text>
+          </Button>
+        ) : null}
 
-        <Button
-          {...{ target: 'next' }}
-          enabled={props.hasSong}
-          onClick={() => undefined}
-          contentPadding={{ start: 14, top: 5, end: 14, bottom: 5 }}
-          colors={{ containerColor: '#1C1C26', contentColor: '#FFFFFF' }}>
-          <Text style={{ fontSize: 13 }}>▶▶</Text>
-        </Button>
+        {props.canGoNext ? (
+          <Button
+            {...{ target: 'next' }}
+            enabled={props.hasSong}
+            onClick={() => undefined}
+            contentPadding={{ start: 14, top: 5, end: 14, bottom: 5 }}
+            colors={sideButtonColors}>
+            <Text style={{ fontSize: 13 }}>▶▶</Text>
+          </Button>
+        ) : null}
       </Row>
     </Column>
   );

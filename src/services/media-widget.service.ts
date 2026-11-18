@@ -11,6 +11,7 @@ import {
 } from '@/stores/playback-progress';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
+import { useSettingsStore } from '@/stores/settings.store';
 import type { Song } from '@/types/song';
 import {
   MEDIA_WIDGET_NAME,
@@ -18,6 +19,7 @@ import {
   MEDIA_WIDGET_INITIAL_PROPS,
   type MediaWidgetProps,
 } from '@/widgets/media-widget.contract';
+import { resolveWidgetTheme } from '@/widgets/media-widget-theme';
 
 /**
  * Sincronización del widget de pantalla de inicio con el reproductor.
@@ -85,6 +87,9 @@ type WidgetRequest = {
   isPlaying: boolean;
   position: number;
   duration: number;
+  /** Capacidades de la cola: si hay más de una pista, los saltos existen. */
+  canGoPrevious: boolean;
+  canGoNext: boolean;
 };
 
 /**
@@ -93,35 +98,49 @@ type WidgetRequest = {
  * `expo-audio` reporta la posición cada 500 ms; publicar cada tick obligaría a
  * Glance a recomponer el widget dos veces por segundo sin ganar precisión (el
  * reloj solo muestra segundos). Solo se publica cuando cambia la pista/estado/
- * duración, cuando hay un salto (seek) o cuando la posición avanzó al menos
- * este intervalo, de modo que el reloj del widget avanza segundo a segundo.
+ * duración/capacidades, cuando cambia el tema, cuando hay un salto (seek) o
+ * cuando la posición avanzó al menos este intervalo, de modo que el reloj del
+ * widget avanza segundo a segundo.
  */
 type WidgetState = {
   songId: number | null;
   isPlaying: boolean;
   position: number;
   duration: number;
+  skippable: boolean;
 };
 
 const PROGRESS_SNAPSHOT_INTERVAL_SECONDS = 1;
 
 let pendingRequest: WidgetRequest | null = null;
 let publishedState: WidgetState | null = null;
+/** Tema con el que se escribió el último snapshot; `null` = aún sin publicar. */
+let publishedTheme: string | null = null;
 let draining = false;
 let lastSnapshotKey: string | null = null;
 
+/** `true` solo si la cola tiene más de una pista: los saltos tienen efecto. */
+function isSkippable(): boolean {
+  return usePlayerStore.getState().queue.length > 1;
+}
+
+/** Descripción accesible del contenido (la portada la publica como `contentDescription`). */
+function statusLabelFor(song: Song | null, isPlaying: boolean): string {
+  if (!song) {
+    return MEDIA_WIDGET_INITIAL_PROPS.statusLabel;
+  }
+  const state = isPlaying ? 'en reproducción' : 'en pausa';
+  return `${song.title} — ${song.artist}, ${state}`;
+}
+
 /** Normaliza el estado y redondea los segundos para no generar ruido. */
-function toWidgetState(
-  song: Song | null,
-  isPlaying: boolean,
-  position: number,
-  duration: number
-): WidgetState {
+function toWidgetState(request: WidgetRequest): WidgetState {
   return {
-    songId: song ? song.id : null,
-    isPlaying,
-    position: Math.max(0, Math.round(position)),
-    duration: Math.max(0, Math.round(duration)),
+    songId: request.song ? request.song.id : null,
+    isPlaying: request.isPlaying,
+    position: Math.max(0, Math.round(request.position)),
+    duration: Math.max(0, Math.round(request.duration)),
+    skippable: request.canGoPrevious,
   };
 }
 
@@ -129,10 +148,17 @@ function shouldPublish(next: WidgetState): boolean {
   if (!publishedState) {
     return true;
   }
+  // El tema no viaja en el estado normalizado; si cambió, hay que reescribir.
+  if (useSettingsStore.getState().theme !== publishedTheme) {
+    return true;
+  }
   if (next.songId !== publishedState.songId || next.isPlaying !== publishedState.isPlaying) {
     return true;
   }
   if (next.duration !== publishedState.duration) {
+    return true;
+  }
+  if (next.skippable !== publishedState.skippable) {
     return true;
   }
   const delta = next.position - publishedState.position;
@@ -157,11 +183,19 @@ export function syncMediaWidget(
   if (!WIDGET_SUPPORTED) {
     return;
   }
-  const next = toWidgetState(song, isPlaying, position, duration);
-  if (!shouldPublish(next)) {
+  const canSkip = isSkippable();
+  const request: WidgetRequest = {
+    song,
+    isPlaying,
+    position: Math.max(0, Math.round(position)),
+    duration: Math.max(0, Math.round(duration)),
+    canGoPrevious: canSkip,
+    canGoNext: canSkip,
+  };
+  if (!shouldPublish(toWidgetState(request))) {
     return;
   }
-  pendingRequest = { song, isPlaying, position: next.position, duration: next.duration };
+  pendingRequest = request;
   void drain();
 }
 
@@ -203,6 +237,7 @@ async function applySnapshot(request: WidgetRequest): Promise<boolean> {
     return false;
   }
 
+  const theme = resolveWidgetTheme(useSettingsStore.getState().theme);
   const props: MediaWidgetProps = request.song
     ? {
         title: request.song.title,
@@ -212,20 +247,25 @@ async function applySnapshot(request: WidgetRequest): Promise<boolean> {
         hasSong: true,
         position: request.position,
         duration: request.duration,
+        theme,
+        canGoPrevious: request.canGoPrevious,
+        canGoNext: request.canGoNext,
+        statusLabel: statusLabelFor(request.song, request.isPlaying),
       }
-    : { ...MEDIA_WIDGET_INITIAL_PROPS };
+    : {
+        // Estado vacío: conserva los textos por defecto pero adopta el tema
+        // activo (el widget también debe respetar claro/oscuro sin pista).
+        ...MEDIA_WIDGET_INITIAL_PROPS,
+        theme,
+      };
 
   const key = JSON.stringify(props);
   if (key !== lastSnapshotKey) {
     lastSnapshotKey = key;
     loaded.widget.updateSnapshot(props);
   }
-  publishedState = toWidgetState(
-    request.song,
-    request.isPlaying,
-    request.position,
-    request.duration
-  );
+  publishedState = toWidgetState(request);
+  publishedTheme = useSettingsStore.getState().theme;
   pruneArtwork(loaded.directory, artwork);
   return true;
 }
@@ -315,6 +355,7 @@ export function reconcileMediaWidget(): void {
 
   publishedState = null;
   lastSnapshotKey = null;
+  publishedTheme = null;
   syncMediaWidget(
     fresh ?? current ?? null,
     player.isPlaying,

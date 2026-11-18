@@ -6,7 +6,7 @@ import {
   configureAudioSession,
   degradeSession,
   getSession,
-  requestNotificationPermission,
+  promptNotificationPermission,
   subscribeLockScreenHealth,
   subscribePlaylistStatus,
   subscribeSession,
@@ -25,6 +25,7 @@ import {
 } from '@/stores/playback-progress';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
+import { useSettingsStore } from '@/stores/settings.store';
 
 /**
  * Puente entre `expo-audio` y Zustand. El motor crea una única
@@ -33,7 +34,8 @@ import { usePlayerStore } from '@/stores/player.store';
  *
  * También mantiene el widget de pantalla de inicio: le empuja pista/estado y
  * traduce sus botones a las mismas acciones del store (un solo motor para la
- * app, la notificación, la pantalla de bloqueo y el widget).
+ * app, la notificación, la pantalla de bloqueo y el widget). El permiso de
+ * notificaciones se pide en la primera reproducción, con explicación (`M-01`).
  *
  * La sesión de reproducción se persiste en segundo plano (`A-01`): al pasar a
  * `background` se vuelca lo pendiente, porque el proceso puede morir sin más.
@@ -46,7 +48,6 @@ export function AudioBridge() {
 
   useEffect(() => {
     void configureAudioSession();
-    void requestNotificationPermission();
 
     // El motor conserva la cola entre montajes; las suscripciones solo
     // conectan los eventos nativos con el estado de la app.
@@ -90,6 +91,28 @@ export function AudioBridge() {
         getPlaybackDuration()
       );
     });
+    // El permiso de notificaciones se pide en contexto (`M-01`): al arrancar la
+    // primera reproducción, con explicación y acción, no al montar la app.
+    const unsubscribeNotificationPrompt = usePlayerStore.subscribe((state, previous) => {
+      if (state.isPlaying && !previous.isPlaying) {
+        promptNotificationPermission();
+      }
+    });
+    // El tema del widget se resuelve al publicar; al cambiarlo hay que reescribir
+    // el snapshot aunque la reproducción esté en pausa (el servicio detecta el
+    // cambio de tema y no lo descarta por deduplicación).
+    const unsubscribeWidgetTheme = useSettingsStore.subscribe((state, previous) => {
+      if (state.theme === previous.theme) {
+        return;
+      }
+      const player = usePlayerStore.getState();
+      syncMediaWidget(
+        player.currentSong,
+        player.isPlaying,
+        getPlaybackPosition(),
+        getPlaybackDuration()
+      );
+    });
     // El progreso se publica por separado: el servicio filtra los ticks y solo
     // escribe cuando cambia la pista/estado, hay un seek o pasa 1 segundo (para
     // que el reloj del widget avance segundo a segundo).
@@ -125,6 +148,8 @@ export function AudioBridge() {
       unsubscribeSession();
       unsubscribeLockScreen();
       unsubscribeWidgetState();
+      unsubscribeNotificationPrompt();
+      unsubscribeWidgetTheme();
       unsubscribeWidgetProgress();
       unsubscribeWidgetReconcile();
       unsubscribeWidgetInteractions();

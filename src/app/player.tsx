@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -105,6 +106,15 @@ export default function PlayerScreen() {
 
   const favorite = favoriteIds.includes(currentSong.id);
 
+  // Motivo del aviso de controles del sistema (`C-01`). Se distingue el caso
+  // del permiso denegado porque SÍ tiene arreglo: abrir los ajustes del sistema.
+  const lockScreenWarning = !capabilities['playback.lockScreen']
+    ? 'Este entorno no admite controles del sistema. La reproducción puede detenerse en segundo plano.'
+    : !capabilities['playback.notifications']
+      ? 'Las notificaciones están desactivadas: los controles de reproducción no aparecerán en la pantalla de bloqueo.'
+      : 'Los controles del sistema no están disponibles. La reproducción puede detenerse en segundo plano.';
+  const canOpenNotificationSettings = !capabilities['playback.notifications'];
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -134,11 +144,22 @@ export default function PlayerScreen() {
             accessibilityRole="alert"
             accessibilityLiveRegion="polite">
             <Ionicons name="warning-outline" size={16} color={theme.danger} />
-            <ThemedText type="small" themeColor="textSecondary" style={styles.lockNoticeText}>
-              {!capabilities['playback.lockScreen']
-                ? 'Este entorno no admite controles del sistema. La reproducción puede detenerse en segundo plano.'
-                : 'Los controles del sistema no están disponibles. La reproducción puede detenerse en segundo plano.'}
-            </ThemedText>
+            <View style={styles.lockNoticeBody}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {lockScreenWarning}
+              </ThemedText>
+              {canOpenNotificationSettings ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => void Linking.openSettings()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir ajustes del sistema">
+                  <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                    Abrir ajustes
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
           </View>
         ) : null}
 
@@ -299,8 +320,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
   },
-  lockNoticeText: {
+  lockNoticeBody: {
     flex: 1,
+    gap: Spacing.one,
   },
   meta: {
     alignItems: 'center',

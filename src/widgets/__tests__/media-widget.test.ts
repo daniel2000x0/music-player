@@ -68,4 +68,19 @@ describe('media-widget.tsx', () => {
     expect(WIDGET_SOURCE).toContain("formatClock(props.position) + ' / ' + durationLabel");
     expect(WIDGET_SOURCE).toContain("props.duration > 0 ? formatClock(props.duration) : '--:--'");
   });
+
+  it('no contiene literales de paleta: los colores llegan por props (A-02)', () => {
+    expect(WIDGET_SOURCE).not.toMatch(/#[0-9A-Fa-f]{3}/);
+    expect(WIDGET_SOURCE).toContain('props.theme');
+  });
+
+  it('no pinta botones inertes: saltos sin cola y toggle sin pista (A-03)', () => {
+    expect(WIDGET_SOURCE).toContain('props.canGoPrevious ?');
+    expect(WIDGET_SOURCE).toContain('props.canGoNext ?');
+    expect(WIDGET_SOURCE).toContain('props.hasSong ?');
+  });
+
+  it('describe la portada con statusLabel para lectores de pantalla', () => {
+    expect(WIDGET_SOURCE).toContain('contentDescription={props.statusLabel}');
+  });
 });
