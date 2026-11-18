@@ -19,6 +19,7 @@ jest.mock('@/data/repositories/song.repository', () => ({
     upsertBatch: jest.fn(async () => undefined),
     markMissing: jest.fn(async () => undefined),
     reclassifyAudiobooks: jest.fn(async () => undefined),
+    getIgnoredMediaIds: jest.fn(async () => new Set<string>()),
   },
 }));
 
@@ -41,6 +42,7 @@ const mockedGetScanState = jest.mocked(songRepository.getScanState);
 const mockedUpsert = jest.mocked(songRepository.upsertBatch);
 const mockedMarkMissing = jest.mocked(songRepository.markMissing);
 const mockedReclassify = jest.mocked(songRepository.reclassifyAudiobooks);
+const mockedGetIgnored = jest.mocked(songRepository.getIgnoredMediaIds);
 
 function device(mediaId: string, modificationTime: number | null = 100): DeviceTrack {
   return { mediaId, modificationTime };
@@ -64,6 +66,7 @@ function scanned(track: DeviceTrack): ScannedSong {
 beforeEach(() => {
   jest.clearAllMocks();
   mockedGetScanState.mockResolvedValue([]);
+  mockedGetIgnored.mockResolvedValue(new Set<string>());
   mockedRead.mockImplementation(async (track) => scanned(track));
 });
 
@@ -78,6 +81,19 @@ describe('runLibraryScan: enumeración', () => {
     expect(phases).toEqual(['enumerate']);
     expect(mockedGetScanState).not.toHaveBeenCalled();
     expect(mockedUpsert).not.toHaveBeenCalled();
+    expect(mockedMarkMissing).not.toHaveBeenCalled();
+  });
+
+  it('filtra las pistas quitadas de la biblioteca antes del diff (FASE 5.2)', async () => {
+    mockedEnumerate.mockResolvedValueOnce([device('normal', 100), device('quitada', 200)]);
+    mockedGetIgnored.mockResolvedValueOnce(new Set(['quitada']));
+
+    const report = await runLibraryScan();
+
+    // La pista ignorada no se hidrata ni se persiste, y no se cuenta como
+    // ausente: simplemente no existe para el escaneo.
+    expect(mockedRead.mock.calls.map(([track]) => track.mediaId)).toEqual(['normal']);
+    expect(report).toMatchObject({ deviceTotal: 1, added: 1, missing: 0 });
     expect(mockedMarkMissing).not.toHaveBeenCalled();
   });
 });

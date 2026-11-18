@@ -13,6 +13,7 @@ jest.mock('@/data/repositories/song.repository', () => ({
   songRepository: {
     getAll: jest.fn(async () => []),
     setAudiobook: jest.fn(),
+    countIgnored: jest.fn(async () => 0),
   },
 }));
 

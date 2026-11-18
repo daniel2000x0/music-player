@@ -15,6 +15,8 @@ const mockArtistRows = new Map<string, { id: number }>();
 const mockAlbumRows = new Map<string, { id: number; artwork_uri: string | null }>();
 let mockNextId = 1;
 let mockAllHandler: (sql: string, params: unknown[]) => Row[] = () => [];
+/** Responde consultas puntuales no cubiertas por los mapas por defecto. */
+let mockFirstHandler: ((sql: string, params: unknown[]) => Row | null) | null = null;
 
 const mockDb = {
   withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => {
@@ -25,6 +27,9 @@ const mockDb = {
     return { lastInsertRowId: mockNextId++, changes: 1 };
   }),
   getFirstAsync: jest.fn(async (sql: string, ...params: unknown[]) => {
+    if (mockFirstHandler) {
+      return mockFirstHandler(sql, params);
+    }
     if (sql.includes('FROM artists')) {
       return mockArtistRows.get(String(params[0])) ?? null;
     }
@@ -84,6 +89,7 @@ beforeEach(() => {
   mockAlbumRows.clear();
   mockNextId = 1;
   mockAllHandler = () => [];
+  mockFirstHandler = null;
 });
 
 describe('songRepository.upsertBatch', () => {
@@ -123,6 +129,21 @@ describe('songRepository.upsertBatch', () => {
 
     expect(mockRunLog.filter((entry) => entry.sql.includes('INSERT INTO artists'))).toHaveLength(1);
     expect(mockRunLog.filter((entry) => entry.sql.includes('INSERT INTO albums'))).toHaveLength(1);
+  });
+
+  it('protege los metadatos editados a mano al reescribir (FASE 5.2)', async () => {
+    await songRepository.upsertBatch([scanned('m-1')]);
+
+    const insert = mockRunLog.find((entry) => entry.sql.includes('INSERT INTO songs'));
+    expect(insert?.sql).toContain(
+      'title = CASE WHEN metadata_manual = 1 THEN title ELSE excluded.title END'
+    );
+    expect(insert?.sql).toContain(
+      'artist_id = CASE WHEN metadata_manual = 1 THEN artist_id ELSE excluded.artist_id END'
+    );
+    expect(insert?.sql).toContain(
+      'album_id = CASE WHEN metadata_manual = 1 THEN album_id ELSE excluded.album_id END'
+    );
   });
 });
 
@@ -267,5 +288,174 @@ describe('songRepository.applyArtworkBackfill', () => {
     });
 
     expect(mockDb.withTransactionAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('songRepository.updateSongMetadata', () => {
+  it('actualiza título, artista y álbum y marca la edición manual', async () => {
+    await songRepository.updateSongMetadata(7, {
+      title: '  Nuevo  ',
+      artist: 'Otro',
+      album: 'Disco',
+    });
+
+    const update = mockRunLog.find((entry) => entry.sql.startsWith('UPDATE songs SET'));
+    expect(update?.sql).toContain('title = ?');
+    expect(update?.sql).toContain('artist_id = ?');
+    expect(update?.sql).toContain('album_id = ?');
+    expect(update?.sql).toContain('metadata_manual = 1');
+    // Título recortado, artista creado (id 1), álbum creado (id 2), pista 7.
+    expect(update?.params).toEqual(['Nuevo', 1, 2, 7]);
+  });
+
+  it('sin artista usa el de la pista para resolver el álbum', async () => {
+    mockFirstHandler = (sql) =>
+      sql.includes('artist_id FROM songs') ? { artist_id: 5 } : null;
+
+    await songRepository.updateSongMetadata(9, { album: 'Disco' });
+
+    const update = mockRunLog.find((entry) => entry.sql.startsWith('UPDATE songs SET'));
+    expect(update?.sql).toContain('album_id = ?');
+    expect(update?.sql).not.toContain('title = ?');
+    expect(update?.params).toEqual([1, 9]);
+  });
+
+  it('no escribe nada si no hay campos útiles', async () => {
+    await songRepository.updateSongMetadata(1, { title: '   ' });
+
+    expect(mockRunLog).toHaveLength(0);
+  });
+});
+
+describe('songRepository.renameAlbum', () => {
+  it('renombra el álbum y marca sus pistas como editadas a mano', async () => {
+    mockFirstHandler = (sql) =>
+      sql.includes('FROM albums WHERE id =')
+        ? { id: 3, title: 'Viejo', artist_id: 1, artwork_uri: null }
+        : null;
+
+    await songRepository.renameAlbum(3, 'Nuevo');
+
+    expect(mockDb.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(mockRunLog.find((entry) => entry.sql.includes('UPDATE albums SET title'))?.params).toEqual([
+      'Nuevo',
+      3,
+    ]);
+    expect(
+      mockRunLog.find((entry) =>
+        entry.sql.includes('UPDATE songs SET metadata_manual = 1 WHERE album_id')
+      )?.params
+    ).toEqual([3]);
+    expect(mockRunLog.some((entry) => entry.sql.startsWith('DELETE FROM albums'))).toBe(false);
+  });
+
+  it('fusiona con un álbum existente y elimina el viejo', async () => {
+    mockFirstHandler = (sql) => {
+      if (sql.includes('FROM albums WHERE id =')) {
+        return { id: 3, title: 'Viejo', artist_id: 1, artwork_uri: 'file:///a.jpg' };
+      }
+      if (sql.includes('id != ?')) {
+        return { id: 8 };
+      }
+      return null;
+    };
+
+    await songRepository.renameAlbum(3, 'Existente');
+
+    expect(
+      mockRunLog.find((entry) => entry.sql.includes('UPDATE songs SET album_id = ?'))?.params
+    ).toEqual([8, 3]);
+    expect(
+      mockRunLog.find((entry) => entry.sql.includes('UPDATE albums SET artwork_uri = COALESCE'))
+        ?.params
+    ).toEqual(['file:///a.jpg', 8]);
+    expect(mockRunLog.find((entry) => entry.sql.startsWith('DELETE FROM albums'))?.params).toEqual([
+      3,
+    ]);
+  });
+
+  it('no hace nada si el título no cambia', async () => {
+    mockFirstHandler = () => ({ id: 3, title: 'Igual', artist_id: 1, artwork_uri: null });
+
+    await songRepository.renameAlbum(3, 'Igual');
+
+    expect(mockDb.withTransactionAsync).not.toHaveBeenCalled();
+    expect(mockRunLog).toHaveLength(0);
+  });
+
+  it('no hace nada con un título vacío', async () => {
+    await songRepository.renameAlbum(3, '   ');
+
+    expect(mockRunLog).toHaveLength(0);
+  });
+});
+
+describe('songRepository.removeFromLibrary', () => {
+  it('quita de la biblioteca y recuerda el media_id sin borrar la fila', async () => {
+    await songRepository.removeFromLibrary([1, 2]);
+
+    const insert = mockRunLog.find((entry) =>
+      entry.sql.includes('INSERT OR IGNORE INTO ignored_media')
+    );
+    expect(insert?.sql).toContain('SELECT media_id, ? FROM songs WHERE id IN (?,?)');
+    expect(insert?.params).toEqual([expect.any(Number), 1, 2]);
+    expect(
+      mockRunLog.find((entry) =>
+        entry.sql.includes('UPDATE songs SET is_available = 0 WHERE id IN')
+      )?.params
+    ).toEqual([1, 2]);
+    expect(mockRunLog.some((entry) => entry.sql.startsWith('DELETE FROM songs'))).toBe(false);
+  });
+
+  it('no abre transacción sin ids', async () => {
+    await songRepository.removeFromLibrary([]);
+
+    expect(mockDb.withTransactionAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('songRepository.markUnavailable', () => {
+  it('marca por chunks de 500 ids', async () => {
+    const ids = Array.from({ length: 1_200 }, (_, index) => index + 1);
+
+    await songRepository.markUnavailable(ids);
+
+    const updates = mockRunLog.filter((entry) =>
+      entry.sql.includes('UPDATE songs SET is_available = 0 WHERE id IN')
+    );
+    expect(updates).toHaveLength(3);
+    expect(updates.map((entry) => entry.params.length)).toEqual([500, 500, 200]);
+  });
+
+  it('no consulta SQLite sin ids', async () => {
+    await songRepository.markUnavailable([]);
+
+    expect(mockRunLog).toHaveLength(0);
+  });
+});
+
+describe('songRepository.ignored media', () => {
+  it('devuelve el conjunto de media_id ignorados', async () => {
+    mockAllHandler = () => [{ media_id: 'a' }, { media_id: 'b' }];
+
+    const ignored = await songRepository.getIgnoredMediaIds();
+
+    expect([...ignored]).toEqual(['a', 'b']);
+  });
+
+  it('cuenta las pistas ignoradas', async () => {
+    mockFirstHandler = (sql) => (sql.includes('COUNT(*)') ? { count: 4 } : null);
+
+    await expect(songRepository.countIgnored()).resolves.toBe(4);
+  });
+
+  it('devuelve 0 cuando no hay pistas ignoradas', async () => {
+    await expect(songRepository.countIgnored()).resolves.toBe(0);
+  });
+
+  it('limpia la tabla al restaurar', async () => {
+    await songRepository.restoreIgnored();
+
+    expect(mockRunLog.some((entry) => entry.sql === 'DELETE FROM ignored_media')).toBe(true);
   });
 });

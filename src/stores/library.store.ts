@@ -21,7 +21,12 @@ import {
   type ArtworkBackfillReport,
 } from '@/services/artwork-backfill.service';
 import { runLibraryScan } from '@/services/library-scan.service';
-import { hasAudioPermission, requestAudioAccess } from '@/services/media.service';
+import {
+  deleteDeviceAssets,
+  hasAudioPermission,
+  requestAudioAccess,
+  type DeleteDeviceAssetsResult,
+} from '@/services/media.service';
 import { setPermissionSnapshot } from '@/services/capabilities';
 import { useNoticeStore } from '@/stores/notice.store';
 import type { Playlist } from '@/types/playlist';
@@ -34,6 +39,8 @@ type LibraryState = {
   playlists: Playlist[];
   favoriteIds: number[];
   recentIds: number[];
+  /** Pistas quitadas de la biblioteca sin borrar el archivo (`FASE 5.2`). */
+  hiddenCount: number;
   hasPermission: boolean;
   isLoading: boolean;
   isScanning: boolean;
@@ -68,6 +75,19 @@ type LibraryState = {
   clearAdministrativeData: () => Promise<void>;
   /** Marca/desmarca canciones como audiolibro (decisión manual del usuario). */
   setAudiobook: (songIds: number[], isAudiobook: boolean) => Promise<void>;
+  /** Corrige título, artista y álbum de una pista (`FASE 5.2`). */
+  updateSongMetadata: (
+    songId: number,
+    patch: { title?: string; artist?: string; album?: string }
+  ) => Promise<void>;
+  /** Renombra un álbum completo (aplica a todas sus pistas). */
+  renameAlbum: (albumId: number, title: string) => Promise<void>;
+  /** Quita pistas de la biblioteca sin borrar el archivo del dispositivo. */
+  removeSongs: (songIds: number[]) => Promise<void>;
+  /** Borra los archivos del dispositivo y las quita de la biblioteca. */
+  deleteSongsFromDevice: (songIds: number[]) => Promise<DeleteDeviceAssetsResult>;
+  /** Recupera las pistas quitadas (limpia el olvido y reescanea). */
+  restoreHiddenSongs: () => Promise<void>;
   getSongById: (id: number) => Song | undefined;
   getSongByIdOrMedia: (id: number | string) => Song | undefined;
   getSongsByIds: (ids: number[]) => Song[];
@@ -79,16 +99,21 @@ type LibraryState = {
 let hydratePromise: Promise<void> | null = null;
 
 async function loadLocal(): Promise<
-  Pick<LibraryState, 'songs' | 'artists' | 'albums' | 'playlists' | 'favoriteIds' | 'recentIds'>
+  Pick<
+    LibraryState,
+    'songs' | 'artists' | 'albums' | 'playlists' | 'favoriteIds' | 'recentIds' | 'hiddenCount'
+  >
 > {
-  const [songs, artists, albums, playlists, favoriteIds, recent] = await Promise.all([
-    songRepository.getAll(),
-    artistRepository.getAll(),
-    albumRepository.getAll(),
-    playlistRepository.getAll(),
-    favoriteRepository.getIds(),
-    historyRepository.getRecent(50),
-  ]);
+  const [songs, artists, albums, playlists, favoriteIds, recent, hiddenCount] =
+    await Promise.all([
+      songRepository.getAll(),
+      artistRepository.getAll(),
+      albumRepository.getAll(),
+      playlistRepository.getAll(),
+      favoriteRepository.getIds(),
+      historyRepository.getRecent(50),
+      songRepository.countIgnored(),
+    ]);
   return {
     songs,
     artists,
@@ -96,7 +121,22 @@ async function loadLocal(): Promise<
     playlists,
     favoriteIds,
     recentIds: recent.map((entry) => entry.songId),
+    hiddenCount,
   };
+}
+
+/**
+ * Recarga lo que cambia al editar o borrar pistas (`FASE 5.2`): la lista de
+ * canciones y los agregados derivados (álbumes y artistas). No recarga
+ * playlists ni historial, que no dependen de los metadatos.
+ */
+async function reloadAfterEdit(): Promise<Pick<LibraryState, 'songs' | 'albums' | 'artists'>> {
+  const [songs, albums, artists] = await Promise.all([
+    songRepository.getAll(),
+    albumRepository.getAll(),
+    artistRepository.getAll(),
+  ]);
+  return { songs, albums, artists };
 }
 
 let scanPromise: Promise<ScanReport | null> | null = null;
@@ -128,6 +168,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   playlists: [],
   favoriteIds: [],
   recentIds: [],
+  hiddenCount: 0,
   hasPermission: false,
   isLoading: true,
   isScanning: false,
@@ -437,6 +478,50 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   setAudiobook: async (songIds, isAudiobook) => {
     await songRepository.setAudiobook(songIds, isAudiobook);
     set({ songs: await songRepository.getAll() });
+  },
+
+  updateSongMetadata: async (songId, patch) => {
+    await songRepository.updateSongMetadata(songId, patch);
+    set(await reloadAfterEdit());
+  },
+
+  renameAlbum: async (albumId, title) => {
+    await songRepository.renameAlbum(albumId, title);
+    set(await reloadAfterEdit());
+  },
+
+  removeSongs: async (songIds) => {
+    if (songIds.length === 0) {
+      return;
+    }
+    await songRepository.removeFromLibrary(songIds);
+    set(await loadLocal());
+  },
+
+  deleteSongsFromDevice: async (songIds) => {
+    const selected = new Set(songIds);
+    const mediaIds = get()
+      .songs.filter((song) => selected.has(song.id))
+      .map((song) => song.mediaId);
+    if (mediaIds.length === 0) {
+      return { deleted: 0 };
+    }
+    const result = await deleteDeviceAssets(mediaIds);
+    // Solo se retiran de la biblioteca las pistas que el sistema confirmó
+    // borrar: si el usuario canceló el diálogo, todo queda igual.
+    if (result.deleted > 0) {
+      await songRepository.markUnavailable(songIds);
+      set(await loadLocal());
+    }
+    return result;
+  },
+
+  restoreHiddenSongs: async () => {
+    await songRepository.restoreIgnored();
+    // Refresco inmediato del conteo; el escaneo posterior reactiva las pistas
+    // que sigan en el dispositivo.
+    set(await loadLocal());
+    await get().refresh();
   },
 
   getSongById: (id) => get().songs.find((song) => song.id === id),

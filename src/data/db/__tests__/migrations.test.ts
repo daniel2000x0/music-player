@@ -46,6 +46,7 @@ const SONG_COLUMNS = [
   'folder_name',
   'modification_time',
   'artwork_checked_at',
+  'metadata_manual',
 ];
 
 beforeEach(() => {
@@ -75,6 +76,17 @@ describe('migrateDatabase: base nueva', () => {
     expect(mockRunLog).toContain(
       'ALTER TABLE songs ADD COLUMN artwork_checked_at INTEGER'
     );
+    expect(mockRunLog).toContain(
+      'ALTER TABLE songs ADD COLUMN metadata_manual INTEGER NOT NULL DEFAULT 0'
+    );
+  });
+
+  it('crea la tabla de pistas quitadas de la biblioteca (V8)', async () => {
+    await migrateDatabase(db);
+
+    expect(
+      mockExecLog.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS ignored_media'))
+    ).toBe(true);
   });
 
   it('crea los índices de fecha y disponibilidad', async () => {
@@ -92,16 +104,17 @@ describe('migrateDatabase: base nueva', () => {
   it('deja PRAGMA user_version en la versión actual', async () => {
     await migrateDatabase(db);
 
-    expect(DATABASE_VERSION).toBe(7);
+    expect(DATABASE_VERSION).toBe(8);
     expect(mockExecLog).toContain(`PRAGMA user_version = ${DATABASE_VERSION}`);
   });
 });
 
 describe('migrateDatabase: esquema ya migrado', () => {
-  it('no repite ALTER cuando la columna ya existe', async () => {
+  it('no repite ALTER ni CREATE cuando el esquema ya está completo', async () => {
     mockTables.add('songs');
     mockTables.add('error_logs');
     mockTables.add('playback_sessions');
+    mockTables.add('ignored_media');
     for (const column of SONG_COLUMNS) {
       mockColumns.add(column);
     }
@@ -109,6 +122,9 @@ describe('migrateDatabase: esquema ya migrado', () => {
     await migrateDatabase(db);
 
     expect(mockRunLog).toHaveLength(0);
+    expect(
+      mockExecLog.some((sql) => sql.includes('CREATE TABLE IF NOT EXISTS ignored_media'))
+    ).toBe(false);
     expect(mockExecLog).toContain(`PRAGMA user_version = ${DATABASE_VERSION}`);
   });
 

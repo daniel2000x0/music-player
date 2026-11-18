@@ -20,6 +20,14 @@ export type SongRowProps = {
   onMore?: (song: Song) => void;
   /** Muestra u oculta el botón de favorito. */
   showFavorite?: boolean;
+  /** `true` mientras la pantalla está en modo selección (`FASE 5.2`). */
+  selectionActive?: boolean;
+  /** `true` si esta fila está seleccionada. */
+  selected?: boolean;
+  /** Pulsación larga: entra en el modo de selección. */
+  onLongPress?: (song: Song) => void;
+  /** Alterna la selección de la fila (en modo selección). */
+  onToggleSelect?: (song: Song) => void;
 };
 
 /**
@@ -38,6 +46,10 @@ export const SongRow = memo(function SongRow({
   onToggleFavorite,
   onMore,
   showFavorite = true,
+  selectionActive = false,
+  selected = false,
+  onLongPress,
+  onToggleSelect,
 }: SongRowProps) {
 
   const theme = useTheme();
@@ -56,6 +68,20 @@ export const SongRow = memo(function SongRow({
     play(song, queue);
   }, [play, song, queue]);
 
+  // En modo selección, pulsar la fila alterna la selección en vez de
+  // reproducir; la pulsación larga es la que entra en el modo.
+  const handlePress = useCallback(() => {
+    if (selectionActive) {
+      onToggleSelect?.(song);
+      return;
+    }
+    handlePlay();
+  }, [selectionActive, onToggleSelect, song, handlePlay]);
+
+  const handleLongPress = useCallback(() => {
+    onLongPress?.(song);
+  }, [onLongPress, song]);
+
   const handleToggleFavorite = useCallback(() => {
     onToggleFavorite?.(song);
   }, [onToggleFavorite, song]);
@@ -66,12 +92,22 @@ export const SongRow = memo(function SongRow({
 
   return (
     <Pressable
-      onPress={handlePlay}
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      delayLongPress={300}
       style={({ pressed }) => [
         styles.row,
         pressed && styles.pressed,
       ]}
     >
+      {selectionActive ? (
+        <Ionicons
+          name={selected ? 'checkmark-circle' : 'ellipse-outline'}
+          size={22}
+          color={selected ? theme.accent : theme.textSecondary}
+        />
+      ) : null}
+
       <Artwork uri={song.artwork} size={52} />
 
       <View style={styles.info}>
@@ -101,7 +137,7 @@ export const SongRow = memo(function SongRow({
         {formatDuration(song.duration)}
       </ThemedText>
 
-      {showFavorite && onToggleFavorite ? (
+      {!selectionActive && showFavorite && onToggleFavorite ? (
         <Pressable
           hitSlop={8}
           onPress={handleToggleFavorite}
@@ -124,7 +160,7 @@ export const SongRow = memo(function SongRow({
         </Pressable>
       ) : null}
 
-      {onMore ? (
+      {!selectionActive && onMore ? (
         <Pressable
           hitSlop={8}
           onPress={handleMore}

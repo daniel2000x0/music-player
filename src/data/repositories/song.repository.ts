@@ -203,6 +203,10 @@ export const songRepository = {
    *
    * NO resetea `is_available` de toda la tabla: la poda es explícita con
    * `markMissing` y solo con los ids que el diff demostró ausentes.
+   *
+   * METADATOS MANUALES (`FASE 5.2`): si el usuario editó el título, el artista
+   * o el álbum (`metadata_manual = 1`), el upsert conserva esos valores y no
+   * los pisa con las etiquetas del archivo.
    */
   async upsertBatch(scanned: ScannedSong[]): Promise<void> {
     if (scanned.length === 0) {
@@ -257,9 +261,9 @@ export const songRepository = {
            VALUES ${placeholders}
            ON CONFLICT(media_id) DO UPDATE SET
              uri = excluded.uri,
-             title = excluded.title,
-             artist_id = excluded.artist_id,
-             album_id = excluded.album_id,
+             title = CASE WHEN metadata_manual = 1 THEN title ELSE excluded.title END,
+             artist_id = CASE WHEN metadata_manual = 1 THEN artist_id ELSE excluded.artist_id END,
+             album_id = CASE WHEN metadata_manual = 1 THEN album_id ELSE excluded.album_id END,
              track_number = excluded.track_number,
              folder_name = excluded.folder_name,
              duration = excluded.duration,
@@ -482,5 +486,191 @@ export const songRepository = {
         ...chunk
       );
     }
+  },
+
+  /**
+   * Corrección local de los metadatos de una pista (`FASE 5.2`).
+   *
+   * LÓGICA: el título, el artista y el álbum se resuelven contra las tablas
+   * reales (creando artista/álbum si hace falta) y se marca `metadata_manual`
+   * para que el próximo escaneo no los pise con las etiquetas del archivo.
+   * Solo se actualizan los campos presentes en `patch`.
+   */
+  async updateSongMetadata(
+    songId: number,
+    patch: { title?: string; artist?: string; album?: string }
+  ): Promise<void> {
+    const db = await getDatabase();
+    const now = Date.now();
+    const artistCache = new Map<string, number>();
+    const albumCache = new Map<string, AlbumCacheEntry>();
+    const sets: string[] = [];
+    const params: (string | number)[] = [];
+
+    const title = patch.title?.trim();
+    if (title) {
+      sets.push('title = ?');
+      params.push(title);
+    }
+
+    let artistId: number | undefined;
+    const artist = patch.artist?.trim();
+    if (artist) {
+      artistId = await getOrCreateArtistId(artist, now, artistCache);
+      sets.push('artist_id = ?');
+      params.push(artistId);
+    }
+
+    const album = patch.album?.trim();
+    if (album) {
+      // El álbum se identifica por (título, artista): usa el artista nuevo si
+      // se está editando, o el que ya tenía la pista.
+      const resolvedArtistId =
+        artistId ??
+        (
+          await db.getFirstAsync<{ artist_id: number }>(
+            'SELECT artist_id FROM songs WHERE id = ?',
+            songId
+          )
+        )?.artist_id;
+      if (resolvedArtistId === undefined) {
+        return;
+      }
+      const albumId = await getOrCreateAlbumId(album, resolvedArtistId, null, now, albumCache);
+      sets.push('album_id = ?');
+      params.push(albumId);
+    }
+
+    if (sets.length === 0) {
+      return;
+    }
+    sets.push('metadata_manual = 1');
+    await db.runAsync(
+      `UPDATE songs SET ${sets.join(', ')} WHERE id = ?`,
+      ...params,
+      songId
+    );
+  },
+
+  /**
+   * Renombra un álbum (`FASE 5.2`).
+   *
+   * LÓGICA: si ya existe un álbum con el nuevo título para el mismo artista,
+   * las pistas se fusionan en él (`UNIQUE(title, artist_id)` lo impide de otro
+   * modo) y el álbum viejo se elimina. En ambos casos las pistas quedan con
+   * `metadata_manual = 1` para que el escaneo no deshaga el cambio.
+   */
+  async renameAlbum(albumId: number, title: string): Promise<void> {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      return;
+    }
+    const db = await getDatabase();
+    const album = await db.getFirstAsync<{
+      id: number;
+      title: string;
+      artist_id: number;
+      artwork_uri: string | null;
+    }>('SELECT id, title, artist_id, artwork_uri FROM albums WHERE id = ?', albumId);
+    if (!album || album.title === nextTitle) {
+      return;
+    }
+    const existing = await db.getFirstAsync<{ id: number }>(
+      'SELECT id FROM albums WHERE title = ? AND artist_id = ? AND id != ?',
+      nextTitle,
+      album.artist_id,
+      albumId
+    );
+
+    await db.withTransactionAsync(async () => {
+      if (existing) {
+        await db.runAsync(
+          'UPDATE songs SET album_id = ?, metadata_manual = 1 WHERE album_id = ?',
+          existing.id,
+          albumId
+        );
+        if (album.artwork_uri) {
+          await db.runAsync(
+            'UPDATE albums SET artwork_uri = COALESCE(artwork_uri, ?) WHERE id = ?',
+            album.artwork_uri,
+            existing.id
+          );
+        }
+        await db.runAsync('DELETE FROM albums WHERE id = ?', albumId);
+        return;
+      }
+      await db.runAsync('UPDATE albums SET title = ? WHERE id = ?', nextTitle, albumId);
+      await db.runAsync('UPDATE songs SET metadata_manual = 1 WHERE album_id = ?', albumId);
+    });
+  },
+
+  /**
+   * Quita pistas de la biblioteca sin borrar el archivo (`FASE 5.2`).
+   *
+   * LÓGICA: se marca `is_available = 0` (desaparecen de la app) y se recuerda
+   * el `media_id` en `ignored_media`, de modo que el escaneo no las vuelva a
+   * añadir mientras el archivo siga en el dispositivo. Favoritos, historial y
+   * playlists se conservan.
+   */
+  async removeFromLibrary(songIds: number[]): Promise<void> {
+    if (songIds.length === 0) {
+      return;
+    }
+    const db = await getDatabase();
+    const now = Date.now();
+    await db.withTransactionAsync(async () => {
+      for (const chunk of chunksOf(songIds, ID_CHUNK_SIZE)) {
+        const placeholders = chunk.map(() => '?').join(',');
+        await db.runAsync(
+          `INSERT OR IGNORE INTO ignored_media (media_id, created_at)
+           SELECT media_id, ? FROM songs WHERE id IN (${placeholders})`,
+          now,
+          ...chunk
+        );
+        await db.runAsync(
+          `UPDATE songs SET is_available = 0 WHERE id IN (${placeholders})`,
+          ...chunk
+        );
+      }
+    });
+  },
+
+  /** Marca pistas como no disponibles por id interno (tras borrar el archivo). */
+  async markUnavailable(songIds: number[]): Promise<void> {
+    if (songIds.length === 0) {
+      return;
+    }
+    const db = await getDatabase();
+    for (const chunk of chunksOf(songIds, ID_CHUNK_SIZE)) {
+      const placeholders = chunk.map(() => '?').join(',');
+      await db.runAsync(
+        `UPDATE songs SET is_available = 0 WHERE id IN (${placeholders})`,
+        ...chunk
+      );
+    }
+  },
+
+  /** Ids de mediateca que el usuario quitó de la biblioteca (filtro del escaneo). */
+  async getIgnoredMediaIds(): Promise<Set<string>> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ media_id: string }>(
+      'SELECT media_id FROM ignored_media'
+    );
+    return new Set(rows.map((row) => row.media_id));
+  },
+
+  /** Cuántas pistas hay quitadas de la biblioteca (sin borrar el archivo). */
+  async countIgnored(): Promise<number> {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync<{ count: number }>(
+      'SELECT COUNT(*) AS count FROM ignored_media'
+    );
+    return row?.count ?? 0;
+  },
+
+  /** Olvida las pistas quitadas para que el siguiente escaneo las recupere. */
+  async restoreIgnored(): Promise<void> {
+    const db = await getDatabase();
+    await db.runAsync('DELETE FROM ignored_media');
   },
 };

@@ -8,7 +8,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Nunca se borran datos del usuario en una migración.
  */
 
-export const DATABASE_VERSION = 7;
+export const DATABASE_VERSION = 8;
 
 const V1 = `
 CREATE TABLE IF NOT EXISTS artists (
@@ -123,6 +123,22 @@ CREATE TABLE IF NOT EXISTS playback_sessions (
 );
 `;
 
+/**
+ * V8: gestión de la biblioteca (`FASE 5.2`).
+ *
+ * LÓGICA: `ignored_media` recuerda los `media_id` que el usuario quitó de la
+ * biblioteca sin borrar el archivo, para que el escaneo no los vuelva a
+ * añadir. La columna `songs.metadata_manual` marca las pistas con correcciones
+ * de título/artista/álbum hechas por el usuario, de modo que un reescaneo no
+ * las pise con las etiquetas del archivo.
+ */
+const V8 = `
+CREATE TABLE IF NOT EXISTS ignored_media (
+  media_id   TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL
+);
+`;
+
 export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   /**
    * Cada paso se decide por el ESQUEMA real (tablas/columnas presentes), no
@@ -156,6 +172,11 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
     await db.execAsync(V6);
   }
 
+  // V8: pistas quitadas de la biblioteca sin borrar el archivo (`FASE 5.2`).
+  if (!(await tableExists('ignored_media'))) {
+    await db.execAsync(V8);
+  }
+
   if (!(await columnExists('songs', 'is_audiobook'))) {
     await db.runAsync('ALTER TABLE songs ADD COLUMN is_audiobook INTEGER NOT NULL DEFAULT 0');
   }
@@ -186,6 +207,16 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
    */
   if (!(await columnExists('songs', 'artwork_checked_at'))) {
     await db.runAsync('ALTER TABLE songs ADD COLUMN artwork_checked_at INTEGER');
+  }
+  /**
+   * V8: corrección manual de metadatos (`FASE 5.2`).
+   *
+   * LÓGICA: `1` cuando el usuario editó el título, el artista o el álbum de la
+   * pista. El upsert del escaneo respeta esas columnas y no las reescribe con
+   * las etiquetas del archivo.
+   */
+  if (!(await columnExists('songs', 'metadata_manual'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN metadata_manual INTEGER NOT NULL DEFAULT 0');
   }
   await db.execAsync('CREATE INDEX IF NOT EXISTS idx_songs_audiobook ON songs(is_audiobook)');
   await db.execAsync(

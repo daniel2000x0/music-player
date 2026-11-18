@@ -9,14 +9,20 @@ import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
+import { SelectionActions } from '@/components/selection-actions';
+import { SongDeleteSheet, type DeleteChoice } from '@/components/song-delete-sheet';
+import { SongEditModal } from '@/components/song-edit-modal';
 import { SortSheet, type SortField } from '@/components/sort-sheet';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { filterSongs } from '@/domain/library/filters';
 import { describeScanProgress } from '@/domain/library/scan-progress';
+import { resolveSongsByIds } from '@/domain/library/selection';
 import { sortDirectionOf, sortFieldOf, sortSongs } from '@/domain/library/sorting';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
+import { useSongLibraryActions } from '@/hooks/use-song-library-actions';
+import { useSongSelection } from '@/hooks/use-song-selection';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
@@ -30,7 +36,7 @@ const VIEWS: readonly CategoryOption<SongView>[] = [
   { key: 'unplayed', label: 'Sin reproducir' },
 ];
 
-type SongAction = 'playlist' | 'audiobook';
+type SongAction = 'playlist' | 'audiobook' | 'edit' | 'delete';
 
 const SONG_ACTIONS: readonly Option<SongAction>[] = [
   {
@@ -42,6 +48,17 @@ const SONG_ACTIONS: readonly Option<SongAction>[] = [
     value: 'audiobook',
     label: 'Agregar como audiolibro',
     description: 'Se oculta de Canciones y aparece en la pestaña Audiolibros.',
+  },
+  {
+    value: 'edit',
+    label: 'Editar información',
+    description: 'Corrige el título, el artista o el álbum solo en esta app.',
+  },
+  {
+    value: 'delete',
+    label: 'Eliminar',
+    description: 'Quítala de la biblioteca o bórrala del dispositivo.',
+    destructive: true,
   },
 ];
 
@@ -82,6 +99,18 @@ export default function SongsScreen() {
   const [pickerSong, setPickerSong] = useState<Song | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
+  const { selectedIds, isActive, toggle, selectAll, clear } = useSongSelection();
+  const {
+    editSong,
+    deleteTarget,
+    requestEdit,
+    confirmEdit,
+    cancelEdit,
+    requestDelete,
+    confirmDelete,
+    cancelDelete,
+  } = useSongLibraryActions();
+
   const view: SongView = isSongView(params.view) ? params.view : 'all';
   const setView = useCallback(
     (next: SongView) => {
@@ -116,6 +145,20 @@ export default function SongsScreen() {
     setMenuSong(song);
     setMenuVisible(true);
   }, []);
+
+  // Elimina el lote seleccionado: abre el diálogo y, al confirmar, sale del
+  // modo de selección (las pistas dejan de estar visibles).
+  const handleDeleteSelected = useCallback(() => {
+    requestDelete(resolveSongsByIds(visibleSongs, selectedIds));
+  }, [requestDelete, visibleSongs, selectedIds]);
+
+  const handleConfirmDelete = useCallback(
+    async (choice: DeleteChoice) => {
+      await confirmDelete(choice);
+      clear();
+    },
+    [confirmDelete, clear]
+  );
 
   const header = (
     <View style={styles.header}>
@@ -174,7 +217,14 @@ export default function SongsScreen() {
         subtitle={`${songs.length} en tu biblioteca`}
         scroll={false}
         action={
-          visibleSongs.length > 0 ? (
+          isActive ? (
+            <SelectionActions
+              count={selectedIds.length}
+              onSelectAll={() => selectAll(visibleSongs)}
+              onDelete={handleDeleteSelected}
+              onClose={clear}
+            />
+          ) : visibleSongs.length > 0 ? (
             <Pressable
               onPress={() => play(visibleSongs[0], visibleSongs)}
               style={[styles.playAll, { backgroundColor: theme.accent }]}
@@ -236,6 +286,10 @@ export default function SongsScreen() {
             onMore={handleMore}
             refreshing={isScanning}
             onRefresh={() => void refresh()}
+            selectedIds={selectedIds}
+            selectionActive={isActive}
+            onToggleSelect={toggle}
+            onLongPressSong={toggle}
           />
         )}
       </ScreenShell>
@@ -251,8 +305,12 @@ export default function SongsScreen() {
           if (action === 'playlist') {
             setPickerSong(menuSong);
             setPickerVisible(true);
-          } else {
+          } else if (action === 'audiobook') {
             void setAudiobook([menuSong.id], true);
+          } else if (action === 'edit') {
+            requestEdit(menuSong);
+          } else {
+            requestDelete(menuSong);
           }
         }}
         onClose={() => setMenuVisible(false)}
@@ -269,6 +327,22 @@ export default function SongsScreen() {
         visible={pickerVisible}
         song={pickerSong}
         onClose={() => setPickerVisible(false)}
+      />
+      <SongEditModal
+        visible={editSong !== null}
+        initialValues={{
+          title: editSong?.title ?? '',
+          artist: editSong?.artist ?? '',
+          album: editSong?.album ?? '',
+        }}
+        onConfirm={confirmEdit}
+        onClose={cancelEdit}
+      />
+      <SongDeleteSheet
+        visible={deleteTarget !== null}
+        title={deleteTarget?.title ?? 'Eliminar'}
+        onSelect={handleConfirmDelete}
+        onClose={cancelDelete}
       />
     </>
   );

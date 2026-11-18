@@ -820,6 +820,63 @@ OTA aplicada: grupo `26d5bb22-e93c-4dab-98d1-71f321ee9629`, update Android `01a1
 
 ---
 
+## FASE 5.2 · Gestión de la biblioteca: editar y eliminar
+
+**Esfuerzo:** 1–2 días
+**Objetivo:** poder corregir los metadatos de una pista mal etiquetada y quitar o borrar pistas y álbumes desde la propia app, incluida la eliminación de varias pistas a la vez.
+
+Nada de esto reescribe las etiquetas del archivo: la corrección es local a la app y el borrado, cuando se pide, lo ejecuta el sistema.
+
+### Problemas que ataca
+
+| ID | Problema |
+| --- | --- |
+| `GB-01` | Una pista con el título, el artista o el álbum mal etiquetados no se podía corregir sin editar el archivo con otra aplicación |
+| `GB-02` | No había forma de quitar de la biblioteca una pista que no se quiere ver (p. ej. audios que no son música) sin borrar el archivo del dispositivo; y borrar el archivo tampoco era posible desde la app |
+| `GB-03` | La única eliminación era de una en una (o quitando de una playlist), sin modo de selección múltiple |
+| `GB-04` | No existía una acción de conjunto sobre un álbum (renombrarlo o eliminar todas sus pistas) |
+
+### Solución implementada
+
+| Área | Detalle |
+| --- | --- |
+| Migración **V8** | `src/data/db/migrations.ts`: tabla `ignored_media (media_id PK, created_at)` y columna `songs.metadata_manual INTEGER NOT NULL DEFAULT 0` |
+| No pisar la corrección | `song.repository.upsertBatch`: el `ON CONFLICT` conserva `title`/`artist_id`/`album_id` con `CASE WHEN metadata_manual = 1 THEN … ELSE excluded.… END`, así un reescaneo no revierte la edición del usuario |
+| Editar pista | `songRepository.updateSongMetadata(songId, patch)`: resuelve artista/álbum contra las tablas reales (creándolos si hace falta), solo toca los campos enviados y marca `metadata_manual = 1` |
+| Renombrar álbum | `songRepository.renameAlbum(albumId, title)`: renombra y marca sus pistas; si ya existe un álbum con ese título para el mismo artista, **fusiona** (mueve las pistas, hereda la portada y borra el viejo), porque `UNIQUE(title, artist_id)` lo impediría |
+| Quitar de la biblioteca | `songRepository.removeFromLibrary(songIds)`: `is_available = 0` + recuerdo del `media_id` en `ignored_media`; favoritos, historial y playlists se conservan |
+| Borrar del dispositivo | `media.service.deleteDeviceAssets(mediaIds)` → `Asset.delete([...])`; en Android 11+ el sistema pide **una sola** confirmación para el lote y no hace falta permiso de escritura |
+| No resucitar | `library-scan.service.runLibraryScan` filtra las pistas de `ignored_media` **antes** del diff: su archivo sigue en el dispositivo y sin el filtro reaparecerían como nuevas |
+| Store | `library.store`: `hiddenCount`, `updateSongMetadata`, `renameAlbum`, `removeSongs`, `deleteSongsFromDevice` (marca no disponibles solo lo que el sistema confirmó borrar) y `restoreHiddenSongs` |
+| UI compartida | `useSongSelection` (modo selección), `useSongLibraryActions` (pista en edición y lote a eliminar), `SongDeleteSheet` (quitar/borrar), `SongEditModal` (título, artista, álbum), `SelectionActions` (conteo, seleccionar todo, eliminar, salir) |
+| Filas y listas | `SongRow`/`SongList`: `selectionActive`, `selected`, `onLongPress`, `onToggleSelect`; en modo selección se ocultan favorito y «más» y aparece el visto |
+| Pantallas | Canciones (editar/eliminar + selección), álbum (menú del álbum: renombrar/eliminar; editar/eliminar por pista; selección), artista (editar/eliminar + selección), playlist (acciones actuales + editar/eliminar + selección) |
+| Válvula de seguridad | Ajustes: fila «Restaurar pistas quitadas (N)» visible solo con `hiddenCount > 0`; limpia `ignored_media` y reescanea |
+
+### Desviaciones y limitaciones
+
+| Plan | Implementado | Motivo |
+| --- | --- | --- |
+| Editar en bloque desde el modo selección | **No** | El usuario pidió explícitamente «eliminar varias a la vez»; el modo selección solo elimina (además de seleccionar todo y salir) |
+| Menú de tres puntos en la tarjeta de álbum | **No** | El menú del álbum vive en la cabecera del detalle de álbum; las tarjetas de la pestaña Álbumes siguen sin menú |
+| Purgar la cola del reproductor al borrar pistas | **No** | Evita la dependencia circular `library.store → player.store`; queda como limitación conocida |
+| Borrar el archivo en Android ≤ 10 | **Degradado** | La ruta heredada exige `WRITE_EXTERNAL_STORAGE`, bloqueado en `app.json`; el borrado fallará y se avisa con honestidad (no se pide el permiso) |
+| Reescribir las etiquetas del archivo | **No** | Fuera de alcance: la corrección es local a la app (`metadata_manual`) |
+
+### Criterios de salida
+
+| Criterio | Resultado |
+| --- | --- |
+| Editar pista | Título, artista y álbum se corrigen en la app y sobreviven a un reescaneo (`metadata_manual`) |
+| Eliminar | Un diálogo ofrece «Quitar de la biblioteca» (reversible, no toca el archivo) o «Borrar del dispositivo» (el sistema confirma) |
+| Eliminación múltiple | Modo selección por pulsación larga en Canciones, álbum, artista y playlist, con seleccionar todo y salir |
+| Eliminar álbum | Desde la cabecera del detalle; al quedarse sin pistas, la pantalla vuelve atrás |
+| Recuperación | «Restaurar pistas quitadas» devuelve las pistas ocultas cuyo archivo sigue en el dispositivo |
+| Pruebas | `migrations.test.ts` (V8), `song.repository.test.ts` (edición, renombrado con y sin fusión, quitar, ignorados) y `library-scan.service.test.ts` (filtro de ignoradas) |
+| Verdes | `tsc` limpio · `jest` **38 suites / 299 pruebas** · `expo lint` 0 problemas |
+
+---
+
 ## FASE 6 · UI/UX, animaciones y accesibilidad
 
 **Esfuerzo:** 4–6 días
@@ -1060,11 +1117,11 @@ Context7 ✅ · Expo MCP ❌ · GitHub MCP ❌.
 ## 2. Dependencias entre fases (por qué este orden)
 
 ```
-FASE 1 ──► FASE 2 ──► FASE 4 ──► FASE 5 ──► FASE 5.1
+FASE 1 ──► FASE 2 ──► FASE 4 ──► FASE 5 ──► FASE 5.1 ──► FASE 5.2
               │           ▲
               └──► FASE 3 ┘
 
-FASE 1..5.1 ──► FASE 6 ──► FASE 7 ──► FASE 8
+FASE 1..5.2 ──► FASE 6 ──► FASE 7 ──► FASE 8
 ```
 
 - **FASE 1 antes que todo:** sin rollback (`A-09`) y sin los dos críticos, cualquier refactor se hace sobre arena.
@@ -1072,6 +1129,7 @@ FASE 1..5.1 ──► FASE 6 ──► FASE 7 ──► FASE 8
 - **FASE 3 antes que 4:** restaurar una sesión exige que los ids de la biblioteca sean fiables (sin truncado, sin borrados en duro).
 - **FASE 5 después de 4:** el widget publica el estado del motor; sin sesión persistente, el snapshot nace muerto tras cada muerte de proceso.
 - **FASE 5.1 después de 5:** es una reparación puntual de la biblioteca (FLAC, arte de carpeta, pistas ya guardadas); no depende de la UI de FASE 6 y desbloquea las mediciones de FASE 7.
+- **FASE 5.2 después de 5.1:** editar y eliminar se apoyan en el esquema y el escaneo ya reparados; el filtro de pistas quitadas es una extensión del diff de la FASE 3 y la corrección local convive con el barrido de la FASE 5.1.
 - **FASE 6 después de 5:** no tiene sentido pulir la UI de estados que aún no existen.
 - **FASE 7 antes que 8:** se publica lo que está medido.
 

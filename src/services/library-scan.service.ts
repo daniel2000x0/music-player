@@ -55,10 +55,20 @@ export async function runLibraryScan(
   const startedAt = Date.now();
 
   emitProgress(onProgress, { phase: 'enumerate', processed: 0, total: 0 });
-  const device = await enumerateDeviceAudio();
-  if (!device) {
+  const allDevice = await enumerateDeviceAudio();
+  if (!allDevice) {
     return null;
   }
+  /**
+   * Las pistas que el usuario quitó de la biblioteca (`FASE 5.2`) se filtran
+   * antes del diff: su archivo sigue en el dispositivo, así que sin este filtro
+   * el escaneo las trataría como "reaparecidas" y las volvería a añadir.
+   */
+  const ignored = await songRepository.getIgnoredMediaIds();
+  const device =
+    ignored.size === 0
+      ? allDevice
+      : allDevice.filter((track) => !ignored.has(track.mediaId));
   emitProgress(onProgress, {
     phase: 'enumerate',
     processed: device.length,

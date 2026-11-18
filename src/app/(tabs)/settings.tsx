@@ -201,6 +201,8 @@ export default function SettingsScreen() {
   const clearAdministrativeData = useLibraryStore(
     (state) => state.clearAdministrativeData
   );
+  const hiddenCount = useLibraryStore((state) => state.hiddenCount);
+  const restoreHiddenSongs = useLibraryStore((state) => state.restoreHiddenSongs);
 
   const [working, setWorking] = useState(false);
 
@@ -278,6 +280,27 @@ export default function SettingsScreen() {
                     : 'No se encontraron carátulas nuevas en los archivos revisados.';
               Alert.alert('Búsqueda terminada', message);
             });
+          },
+        },
+      ]
+    );
+  };
+
+  // Restaura las pistas que el usuario quitó de la biblioteca sin borrar el
+  // archivo (`FASE 5.2`): olvida el filtro y vuelve a escanear.
+  const confirmRestoreHidden = () => {
+    Alert.alert(
+      'Restaurar pistas quitadas',
+      `Se volverán a añadir ${hiddenCount} ${
+        hiddenCount === 1 ? 'pista' : 'pistas'
+      } que quitaste de la biblioteca y siguen en el dispositivo.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Restaurar',
+          onPress: () => {
+            setWorking(true);
+            void restoreHiddenSongs().finally(() => setWorking(false));
           },
         },
       ]
@@ -402,6 +425,15 @@ export default function SettingsScreen() {
             description="Relee la portada de las canciones que no la muestran (FLAC incluidos)."
             onPress={confirmBackfillArtwork}
           />
+
+          {hiddenCount > 0 ? (
+            <ActionRow
+              icon="arrow-undo-outline"
+              title={`Restaurar pistas quitadas (${hiddenCount})`}
+              description="Vuelve a añadir las canciones que quitaste de la biblioteca sin borrar el archivo."
+              onPress={confirmRestoreHidden}
+            />
+          ) : null}
 
           {isBackfilling ? (
             <View style={styles.scanning}>

@@ -33,6 +33,14 @@ export type SongListProps = {
   refreshing?: boolean;
   /** Habilita el gesto de deslizar para actualizar. */
   onRefresh?: () => void;
+  /** Ids seleccionados en modo selección (`FASE 5.2`). */
+  selectedIds?: readonly number[];
+  /** `true` mientras la pantalla está en modo selección. */
+  selectionActive?: boolean;
+  /** Alterna la selección de una fila. */
+  onToggleSelect?: (song: Song) => void;
+  /** Pulsación larga: entra en el modo de selección. */
+  onLongPressSong?: (song: Song) => void;
 };
 
 /** Altura fija de una fila (artwork 52 + padding 8×2). */
@@ -55,6 +63,10 @@ export function SongList({
   contentContainerStyle,
   refreshing = false,
   onRefresh,
+  selectedIds,
+  selectionActive = false,
+  onToggleSelect,
+  onLongPressSong,
 }: SongListProps) {
   const listRef = useRef<FlatList<Song>>(null);
 
@@ -65,6 +77,17 @@ export function SongList({
 
   // El Set solo se reconstruye cuando cambian los favoritos.
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
+
+  // Set de selección: solo se reconstruye cuando cambia la selección.
+  const selectedSet = useMemo(() => new Set(selectedIds ?? []), [selectedIds]);
+
+  // `extraData` estable: avisa a FlatList cuándo volver a pintar las filas
+  // ya montadas (favoritos y selección). Un objeto nuevo en cada render
+  // anularía la memoización, por eso se memoiza.
+  const extraData = useMemo(
+    () => ({ favoriteSet, selectedSet }),
+    [favoriteSet, selectedSet]
+  );
 
   // Se reproduce la cola recibida o, por defecto, la propia lista.
   const resolvedQueue = queue ?? songs;
@@ -96,9 +119,22 @@ export function SongList({
         isFavorite={favoriteSet.has(item.id)}
         onToggleFavorite={handleToggleFavorite}
         onMore={onMore}
+        selectionActive={selectionActive}
+        selected={selectedSet.has(item.id)}
+        onToggleSelect={onToggleSelect}
+        onLongPress={onLongPressSong}
       />
     ),
-    [resolvedQueue, favoriteSet, handleToggleFavorite, onMore]
+    [
+      resolvedQueue,
+      favoriteSet,
+      handleToggleFavorite,
+      onMore,
+      selectionActive,
+      selectedSet,
+      onToggleSelect,
+      onLongPressSong,
+    ]
   );
 
   // Letras presentes en la lista, en orden alfabético.
@@ -133,7 +169,7 @@ export function SongList({
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         getItemLayout={getItemLayout}
-        extraData={favoriteSet}
+        extraData={extraData}
         initialNumToRender={12}
         maxToRenderPerBatch={12}
         windowSize={5}

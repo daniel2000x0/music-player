@@ -11,11 +11,17 @@ verificación en dispositivo) vive en
 
 ## [Sin publicar]
 
-Fases 1 a 5.1 de la hoja de ruta (aún sin versión publicada; `app.json` sigue en
+Fases 1 a 5.2 de la hoja de ruta (aún sin versión publicada; `app.json` sigue en
 `1.0.0` y se sella al publicar en FASE 8).
 
 ### Añadido
 
+- **Gestión de la biblioteca (FASE 5.2):** editar el título, el artista y el álbum
+  de una pista (corrección local, no reescribe el archivo) y eliminarla — quitarla
+  de la biblioteca sin tocar el archivo o borrarla del dispositivo — desde el menú
+  de cada pista, con **selección múltiple** (pulsación larga) en Canciones, álbum,
+  artista y playlist. Incluye renombrar un álbum (con fusión si ya existe) y una
+  válvula de seguridad en Ajustes («Restaurar pistas quitadas»).
 - **Carátulas ausentes (FASE 5.1):** lectura de arte embebido y etiquetas de texto
   en **FLAC** (`PICTURE` y `VORBIS_COMMENT`), con arte de carpeta (`cover.jpg`,
   `folder.png`…) como respaldo y barrido de pistas ya guardadas sin portada
@@ -58,6 +64,10 @@ Fases 1 a 5.1 de la hoja de ruta (aún sin versión publicada; `app.json` sigue 
 
 ### Notas
 
+- Limitaciones conocidas y diferidas de la FASE 5.2: la corrección de metadatos es
+  local (no reescribe las etiquetas del archivo), el modo selección solo elimina y
+  borrar el archivo en Android 10 o anterior fallará por el permiso de escritura
+  bloqueado (se avisa en pantalla).
 - Limitaciones conocidas y diferidas de la FASE 5.1: arte embebido en **OGG/OPUS**,
   **BMP** como portada y agrupación de recopilatorios multi-artista.
 

@@ -185,6 +185,43 @@ export function folderFromUri(uri: string): string | null {
   }
 }
 
+/** Resultado de borrar archivos del dispositivo. */
+export type DeleteDeviceAssetsResult = {
+  /** Cantidad de archivos cuya eliminación se confirmó. */
+  deleted: number;
+  /** Mensaje legible si el borrado no se completó. */
+  error?: string;
+};
+
+/**
+ * Borra archivos de audio del dispositivo (`FASE 5.2`).
+ *
+ * LÓGICA: `Asset.delete` pide al sistema la eliminación del lote. En Android 11+
+ * el sistema muestra un único diálogo de confirmación para todo el lote y no
+ * hace falta permiso de escritura; en Android 10 o anterior la ruta heredada
+ * exige `WRITE_EXTERNAL_STORAGE` (bloqueado en esta app), así que el borrado
+ * fallará y se informa. Nunca lanza: devuelve el resultado para que la UI lo
+ * comunique con honestidad.
+ */
+export async function deleteDeviceAssets(
+  mediaIds: string[]
+): Promise<DeleteDeviceAssetsResult> {
+  if (mediaIds.length === 0) {
+    return { deleted: 0 };
+  }
+  try {
+    await Asset.delete(mediaIds.map((id) => new Asset(id)));
+    return { deleted: mediaIds.length };
+  } catch (error) {
+    logError('media-service', 'asset.delete', error);
+    return {
+      deleted: 0,
+      error:
+        'El sistema no confirmó el borrado. Puede que hayas cancelado el diálogo o que tu versión de Android exija un permiso que la app no solicita.',
+    };
+  }
+}
+
 /**
  * Lee una pista concreta: asset → etiquetas → metadatos resueltos.
  *
