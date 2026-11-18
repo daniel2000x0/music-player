@@ -786,6 +786,37 @@ No se modifica ningún archivo de audio: toda la lectura es de solo lectura.
 | Pruebas | `artwork-flac.test.ts`, `artwork-bytes.test.ts`, `artwork-backfill.service.test.ts`; actualizados `migrations.test.ts` (v7), `song.repository.test.ts` (650/650/260 + barrido) y `library-scan.service.test.ts` |
 | Verdes | `tsc` limpio · `jest` **38 suites / 281 pruebas** · `expo lint` 0 problemas |
 
+### Verificación en dispositivo (FASE 5.1)
+
+Dispositivo: Infinix X6826 (`09729372AM004325`), Android 12 (SDK 31), APK release 1.0.0 canal `preview`, app `com.abelo.mimusicplayer`.
+OTA aplicada: grupo `26d5bb22-e93c-4dab-98d1-71f321ee9629`, update Android `01a1eed5-5cd9-73f8-83f8-c80229e277ca`, runtime `1.0.0`, commit `7c49383`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| OTA aplicada | ✅ Ajustes muestra la fila nueva «Buscar carátulas faltantes» («Relee la portada de las canciones que no la muestran (FLAC incluidos).») → el bundle principal es el de `7c49383` |
+| Acción manual del barrido | ✅ el diálogo confirma y «Búsqueda terminada» responde «No se encontraron carátulas nuevas en los archivos revisados» (candidatas > 0, resueltas 0: el barrido automático del primer escaneo tras la OTA ya había completado todo lo extraíble) |
+| Arte embebido FLAC (`AR-01`) | ✅ «505» (`Arctic Monkeys - 505.flac`, **sin** `cover.jpg` en su carpeta) muestra portada (`ImageView` de 52 dp); su fila conserva «Artista desconocido» (metadatos viejos, no re-hidratados) → la portada salió del bloque `PICTURE`, no de carpeta ni de releer etiquetas |
+| Parser contra archivo real | ✅ `extractFlacArtwork`/`extractFlacTags` sobre el FLAC extraído del dispositivo devuelven `image/jpeg` (171 485 B) y las etiquetas `TITLE`/`ARTIST`/`ALBUM`/`ALBUMARTIST`/`TRACKNUMBER` |
+| Detección validada (control negativo) | ✅ en Audiolibros, las filas con portada rinden `ImageView` y las que no la tienen rinden la `View` de reserva con glifo (`Ionicons`), en la **misma** lista → `ImageView` ⇔ portada real |
+| Reescaneo (regresión) | ✅ «Volver a escanear» termina en «sin cambios · 1 s»; el barrido integrado no rompe el escaneo |
+| Sin errores nuevos | ✅ «Registro de errores» sigue con **2 sucesos**, ambos de `audio/lock-screen` (`setActiveForLockScreen`), ninguno de `artwork-service` |
+
+**Pendiente de reproducir en este dispositivo (limitación del entorno, no del código):**
+
+- **Arte de carpeta (`AR-02`):** el dispositivo no tiene ninguna imagen `cover.*`/`folder.*`/`front.*`/`album.*`/`artwork.*` en las carpetas de música (verificado con `toybox find` y con `content query` sobre MediaStore), así que la ruta de respaldo no es ejercitable aquí; queda cubierta por `artwork-bytes.test.ts` y por lectura de código.
+
+**Método de medición:** `uiautomator dump` con la reproducción **pausada** (`adb shell input keyevent 127`; con reproducción activa la ventana nunca queda «idle» y el dump falla o devuelve el árbol anterior). La portada se distingue por el nodo `android.widget.ImageView` de 52 dp (104 px) al inicio de cada fila, frente a la `View` de reserva con glifo cuando no hay portada.
+
+### Subidas (GitHub y OTA)
+
+| Subida | Detalle |
+| --- | --- |
+| Commit | `7c49383` — «feat(artwork): soporte FLAC, arte de carpeta y barrido de caratulas ausentes (FASE 5.1)» (19 archivos, +1493/−66) |
+| Rama | `fase/5.1-caratulas-ausentes` empujada a `origin` |
+| Fusión | `master` por **fast-forward** (mismo commit que la OTA) |
+| OTA `preview` | grupo `26d5bb22-e93c-4dab-98d1-71f321ee9629`; Android `01a1eed5-5cd9-73f8-83f8-c80229e277ca`; runtime `1.0.0` |
+| Estado OTA | descargada y aplicada en el Infinix X6826 (`CheckCompleteUnavailable`, `isUpdateAvailable=false`; la fila nueva de Ajustes confirma el bundle) |
+
 ---
 
 ## FASE 6 · UI/UX, animaciones y accesibilidad
