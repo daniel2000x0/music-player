@@ -40,6 +40,13 @@ import {
  * - La barra usa `LinearProgressIndicator` porque el runtime Android de
  *   `expo-widgets` la traduce a Glance (`EmittableLinearProgressIndicator`).
  *   No hay animación ni timeline: cada posición llega en un snapshot nuevo.
+ * - NO usar `horizontalArrangement`: el conversor Glance de `expo-widgets`
+ *   (`ExpoWidgetEmittableTree.toPeekRow`) lo ignora y cae siempre en
+ *   `Alignment.Start`. Por eso los tiempos van en una sola `Text` con
+ *   separador, centrada con `horizontalAlignment="center"` (sí soportado).
+ * - El formato replica `formatClock` de `src/utils/format.ts` (no se puede
+ *   importar: la función se serializa a texto): horas `h:mm:ss` y `--:--` solo
+ *   cuando la duración aún no se conoce. La posición 0 se muestra como `0:00`.
  */
 function MediaWidget(props: MediaWidgetProps) {
   'widget';
@@ -49,12 +56,19 @@ function MediaWidget(props: MediaWidgetProps) {
       ? Math.min(1, Math.max(0, props.position / props.duration))
       : 0;
 
-  const formatTime = (value: number) => {
-    const total = Math.max(0, Math.floor(value));
-    const minutes = Math.floor(total / 60);
-    const seconds = total % 60;
-    return minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+  const formatClock = (value: number) => {
+    const safe = Number.isFinite(value) && value > 0 ? value : 0;
+    const seconds = Math.floor(safe % 60);
+    const minutes = Math.floor((safe / 60) % 60);
+    const hours = Math.floor(safe / 3600);
+    const pad = (part: number) => (part < 10 ? '0' : '') + part;
+    return hours > 0
+      ? hours + ':' + pad(minutes) + ':' + pad(seconds)
+      : minutes + ':' + pad(seconds);
   };
+
+  const durationLabel = props.duration > 0 ? formatClock(props.duration) : '--:--';
+  const timeLabel = formatClock(props.position) + ' / ' + durationLabel;
 
   return (
     <Column
@@ -100,12 +114,9 @@ function MediaWidget(props: MediaWidgetProps) {
         />
         <Row
           modifiers={[fillMaxWidth(), padding(0, 4, 0, 0)]}
-          horizontalArrangement="spaceBetween">
+          horizontalAlignment="center">
           <Text color="#9A9AA8" style={{ fontSize: 10 }}>
-            {formatTime(props.position)}
-          </Text>
-          <Text color="#9A9AA8" style={{ fontSize: 10 }}>
-            {formatTime(props.duration)}
+            {timeLabel}
           </Text>
         </Row>
       </Column>
