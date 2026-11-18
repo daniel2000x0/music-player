@@ -91,7 +91,8 @@ export function AudioBridge() {
       );
     });
     // El progreso se publica por separado: el servicio filtra los ticks y solo
-    // escribe cuando cambia la pista/estado, hay un seek o pasan ~5 segundos.
+    // escribe cuando cambia la pista/estado, hay un seek o pasa 1 segundo (para
+    // que el reloj del widget avance segundo a segundo).
     const unsubscribeWidgetProgress = subscribePlaybackProgress((position, duration) => {
       const player = usePlayerStore.getState();
       syncMediaWidget(player.currentSong, player.isPlaying, position, duration);

@@ -91,9 +91,10 @@ type WidgetRequest = {
  * Estado ya publicado en el widget, usado para descartar ticks de progreso.
  *
  * `expo-audio` reporta la posición cada 500 ms; publicar cada tick obligaría a
- * Glance a recomponer el widget dos veces por segundo. Solo se publica cuando
- * cambia la pista/estado/duración, cuando hay un salto (seek) o cuando la
- * posición avanzó al menos este intervalo.
+ * Glance a recomponer el widget dos veces por segundo sin ganar precisión (el
+ * reloj solo muestra segundos). Solo se publica cuando cambia la pista/estado/
+ * duración, cuando hay un salto (seek) o cuando la posición avanzó al menos
+ * este intervalo, de modo que el reloj del widget avanza segundo a segundo.
  */
 type WidgetState = {
   songId: number | null;
@@ -102,7 +103,7 @@ type WidgetState = {
   duration: number;
 };
 
-const PROGRESS_SNAPSHOT_INTERVAL_SECONDS = 5;
+const PROGRESS_SNAPSHOT_INTERVAL_SECONDS = 1;
 
 let pendingRequest: WidgetRequest | null = null;
 let publishedState: WidgetState | null = null;
