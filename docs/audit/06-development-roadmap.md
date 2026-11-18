@@ -534,6 +534,43 @@ pausar durante el buffering).
 | OTA `preview` | grupo `b06fff6b-c902-4505-8b5b-388ac17244e5`; Android `01a1e775-4ff9-7bd7-bb7d-96a07c413021`; runtime 1.0.0 |
 | Estado OTA | descargada y aplicada en el Infinix X6826 (`CheckCompleteUnavailable`, `isUpdatePending=false`) |
 
+### Corrección del widget de pantalla de inicio (tiempos)
+
+El widget mostraba los dos tiempos **pegados al borde izquierdo** y sin
+separador, de modo que `2:00` y `3:35` se leían como `2:003:35`. Medido en
+dispositivo (análisis de píxeles del `uiautomator dump`): posición en
+`x[83..121]` y duración en `x[121..159]`, ambas arrancando en el borde.
+
+**Causa raíz:** el componente usaba `Row` con
+`horizontalArrangement="spaceBetween"`, pero el conversor Glance de
+`expo-widgets` (`ExpoWidgetEmittableTree.toPeekRow` /
+`toPeekHorizontalAlignment`) **ignora `horizontalArrangement`**: solo traduce
+`horizontalAlignment` y cualquier otro valor cae en `Alignment.Start`.
+
+**Arreglo (solo JS, apto para OTA):** los tiempos van en una **sola `Text`** con
+separador (`2:12 / 3:35`), centrada con `Row(fillMaxWidth,
+horizontalAlignment="center")`, que sí está soportado. Además el formato del
+widget admite horas (`h:mm:ss`) y muestra `--:--` **solo** cuando la duración
+aún no se conoce (la posición `0` se muestra como `0:00`). Como la función del
+widget se serializa a texto (runtime aislado), la lógica va duplicada dentro de
+la función; una prueba extrae la copia inline del fuente y la compara con la
+canónica `formatClock` (`src/utils/format.ts`) para que no diverjan.
+
+| Aspecto | Detalle |
+| --- | --- |
+| Widget | `src/widgets/media-widget.tsx` (`formatClock`, `durationLabel`, `timeLabel`) |
+| Formato canónico | `src/utils/format.ts` (`formatClock`; `formatDuration` reutiliza `formatClock`) |
+| Pruebas | `src/utils/__tests__/format.test.ts` y `src/widgets/__tests__/media-widget.test.ts` (paridad de la copia inline + guardas de layout) |
+| Verificación local | `tsc --noEmit` limpio · `jest` **33 suites / 247 pruebas** · `expo lint` 0 |
+| Dispositivo (adb) | el widget muestra una sola etiqueta `2:12 / 3:35` en `bounds [313,651][407,679]`; centro x=360 = centro de la fila `[83,643][637,679]` → **centrada** |
+| OTA `preview` | grupo `c4f5968d-ce8c-47da-8a1c-5291a232b4c7`; Android `01a1ecef-c19a-7366-bada-f2426570b1e1`; runtime 1.0.0 |
+| Estado OTA | descargada y aplicada en el Infinix X6826 (`CheckCompleteUnavailable`, `isUpdateAvailable=false`) |
+
+**Nota:** el layout del widget sí viaja por OTA. `WidgetsLayoutRegistry.layout()`
+prefiere el layout guardado en runtime por `WidgetObject` (registrado al cargar
+el JS de la app) sobre el recurso embebido `R.raw.expo_widgets_layout_registry`;
+verificado en dispositivo tras el OTA.
+
 ---
 
 ## FASE 5 · Notificaciones, pantalla de bloqueo y widget
