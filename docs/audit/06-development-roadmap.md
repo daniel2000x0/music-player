@@ -571,6 +571,31 @@ prefiere el layout guardado en runtime por `WidgetObject` (registrado al cargar
 el JS de la app) sobre el recurso embebido `R.raw.expo_widgets_layout_registry`;
 verificado en dispositivo tras el OTA.
 
+### Cadencia del reloj del widget (desviación)
+
+Tras corregir el formato, el reloj del widget avanzaba a saltos de 5 s
+(`2:00 → 2:05 → 2:10`). **Causa:** `media-widget.service.ts` filtra los ticks de
+progreso con `PROGRESS_SNAPSHOT_INTERVAL_SECONDS = 5`; el motor reporta cada
+500 ms, pero solo se publicaba cada 5 s.
+
+**Arreglo:** bajar el intervalo a **1 s**. El reloj avanza segundo a segundo y
+Glance no se recompone dos veces por segundo (el reloj solo muestra segundos).
+
+| Verificación | Resultado |
+| --- | --- |
+| Medición previa (dispositivo) | 1 cambio cada 5 s (`2:00 → 2:05 → 2:10…`) |
+| Medición posterior (dispositivo) | **16 de 16 capturas distintas** a ~1,0 s (15,5 s) → 1 cambio/s |
+| `tsc --noEmit` | limpio |
+| `jest` | 33 suites / 247 pruebas |
+| `expo lint` | 0 |
+| Sin errores/ANR | sin `Input dispatching timed out` ni `FATAL EXCEPTION` de la app |
+| OTA `preview` | grupo `8a8cd590-4f63-4938-ae59-fc6b364e5447`; Android `01a1ed05-1f5a-7d77-a069-982ced8934eb`; runtime 1.0.0; aplicada |
+
+**Nota:** con el widget actualizándose cada segundo, `uiautomator dump` deja de
+servir para medir (la ventana nunca queda «idle» y devuelve el árbol anterior,
+así que la lectura se congela). La medición se hizo con `screencap` y
+comparación de píxeles de la fila de tiempos.
+
 ---
 
 ## FASE 5 · Notificaciones, pantalla de bloqueo y widget
