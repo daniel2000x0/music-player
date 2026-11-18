@@ -32,6 +32,15 @@ const SELECT_SONGS = `
   JOIN albums al ON al.id = s.album_id
 `;
 
+/** Pista candidata del barrido de carátulas ausentes (`FASE 5.1`). */
+export type ArtworkCandidate = {
+  id: number;
+  mediaId: string;
+  uri: string;
+  /** Álbum al que pertenece; agrupa la extracción por disco. */
+  albumId: number;
+};
+
 function mapSong(row: SongRow): Song {
   return {
     id: row.id,
@@ -221,10 +230,10 @@ export const songRepository = {
         rows.push({ item, artistId, albumId });
       }
 
-      // 50 filas × 12 parámetros = 600, por debajo del límite de SQLite.
+      // 50 filas × 13 parámetros = 650, por debajo del límite de SQLite.
       const CHUNK_SIZE = 50;
       for (const chunk of chunksOf(rows, CHUNK_SIZE)) {
-        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').join(',');
+        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').join(',');
         const params = chunk.flatMap(({ item, artistId, albumId }) => [
           item.mediaId,
           item.uri,
@@ -238,11 +247,13 @@ export const songRepository = {
           now,
           now,
           item.modificationTime,
+          now,
         ]);
         await db.runAsync(
           `INSERT INTO songs
             (media_id, uri, title, artist_id, album_id, track_number, folder_name,
-             duration, artwork_uri, added_at, last_seen_at, modification_time, is_available)
+             duration, artwork_uri, added_at, last_seen_at, modification_time,
+             artwork_checked_at, is_available)
            VALUES ${placeholders}
            ON CONFLICT(media_id) DO UPDATE SET
              uri = excluded.uri,
@@ -252,9 +263,10 @@ export const songRepository = {
              track_number = excluded.track_number,
              folder_name = excluded.folder_name,
              duration = excluded.duration,
-             artwork_uri = excluded.artwork_uri,
+             artwork_uri = COALESCE(excluded.artwork_uri, artwork_uri),
              last_seen_at = excluded.last_seen_at,
              modification_time = excluded.modification_time,
+             artwork_checked_at = excluded.artwork_checked_at,
              is_available = 1`,
           ...params
         );
@@ -278,6 +290,87 @@ export const songRepository = {
         ...chunk
       );
     }
+  },
+
+  /**
+   * Canciones disponibles sin portada, candidatas al barrido de carátulas
+   * (`FASE 5.1`).
+   *
+   * LÓGICA: con `force` se revisan todas las que no tienen portada (acción
+   * manual, útil tras añadir un `cover.jpg` a una carpeta); sin él solo las que
+   * nunca se verificaron (`artwork_checked_at IS NULL`), que son las filas
+   * anteriores a la migración V7. Así el barrido automático corre una sola vez
+   * por pista y no penaliza los arranques siguientes.
+   */
+  async getArtworkCandidates(force = false): Promise<ArtworkCandidate[]> {
+    const db = await getDatabase();
+    const pending = force
+      ? 's.artwork_uri IS NULL'
+      : 's.artwork_uri IS NULL AND s.artwork_checked_at IS NULL';
+    const rows = await db.getAllAsync<{
+      id: number;
+      media_id: string;
+      uri: string;
+      album_id: number;
+    }>(
+      `SELECT s.id, s.media_id, s.uri, s.album_id
+       FROM songs s
+       WHERE s.is_available = 1 AND ${pending}`
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      mediaId: row.media_id,
+      uri: row.uri,
+      albumId: row.album_id,
+    }));
+  },
+
+  /**
+   * Persiste el resultado del barrido de un álbum: asigna la portada hallada
+   * (si la hay) y sella `artwork_checked_at` en sus pistas candidatas.
+   *
+   * LÓGICA: la portada del álbum solo se completa si aún no tenía (no se pisa
+   * con la de otra pista del mismo disco). El sellado es por pista, de modo que
+   * un barrido interrumpido a mitad se reanuda donde quedó.
+   */
+  async applyArtworkBackfill(params: {
+    songIds: number[];
+    albumId: number;
+    artwork: string | null;
+    checkedAt: number;
+  }): Promise<void> {
+    const { songIds, albumId, artwork, checkedAt } = params;
+    if (songIds.length === 0) {
+      return;
+    }
+    const db = await getDatabase();
+    await db.withTransactionAsync(async () => {
+      for (const chunk of chunksOf(songIds, ID_CHUNK_SIZE)) {
+        const placeholders = chunk.map(() => '?').join(',');
+        if (artwork) {
+          await db.runAsync(
+            `UPDATE songs SET artwork_uri = ?, artwork_checked_at = ?
+             WHERE id IN (${placeholders})`,
+            artwork,
+            checkedAt,
+            ...chunk
+          );
+        } else {
+          await db.runAsync(
+            `UPDATE songs SET artwork_checked_at = ? WHERE id IN (${placeholders})`,
+            checkedAt,
+            ...chunk
+          );
+        }
+      }
+      if (artwork) {
+        await db.runAsync(
+          'UPDATE albums SET artwork_uri = COALESCE(artwork_uri, ?) WHERE id = ?',
+          artwork,
+          albumId
+        );
+      }
+    });
   },
 
   /** Ids de mediateca de las canciones disponibles (para detectar cambios). */

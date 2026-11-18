@@ -2,6 +2,7 @@ import { songRepository } from '@/data/repositories/song.repository';
 import { diffScan, type DeviceTrack } from '@/domain/library/scan-diff';
 import type { ScanProgress } from '@/domain/library/scan-progress';
 import type { ScanReport } from '@/domain/library/scan-report';
+import { runArtworkBackfill } from '@/services/artwork-backfill.service';
 import { assignAlbumArtwork } from '@/services/artwork.service';
 import { logError } from '@/services/error-log.service';
 import { TAG_CONCURRENCY, enumerateDeviceAudio, readDeviceTrack } from '@/services/media.service';
@@ -119,6 +120,21 @@ export async function runLibraryScan(
   // pista; con la biblioteca intacta no hace falta recorrerla otra vez.
   if (diff.added.length + diff.updated.length + diff.missing.length > 0) {
     await songRepository.reclassifyAudiobooks();
+  }
+
+  /**
+   * Completa las portadas de pistas guardadas antes de leer FLAC o arte de
+   * carpeta (`FASE 5.1`). Corre dentro del escaneo para reparar la biblioteca
+   * sola en el primer arranque tras la actualización; el sello
+   * `artwork_checked_at` lo limita a una vez por pista. Un fallo aquí no puede
+   * tumbar el escaneo: la biblioteca ya quedó persistida.
+   */
+  try {
+    await runArtworkBackfill({
+      onProgress: (progress) => emitProgress(onProgress, progress),
+    });
+  } catch (error) {
+    logError('library-scan', 'artwork-backfill', error);
   }
 
   const finishedAt = Date.now();

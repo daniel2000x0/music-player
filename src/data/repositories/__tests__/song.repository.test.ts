@@ -103,8 +103,9 @@ describe('songRepository.upsertBatch', () => {
     expect(mockDb.withTransactionAsync).toHaveBeenCalledTimes(1);
     const inserts = mockRunLog.filter((entry) => entry.sql.includes('INSERT INTO songs'));
     expect(inserts).toHaveLength(3);
-    expect(inserts.map((entry) => entry.params.length)).toEqual([600, 600, 240]);
+    expect(inserts.map((entry) => entry.params.length)).toEqual([650, 650, 260]);
     expect(inserts[0].sql).toContain('modification_time');
+    expect(inserts[0].sql).toContain('artwork_checked_at');
     // El valor guardado es el de la mediateca, no un contador del bucle.
     expect(inserts[0].params[11]).toBe(1);
   });
@@ -197,5 +198,74 @@ describe('songRepository.getScanState', () => {
       { mediaId: 'vieja', modificationTime: null, isAvailable: true },
       { mediaId: 'podada', modificationTime: 50, isAvailable: false },
     ]);
+  });
+});
+
+describe('songRepository.getArtworkCandidates', () => {
+  it('sin force solo pide las pistas nunca verificadas', async () => {
+    mockAllHandler = () => [
+      { id: 1, media_id: 'm-1', uri: 'file:///m-1.flac', album_id: 7 },
+    ];
+
+    const candidates = await songRepository.getArtworkCandidates();
+
+    expect(mockDb.getAllAsync.mock.calls[0][0]).toContain('artwork_checked_at IS NULL');
+    expect(candidates).toEqual([
+      { id: 1, mediaId: 'm-1', uri: 'file:///m-1.flac', albumId: 7 },
+    ]);
+  });
+
+  it('con force revisa todas las pistas sin portada', async () => {
+    mockAllHandler = () => [];
+
+    await songRepository.getArtworkCandidates(true);
+
+    const sql = mockDb.getAllAsync.mock.calls[0][0] as string;
+    expect(sql).toContain('artwork_uri IS NULL');
+    expect(sql).not.toContain('artwork_checked_at IS NULL');
+  });
+});
+
+describe('songRepository.applyArtworkBackfill', () => {
+  it('asigna la portada, sella la fecha y completa el álbum', async () => {
+    await songRepository.applyArtworkBackfill({
+      songIds: [1, 2],
+      albumId: 9,
+      artwork: 'file:///cache/art.jpg',
+      checkedAt: 500,
+    });
+
+    const songUpdate = mockRunLog.find((entry) =>
+      entry.sql.includes('UPDATE songs SET artwork_uri')
+    );
+    expect(songUpdate?.params).toEqual(['file:///cache/art.jpg', 500, 1, 2]);
+    const albumUpdate = mockRunLog.find((entry) => entry.sql.includes('UPDATE albums'));
+    expect(albumUpdate?.params).toEqual(['file:///cache/art.jpg', 9]);
+  });
+
+  it('sin portada solo sella la fecha y no toca el álbum', async () => {
+    await songRepository.applyArtworkBackfill({
+      songIds: [3],
+      albumId: 9,
+      artwork: null,
+      checkedAt: 700,
+    });
+
+    const songUpdate = mockRunLog.find((entry) =>
+      entry.sql.includes('UPDATE songs SET artwork_checked_at')
+    );
+    expect(songUpdate?.params).toEqual([700, 3]);
+    expect(mockRunLog.some((entry) => entry.sql.includes('UPDATE albums'))).toBe(false);
+  });
+
+  it('no abre transacción sin ids', async () => {
+    await songRepository.applyArtworkBackfill({
+      songIds: [],
+      albumId: 9,
+      artwork: 'file:///x.jpg',
+      checkedAt: 1,
+    });
+
+    expect(mockDb.withTransactionAsync).not.toHaveBeenCalled();
   });
 });

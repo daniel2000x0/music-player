@@ -195,6 +195,8 @@ export default function SettingsScreen() {
 
   const requestAccess = useLibraryStore((state) => state.requestAccess);
   const refresh = useLibraryStore((state) => state.refresh);
+  const backfillArtwork = useLibraryStore((state) => state.backfillArtwork);
+  const isBackfilling = useLibraryStore((state) => state.isBackfilling);
   const clearHistory = useLibraryStore((state) => state.clearHistory);
   const clearAdministrativeData = useLibraryStore(
     (state) => state.clearAdministrativeData
@@ -253,6 +255,34 @@ export default function SettingsScreen() {
 
     return 'Actualización descargada. Reinicia la app para aplicarla.';
   }, []);
+
+  // Barrido manual de carátulas ausentes (`FASE 5.1`): revisa las pistas sin
+  // portada (FLAC incluidos) y las carpetas con `cover.jpg`.
+  const confirmBackfillArtwork = () => {
+    Alert.alert(
+      'Buscar carátulas faltantes',
+      'Se volverán a leer las canciones que no muestran portada, incluidos los FLAC y las carpetas con cover.jpg. Puede tardar unos minutos.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Buscar',
+          onPress: () => {
+            void backfillArtwork().then((report) => {
+              const message =
+                report.resolved > 0
+                  ? `Se encontraron carátulas para ${report.resolved} ${
+                      report.resolved === 1 ? 'canción' : 'canciones'
+                    }.`
+                  : report.candidates === 0
+                    ? 'Todas las canciones ya tienen carátula o ya se revisaron.'
+                    : 'No se encontraron carátulas nuevas en los archivos revisados.';
+              Alert.alert('Búsqueda terminada', message);
+            });
+          },
+        },
+      ]
+    );
+  };
 
   const confirmClearHistory = () => {
     Alert.alert(
@@ -365,6 +395,23 @@ export default function SettingsScreen() {
               }
             }}
           />
+
+          <ActionRow
+            icon="image-outline"
+            title="Buscar carátulas faltantes"
+            description="Relee la portada de las canciones que no la muestran (FLAC incluidos)."
+            onPress={confirmBackfillArtwork}
+          />
+
+          {isBackfilling ? (
+            <View style={styles.scanning}>
+              <ActivityIndicator color={theme.accent} />
+
+              <ThemedText type="small" themeColor="textSecondary">
+                {scanProgress ? describeScanProgress(scanProgress) : 'Buscando carátulas…'}
+              </ThemedText>
+            </View>
+          ) : null}
 
           {isScanning ? (
             <View style={styles.scanning}>

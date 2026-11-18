@@ -9,7 +9,14 @@
 
 import type { ScanMode } from '@/domain/library/scan-diff';
 
-export type ScanPhase = 'enumerate' | 'diff' | 'hydrate' | 'persist' | 'prune' | 'done';
+export type ScanPhase =
+  | 'enumerate'
+  | 'diff'
+  | 'hydrate'
+  | 'persist'
+  | 'prune'
+  | 'backfill'
+  | 'done';
 
 export type ScanProgress = {
   phase: ScanPhase;
@@ -55,6 +62,8 @@ export function describeScanProgress(progress: ScanProgress): string {
       return progress.total > 0
         ? `Marcando pistas ausentes (${progress.processed} de ${progress.total})…`
         : 'Marcando pistas ausentes…';
+    case 'backfill':
+      return `Buscando carátulas (${progress.processed} de ${progress.total})…`;
     case 'done':
       return 'Biblioteca actualizada';
   }

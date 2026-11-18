@@ -270,6 +270,17 @@ async function applySnapshot(request: WidgetRequest): Promise<boolean> {
   return true;
 }
 
+/** Extensiones de imagen que el widget puede decodificar. */
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
+
+/** Extensión real de la portada para que el runtime del widget la decodifique. */
+function artworkExtension(uri: string): string {
+  const clean = uri.split('?')[0].toLowerCase();
+  const dot = clean.lastIndexOf('.');
+  const extension = dot === -1 ? '' : clean.slice(dot + 1);
+  return IMAGE_EXTENSIONS.has(extension) ? extension : 'jpg';
+}
+
 /**
  * Copia la portada a `widgetsDirectory` (el runtime del widget no puede leer
  * la caché de la app ni URLs remotas). Reutiliza el archivo si ya existe.
@@ -283,7 +294,7 @@ async function prepareArtwork(directory: Directory, song: Song | null): Promise<
     if (!source) {
       return null;
     }
-    const extension = source.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+    const extension = artworkExtension(source);
     const destination = new File(directory, `${ARTWORK_PREFIX}${song.id}.${extension}`);
     if (!destination.exists || destination.size === 0) {
       await new File(source).copy(destination, { overwrite: true });

@@ -1,6 +1,7 @@
 import { File, FileMode, type FileHandle } from 'expo-file-system';
 
 import { ascii } from '@/domain/artwork/bytes';
+import { extractFlacTags } from '@/domain/artwork/flac';
 import { extractId3Tags, parseId3TagSize } from '@/domain/artwork/id3';
 import { extractMp4Tags } from '@/domain/artwork/mp4';
 import type { AudioTags } from '@/domain/metadata';
@@ -13,6 +14,7 @@ import type { AudioTags } from '@/domain/metadata';
  * mínimo necesario:
  * - MP3: tag ID3v2 al inicio (`TIT2`, `TPE1`, `TALB`, `TPE2`, `TRCK`).
  * - M4A/M4B/MP4: átomos de `moov/udta/meta/ilst` (`©nam`, `©ART`, `©alb`, `aART`, `trkn`).
+ * - FLAC: bloque `VORBIS_COMMENT` (`TITLE`, `ARTIST`, `ALBUM`, ...).
  * Un fallo de lectura no rompe el escaneo: se devuelve `null` y se usan
  * los respaldos de nombre/carpeta.
  */
@@ -21,7 +23,7 @@ import type { AudioTags } from '@/domain/metadata';
 const ID3_TAG_MAX_BYTES = 2 * 1024 * 1024;
 
 /** Contenedores cuyo texto sabemos leer. */
-const TAG_EXTENSIONS = new Set(['mp3', 'm4a', 'm4b', 'mp4', 'aac']);
+const TAG_EXTENSIONS = new Set(['mp3', 'm4a', 'm4b', 'mp4', 'aac', 'flac']);
 
 function fileExtension(uri: string): string {
   const clean = uri.split('?')[0].toLowerCase();
@@ -77,6 +79,16 @@ export async function readAudioTags(uri: string): Promise<AudioTags | null> {
         return await instance.readBytes(length);
       };
       return await extractMp4Tags(reader, size);
+    }
+
+    // Firma "fLaC" → contenedor FLAC.
+    if (ascii(header, 0, 4) === 'fLaC') {
+      const instance = handle;
+      const reader = async (offset: number, length: number) => {
+        instance.offset = offset;
+        return await instance.readBytes(length);
+      };
+      return await extractFlacTags(reader, size);
     }
 
     return null;

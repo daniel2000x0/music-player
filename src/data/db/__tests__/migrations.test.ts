@@ -45,6 +45,7 @@ const SONG_COLUMNS = [
   'track_number',
   'folder_name',
   'modification_time',
+  'artwork_checked_at',
 ];
 
 beforeEach(() => {
@@ -71,6 +72,9 @@ describe('migrateDatabase: base nueva', () => {
     expect(mockRunLog).toContain(
       'ALTER TABLE songs ADD COLUMN modification_time INTEGER'
     );
+    expect(mockRunLog).toContain(
+      'ALTER TABLE songs ADD COLUMN artwork_checked_at INTEGER'
+    );
   });
 
   it('crea los índices de fecha y disponibilidad', async () => {
@@ -88,7 +92,7 @@ describe('migrateDatabase: base nueva', () => {
   it('deja PRAGMA user_version en la versión actual', async () => {
     await migrateDatabase(db);
 
-    expect(DATABASE_VERSION).toBe(6);
+    expect(DATABASE_VERSION).toBe(7);
     expect(mockExecLog).toContain(`PRAGMA user_version = ${DATABASE_VERSION}`);
   });
 });

@@ -8,7 +8,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Nunca se borran datos del usuario en una migración.
  */
 
-export const DATABASE_VERSION = 6;
+export const DATABASE_VERSION = 7;
 
 const V1 = `
 CREATE TABLE IF NOT EXISTS artists (
@@ -175,6 +175,17 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
    */
   if (!(await columnExists('songs', 'modification_time'))) {
     await db.runAsync('ALTER TABLE songs ADD COLUMN modification_time INTEGER');
+  }
+  /**
+   * V7: fecha del último intento de extraer la portada de una pista (`FASE 5.1`).
+   *
+   * LÓGICA: la búsqueda de carátulas ausentes (formatos FLAC y arte de carpeta)
+   * debe correr una sola vez por pista. Las filas anteriores a esta migración
+   * quedan con `NULL` y son las únicas candidatas del primer barrido; a partir
+   * de ahí cada intento (con o sin portada) sella la fecha y no se repite.
+   */
+  if (!(await columnExists('songs', 'artwork_checked_at'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN artwork_checked_at INTEGER');
   }
   await db.execAsync('CREATE INDEX IF NOT EXISTS idx_songs_audiobook ON songs(is_audiobook)');
   await db.execAsync(

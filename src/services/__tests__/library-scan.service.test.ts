@@ -2,6 +2,7 @@ import { songRepository } from '@/data/repositories/song.repository';
 import type { DeviceTrack } from '@/domain/library/scan-diff';
 import type { ScanProgress } from '@/domain/library/scan-progress';
 import { assignAlbumArtwork } from '@/services/artwork.service';
+import { runArtworkBackfill } from '@/services/artwork-backfill.service';
 import { runLibraryScan } from '@/services/library-scan.service';
 import { enumerateDeviceAudio, readDeviceTrack } from '@/services/media.service';
 import type { ScannedSong } from '@/types/song';
@@ -23,6 +24,10 @@ jest.mock('@/data/repositories/song.repository', () => ({
 
 jest.mock('@/services/artwork.service', () => ({
   assignAlbumArtwork: jest.fn(async () => undefined),
+}));
+
+jest.mock('@/services/artwork-backfill.service', () => ({
+  runArtworkBackfill: jest.fn(async () => undefined),
 }));
 
 jest.mock('@/services/error-log.service', () => ({
@@ -102,6 +107,7 @@ describe('runLibraryScan: incremental', () => {
       'cambiada',
     ]);
     expect(assignAlbumArtwork).toHaveBeenCalledTimes(1);
+    expect(runArtworkBackfill).toHaveBeenCalledTimes(1);
     expect(mockedMarkMissing).toHaveBeenCalledWith(['ausente']);
     expect(mockedReclassify).toHaveBeenCalledTimes(1);
     expect(report).toMatchObject({
@@ -127,6 +133,9 @@ describe('runLibraryScan: incremental', () => {
     expect(mockedUpsert).not.toHaveBeenCalled();
     expect(mockedMarkMissing).not.toHaveBeenCalled();
     expect(mockedReclassify).not.toHaveBeenCalled();
+    // El barrido de carátulas corre aunque la biblioteca esté al día: es donde
+    // se reparan las pistas guardadas sin portada.
+    expect(runArtworkBackfill).toHaveBeenCalledTimes(1);
     expect(report).toMatchObject({ unchanged: 1, added: 0, updated: 0, missing: 0 });
   });
 

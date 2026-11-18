@@ -16,6 +16,10 @@ import type { ScanProgress } from '@/domain/library/scan-progress';
 import { scanReportHasChanges, type ScanReport } from '@/domain/library/scan-report';
 import { migrateLegacyLibrary } from '@/services/legacy-migration.service';
 import { logError } from '@/services/error-log.service';
+import {
+  runArtworkBackfill,
+  type ArtworkBackfillReport,
+} from '@/services/artwork-backfill.service';
 import { runLibraryScan } from '@/services/library-scan.service';
 import { hasAudioPermission, requestAudioAccess } from '@/services/media.service';
 import { setPermissionSnapshot } from '@/services/capabilities';
@@ -35,6 +39,8 @@ type LibraryState = {
   isScanning: boolean;
   /** Sincronización automática en segundo plano (sin spinners de usuario). */
   isSyncing: boolean;
+  /** Barrido manual de carátulas ausentes en curso. */
+  isBackfilling: boolean;
   /** Progreso del escaneo en curso; `null` cuando no hay ninguno. */
   scanProgress: ScanProgress | null;
   /** Resumen del último escaneo terminado en esta sesión. */
@@ -47,6 +53,8 @@ type LibraryState = {
   sync: () => Promise<void>;
   /** Ejecuta (o comparte) el pipeline de escaneo; `null` si la mediateca falló. */
   scanOnce: () => Promise<ScanReport | null>;
+  /** Relee la portada de las canciones que no la muestran (`FASE 5.1`). */
+  backfillArtwork: () => Promise<ArtworkBackfillReport>;
   requestAccess: () => Promise<void>;
   toggleFavorite: (songId: number) => Promise<void>;
   isFavorite: (songId: number) => boolean;
@@ -124,6 +132,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   isLoading: true,
   isScanning: false,
   isSyncing: false,
+  isBackfilling: false,
   scanProgress: null,
   lastScanReport: null,
   hydrated: false,
@@ -204,6 +213,53 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
     })();
     return scanPromise;
+  },
+
+  /**
+   * Barrido manual de carátulas ausentes (`FASE 5.1`).
+   *
+   * LÓGICA: revisa todas las pistas sin portada (no solo las nunca
+   * verificadas), útil tras añadir un `cover.jpg` a una carpeta. Se omite si ya
+   * hay un escaneo o barrido en curso para no solapar transacciones de SQLite.
+   */
+  backfillArtwork: async () => {
+    const empty: ArtworkBackfillReport = {
+      candidates: 0,
+      resolved: 0,
+      albums: 0,
+      durationMs: 0,
+    };
+    if (get().isScanning || get().isSyncing || get().isBackfilling) {
+      return empty;
+    }
+    set({ isBackfilling: true, error: null });
+    try {
+      const report = await runArtworkBackfill({
+        force: true,
+        onProgress: (scanProgress) => set({ scanProgress }),
+      });
+      if (report.resolved > 0) {
+        const [songs, albums] = await Promise.all([
+          songRepository.getAll(),
+          albumRepository.getAll(),
+        ]);
+        set({ songs, albums });
+      }
+      return report;
+    } catch (error) {
+      logError('library-store', 'backfillArtwork', error);
+      const message =
+        error instanceof Error ? error.message : 'No se pudieron buscar las carátulas';
+      notifyFailure(
+        'library.artwork-failed',
+        'No se pudieron buscar las carátulas',
+        message
+      );
+      set({ error: message });
+      return empty;
+    } finally {
+      set({ isBackfilling: false, scanProgress: null });
+    }
   },
 
   refresh: async () => {

@@ -24,6 +24,7 @@ Cada fase declara: objetivo, problemas que ataca, archivos a tocar, funcionalida
 | 3 | Biblioteca, SQLite y escaneo sin tope | 4–5 d | 4, 6 |
 | 4 | Motor de reproducción y sesión persistente | 4–5 d | 5, 7 |
 | 5 | Notificaciones, pantalla de bloqueo y widget | 3–4 d | 6 |
+| 5.1 | Carátulas ausentes: formatos y respaldos | 1–2 d | 6, 7 |
 | 6 | UI/UX, animaciones y accesibilidad | 4–6 d | 7 |
 | 7 | Pruebas y optimización | 4–5 d | 8 |
 | 8 | APK y producción | 2–3 d | — |
@@ -735,6 +736,58 @@ OTA aplicada: grupo `e015edf0-0371-41d5-b9f2-d8abfbf1d698`, update Android `01a1
 
 ---
 
+## FASE 5.1 · Carátulas ausentes: formatos y respaldos
+
+**Esfuerzo:** 1–2 días
+**Objetivo:** que las canciones con portada real dejen de mostrar el marcador por defecto. Tres causas, tres arreglos: los **FLAC** no se leían en absoluto, muchas carpetas solo tienen una imagen suelta (`cover.jpg`) y las pistas ya guardadas sin portada nunca se vuelven a revisar.
+
+No se modifica ningún archivo de audio: toda la lectura es de solo lectura.
+
+### Problemas que ataca
+
+| ID | Problema |
+| --- | --- |
+| `AR-01` | Los **FLAC** (y sus etiquetas) no se leían: ni arte embebido ni título/artista/álbum. Cada FLAC quedaba como «Archivo» en «Sin álbum» y fragmentaba el álbum |
+| `AR-02` | Muchas carpetas no traen arte embebido, solo una imagen suelta (`cover.jpg`, `folder.png`…) que la app ignoraba |
+| `AR-03` | Las pistas guardadas antes de saber leer FLAC o arte de carpeta quedaron con `artwork_uri = null` y el escaneo incremental no las vuelve a tocar (su `modification_time` no cambió) |
+| `AR-04` | `MAX_ATTEMPTS_PER_ALBUM = 2` se rendía demasiado pronto en discos donde la primera pista no tiene portada; `sniffArtwork` solo reconocía JPEG/PNG |
+
+### Solución implementada
+
+| Área | Detalle |
+| --- | --- |
+| Parser FLAC | `src/domain/artwork/flac.ts`: `extractFlacArtwork` (bloque `PICTURE` tipo 6, prefiriendo frontal) y `extractFlacTags` (`VORBIS_COMMENT` tipo 4: `TITLE`, `ARTIST`, `ALBUM`, `ALBUMARTIST`, `TRACKNUMBER`, y `METADATA_BLOCK_PICTURE` en base64) |
+| Firmas de imagen | `src/domain/artwork/bytes.ts`: `ArtworkMime` amplía a WebP y GIF, `EXTENSION_BY_MIME`, `sniffArtworkMime` (JPEG/PNG/WebP/GIF) y `u24`/`u32le` para FLAC |
+| Etiquetas FLAC | `src/services/tag.service.ts`: `flac` en `TAG_EXTENSIONS` y rama por firma `fLaC` |
+| Arte de carpeta | `src/services/artwork.service.ts`: `readFolderArtwork` busca `cover`/`folder`/`front`/`album` (`.jpg`/`.jpeg`/`.png`/`.webp`) junto al archivo y devuelve la **URI original** (no se copia a la caché) |
+| Cadena de resolución | `resolveArtworkUri` = caché → arte embebido → arte de carpeta; `resolveAlbumArtwork` agrupa y prueba hasta `MAX_ATTEMPTS_PER_ALBUM` pistas (subido de 2 a **5**), reutilizado por el escaneo y el barrido |
+| Barrido de ausentes | `src/services/artwork-backfill.service.ts`: `runArtworkBackfill({force?, onProgress?})` agrupa por álbum, emite la fase `backfill` y sella por grupo |
+| Sello por pista | Migración **V7**: `songs.artwork_checked_at`. El barrido automático solo revisa filas con `artwork_checked_at IS NULL` (una vez por pista); la acción manual usa `force` (todas las que siguen sin portada) |
+| Integración | `runLibraryScan` ejecuta el barrido tras `reclassifyAudiobooks` (fase `backfill`), envuelto en `try/catch`; también como acción manual «Buscar carátulas faltantes» en Ajustes |
+| No pisar portada | `upsertBatch` usa `artwork_uri = COALESCE(excluded.artwork_uri, artwork_uri)` para no perder una portada existente si la extracción falla |
+
+### Desviaciones y limitaciones
+
+| Plan | Implementado | Motivo |
+| --- | --- | --- |
+| Leer `album_art` de MediaStore | **Descartado** | `expo-media-library` SDK 58 no expone `album_art` de MediaStore; requeriría un módulo nativo |
+| OGG/OPUS embebido | **Diferido** | Comparten contenedor Ogg (no FLAC nativo); el parser FLAC no aplica y no se añadió parser Ogg |
+| BMP como portada | **Diferido** | Fuera de `ArtworkMime`; poco frecuente y de gran tamaño |
+| Recopilatorios multi-artista | **Diferido** | El agrupado por álbum usa `${album}\0${artist}`; un disco con artistas distintos por pista se trata como varios álbumes |
+
+### Criterios de salida
+
+| Criterio | Resultado |
+| --- | --- |
+| FLAC leídos | Arte embebido y etiquetas de texto extraídos; los FLAC dejan de fragmentar álbumes |
+| Arte de carpeta | Se resuelve cuando no hay arte embebido, devolviendo la URI original de la imagen |
+| Barrido de ausentes | Corre una sola vez por pista en el escaneo (sello `artwork_checked_at`) y a demanda desde Ajustes con `force` |
+| Sin pérdida de portadas | `COALESCE` en `upsertBatch` conserva la portada previa ante un fallo de extracción |
+| Pruebas | `artwork-flac.test.ts`, `artwork-bytes.test.ts`, `artwork-backfill.service.test.ts`; actualizados `migrations.test.ts` (v7), `song.repository.test.ts` (650/650/260 + barrido) y `library-scan.service.test.ts` |
+| Verdes | `tsc` limpio · `jest` **38 suites / 281 pruebas** · `expo lint` 0 problemas |
+
+---
+
 ## FASE 6 · UI/UX, animaciones y accesibilidad
 
 **Esfuerzo:** 4–6 días
@@ -975,17 +1028,18 @@ Context7 ✅ · Expo MCP ❌ · GitHub MCP ❌.
 ## 2. Dependencias entre fases (por qué este orden)
 
 ```
-FASE 1 ──► FASE 2 ──► FASE 4 ──► FASE 5
+FASE 1 ──► FASE 2 ──► FASE 4 ──► FASE 5 ──► FASE 5.1
               │           ▲
               └──► FASE 3 ┘
-                            
-FASE 1..5 ──► FASE 6 ──► FASE 7 ──► FASE 8
+
+FASE 1..5.1 ──► FASE 6 ──► FASE 7 ──► FASE 8
 ```
 
 - **FASE 1 antes que todo:** sin rollback (`A-09`) y sin los dos críticos, cualquier refactor se hace sobre arena.
 - **FASE 2 antes que 3 y 4:** el escaneo y la sesión necesitan el canal de avisos y las capacidades; y la sesión necesita la máquina de estados.
 - **FASE 3 antes que 4:** restaurar una sesión exige que los ids de la biblioteca sean fiables (sin truncado, sin borrados en duro).
 - **FASE 5 después de 4:** el widget publica el estado del motor; sin sesión persistente, el snapshot nace muerto tras cada muerte de proceso.
+- **FASE 5.1 después de 5:** es una reparación puntual de la biblioteca (FLAC, arte de carpeta, pistas ya guardadas); no depende de la UI de FASE 6 y desbloquea las mediciones de FASE 7.
 - **FASE 6 después de 5:** no tiene sentido pulir la UI de estados que aún no existen.
 - **FASE 7 antes que 8:** se publica lo que está medido.
 
