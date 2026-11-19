@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { sortDirectionOf, sortFieldOf, toggleSortDirection } from '@/domain/library/sorting';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -42,7 +42,7 @@ export function SortSheet<K extends string>({
             <ThemedText type="smallBold" style={styles.headerTitle}>
               {title}
             </ThemedText>
-            <Pressable hitSlop={8} onPress={onClose} accessibilityLabel="Cerrar">
+            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar">
               <Ionicons name="close" size={22} color={theme.textSecondary} />
             </Pressable>
           </View>
@@ -63,6 +63,8 @@ export function SortSheet<K extends string>({
                     }
                   }}
                   style={({ pressed }) => [styles.item, pressed && styles.pressed]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
                   accessibilityLabel={`${field.label}, ${direction === 'asc' ? 'ascendente' : 'descendente'}`}
                   accessibilityHint={selected ? 'Toca de nuevo para alternar el sentido.' : undefined}>
                   <View style={styles.itemText}>
@@ -93,38 +95,38 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: Scrim,
   },
   sheet: {
     borderTopLeftRadius: Radius.large,
     borderTopRightRadius: Radius.large,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.five,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xxl,
     maxHeight: '70%',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.sm,
   },
   headerTitle: {
     fontSize: 16,
   },
   list: {
-    paddingVertical: Spacing.two,
-    gap: Spacing.one,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.three,
-    gap: Spacing.three,
+    paddingVertical: Spacing.lg,
+    gap: Spacing.lg,
   },
   itemText: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   pressed: {
     opacity: 0.7,

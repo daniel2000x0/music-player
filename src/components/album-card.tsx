@@ -28,6 +28,7 @@ export function AlbumCard({ album, width, onPress }: AlbumCardProps) {
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [{ width }, pressed && styles.pressed]}
+      accessibilityRole="button"
       accessibilityLabel={`Reproducir álbum ${album.title}`}>
       <View>
         <Artwork uri={album.artwork} size={width} radius={Radius.medium} />
@@ -52,17 +53,17 @@ const styles = StyleSheet.create({
   },
   playBadge: {
     position: 'absolute',
-    right: Spacing.two,
-    bottom: Spacing.two,
+    right: Spacing.sm,
+    bottom: Spacing.sm,
     width: 36,
     height: 36,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     // Ajuste óptico: el triángulo de "play" se ve mejor un poco a la derecha.
-    paddingLeft: 2,
+    paddingLeft: Spacing.xs,
   },
   title: {
-    marginTop: Spacing.two,
+    marginTop: Spacing.sm,
   },
 });

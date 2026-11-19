@@ -27,6 +27,8 @@ export function PlaylistCard({ playlist, songCount, onPress, onMore }: PlaylistC
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Abrir playlist ${playlist.name}, ${formatSongCount(songCount)}`}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
       <View style={[styles.thumb, { backgroundColor: theme.backgroundSelected }]}>
         <Ionicons name="list" size={24} color={theme.accent} />
@@ -42,7 +44,12 @@ export function PlaylistCard({ playlist, songCount, onPress, onMore }: PlaylistC
       </View>
 
       {onMore ? (
-        <Pressable hitSlop={8} onPress={onMore} style={styles.action} accessibilityLabel="Opciones">
+        <Pressable
+          hitSlop={8}
+          onPress={onMore}
+          style={styles.action}
+          accessibilityRole="button"
+          accessibilityLabel={`Opciones de ${playlist.name}`}>
           <Ionicons name="ellipsis-horizontal" size={20} color={theme.textSecondary} />
         </Pressable>
       ) : null}
@@ -54,8 +61,8 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.two,
-    gap: Spacing.three,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.lg,
   },
   pressed: {
     opacity: 0.6,
@@ -69,9 +76,9 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   action: {
-    padding: Spacing.one,
+    padding: Spacing.xs,
   },
 });

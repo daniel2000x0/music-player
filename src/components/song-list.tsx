@@ -11,7 +11,7 @@ import {
 
 import { AlphabetBar } from '@/components/alphabet-bar';
 import { SongRow } from '@/components/song-row';
-import { BottomTabInset, ScrollbarGutter } from '@/constants/theme';
+import { BottomTabInset, MiniPlayerInset, ScrollbarGutter } from '@/constants/theme';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingBottom: BottomTabInset + 110,
+    paddingBottom: BottomTabInset + MiniPlayerInset,
     // La barra alfabética vive en el margen derecho de la pantalla; solo
     // se reserva el carril del indicador para que no toque las filas.
     paddingRight: ScrollbarGutter,

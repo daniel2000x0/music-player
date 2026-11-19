@@ -104,7 +104,11 @@ export default function PlaylistDetailScreen() {
   );
 
   const back = (
-    <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
+    <Pressable
+      onPress={() => router.back()}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Volver">
       <Ionicons name="chevron-back" size={26} color={theme.text} />
     </Pressable>
   );
@@ -136,6 +140,7 @@ export default function PlaylistDetailScreen() {
             <Pressable
               onPress={() => play(songs[0], songs)}
               style={[styles.playButton, { backgroundColor: theme.accent }]}
+              accessibilityRole="button"
               accessibilityLabel="Reproducir playlist">
               <Ionicons name="play" size={18} color={theme.accentText} />
             </Pressable>
@@ -203,6 +208,6 @@ const styles = StyleSheet.create({
     paddingLeft: 2,
   },
   hint: {
-    paddingTop: Spacing.two,
+    paddingTop: Spacing.sm,
   },
 });

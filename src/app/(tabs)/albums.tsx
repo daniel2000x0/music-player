@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -20,8 +19,9 @@ import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
+import { SkeletonList } from '@/components/skeleton';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
 import { sortAlbums, sortArtists } from '@/domain/library/sorting';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
@@ -61,8 +61,8 @@ export default function AlbumsScreen() {
   const debouncedQuery = useDebouncedValue(query);
 
   const contentWidth =
-    Math.min(width, MaxContentWidth) - Spacing.four * 2 - ScrollbarGutter;
-  const cardWidth = (contentWidth - Spacing.three) / 2;
+    Math.min(width, MaxContentWidth) - Spacing.xl * 2 - ScrollbarGutter;
+  const cardWidth = (contentWidth - Spacing.lg) / 2;
 
   const visibleAlbums = useMemo(() => {
     const term = debouncedQuery.trim().toLowerCase();
@@ -127,6 +127,7 @@ export default function AlbumsScreen() {
             <Pressable
               onPress={() => setSortVisible(true)}
               style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
+              accessibilityRole="button"
               accessibilityLabel="Ordenar álbumes">
               <Ionicons name="swap-vertical" size={16} color={theme.text} />
               <ThemedText type="small">Ordenar</ThemedText>
@@ -136,7 +137,7 @@ export default function AlbumsScreen() {
         }
         header={header}>
         {isLoading ? (
-          <ActivityIndicator color={theme.accent} style={styles.loader} />
+          <SkeletonList rows={6} />
         ) : albums.length === 0 ? (
           <EmptyState
             icon="albums-outline"
@@ -150,7 +151,7 @@ export default function AlbumsScreen() {
             data={visibleAlbums}
             keyExtractor={keyExtractor}
             numColumns={2}
-            columnWrapperStyle={{ columnGap: Spacing.three }}
+            columnWrapperStyle={{ columnGap: Spacing.lg }}
             key={`${cardWidth}`}
             renderItem={({ item }) => (
               <AlbumCard album={item} width={cardWidth} onPress={() => handleAlbumPress(item.id)} />
@@ -224,54 +225,51 @@ export default function AlbumsScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    paddingBottom: Spacing.two,
+    paddingBottom: Spacing.sm,
     paddingRight: ScrollbarGutter,
   },
   search: {
     height: 44,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.lg,
     fontSize: 15,
   },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.pill,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   artistRow: {
-    gap: Spacing.three,
-    paddingBottom: Spacing.two,
+    gap: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   albumsHeader: {
-    gap: Spacing.three,
-    paddingBottom: Spacing.two,
+    gap: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   artist: {
     width: 84,
     alignItems: 'center',
-    gap: Spacing.one,
+    gap: Spacing.xs,
   },
   artistName: {
     textAlign: 'center',
-    marginTop: Spacing.one,
+    marginTop: Spacing.xs,
   },
   flex: {
     flex: 1,
   },
   gridContent: {
-    rowGap: Spacing.four,
-    paddingBottom: BottomTabInset + 110,
+    rowGap: Spacing.xl,
+    paddingBottom: BottomTabInset + MiniPlayerInset,
     paddingRight: ScrollbarGutter,
-  },
-  loader: {
-    marginTop: Spacing.five,
   },
 });

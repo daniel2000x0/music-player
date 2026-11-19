@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { BottomTabInset, MaxContentWidth, MiniPlayerInset, Spacing } from '@/constants/theme';
 
 export type ScreenShellProps = {
   title: string;
@@ -88,21 +88,21 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     maxWidth: MaxContentWidth,
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.xl,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.two,
+    gap: Spacing.sm,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   leading: {
     justifyContent: 'center',
   },
   titleBlock: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   title: {
     fontSize: 34,
@@ -115,8 +115,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingTop: Spacing.two,
-    paddingBottom: BottomTabInset + 110,
-    gap: Spacing.three,
+    paddingTop: Spacing.sm,
+    paddingBottom: BottomTabInset + MiniPlayerInset,
+    gap: Spacing.lg,
   },
 });

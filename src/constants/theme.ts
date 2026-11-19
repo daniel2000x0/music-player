@@ -36,6 +36,7 @@ export const Colors = {
     accent: '#12B76A',
     accentText: '#04140A',
     danger: '#E5484D',
+    link: '#1B6FD1',
 
     // Indicador de desplazamiento
     scrollbarIndicator: 'black',
@@ -51,6 +52,7 @@ export const Colors = {
     accent: '#1ED760',
     accentText: '#04140A',
     danger: '#FF453A',
+    link: '#6BA6FF',
 
     // Indicador de desplazamiento
     scrollbarIndicator: 'white',
@@ -105,18 +107,54 @@ export const Fonts = Platform.select({
  * Escala de espaciado base (en píxeles).
  *
  * LÓGICA: usar estos tokens en lugar de números sueltos mantiene la
- * jerarquía visual consistente. p.ej. `Spacing.three` (16) se usa en
- * paddings y gaps; `Spacing.four` (24) en secciones con más aire.
+ * jerarquía visual consistente. La escala es completa y de paso 4:
+ * `xs` (4) para separaciones mínimas, `sm` (8) para gaps entre elementos,
+ * `md` (12) para rellenos intermedios, `lg` (16) para paddings de tarjeta,
+ * `xl` (24) y `xxl` (32) para secciones con más aire.
+ *
+ * `FASE 6`: se sustituyeron los nombres posicionales (`one`, `two`, …) por
+ * nombres semánticos y se añadió el paso de 12 (`md`) que antes faltaba.
  */
 export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
 } as const;
+
+/**
+ * Área táctil mínima recomendada por las guías de accesibilidad (44 pt/dp).
+ * Se aplica con `hitSlop` o `minHeight`/`minWidth` en botones pequeños.
+ */
+export const MinTouchTarget = 44;
+
+/**
+ * Tamaños de icono reutilizables, alineados con la escala de espaciado.
+ * Evitan números sueltos en `size={…}` de `Ionicons`.
+ */
+export const IconSize = {
+  sm: 18,
+  md: 22,
+  lg: 26,
+  xl: 32,
+} as const;
+
+/**
+ * Velo (scrim) que oscurece el fondo tras un modal o una hoja inferior.
+ * Es el mismo en ambos temas, así que vive fuera de la paleta.
+ */
+export const Scrim = 'rgba(0,0,0,0.5)';
+
+/** Color de la sombra proyectada (banners, tarjetas elevadas). */
+export const Shadow = '#000';
+
+/**
+ * Color de un icono o texto pintado **sobre** el color `danger`.
+ * Es blanco en ambos temas porque `danger` es un rojo saturado.
+ */
+export const OnDanger = '#FFFFFF';
 
 /**
  * Ancho reservado en el borde derecho de las listas para el indicador
@@ -158,6 +196,16 @@ export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
  * pantallas sin área segura.
  */
 export const TabBarBaseHeight = 49;
+
+/**
+ * Espacio extra que reserva el contenido bajo la barra de pestañas para que
+ * el mini-reproductor flotante no tape la última fila de una lista.
+ *
+ * LÓGICA: el mini-reproductor mide ~64 px y se apoya sobre la barra; 110 px
+ * cubren su alto más un margen de seguridad. Antes era un literal `+ 110`
+ * repetido en cinco pantallas.
+ */
+export const MiniPlayerInset = 110;
 
 /**
  * Espacio que reserva el contenido en la parte superior en web.

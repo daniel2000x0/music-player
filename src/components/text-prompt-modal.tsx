@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type TextPromptModalProps = {
@@ -57,19 +57,21 @@ function TextPromptContent({
             onChangeText={setValue}
             placeholder={placeholder}
             placeholderTextColor={theme.textSecondary}
+            accessibilityLabel={title}
             autoFocus
             returnKeyType="done"
             onSubmitEditing={confirm}
             style={[styles.input, { backgroundColor: theme.backgroundSelected, color: theme.text }]}
           />
           <View style={styles.actions}>
-            <Pressable onPress={onClose} style={styles.button}>
+            <Pressable onPress={onClose} style={styles.button} accessibilityRole="button">
               <ThemedText type="smallBold" themeColor="textSecondary">
                 Cancelar
               </ThemedText>
             </Pressable>
             <Pressable
               onPress={confirm}
+              accessibilityRole="button"
               style={[styles.button, styles.confirm, { backgroundColor: theme.accent }]}>
               <ThemedText type="smallBold" style={{ color: theme.accentText }}>
                 {confirmLabel}
@@ -87,15 +89,15 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.four,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: Spacing.xl,
+    backgroundColor: Scrim,
   },
   card: {
     width: '100%',
     maxWidth: 420,
     borderRadius: Radius.large,
-    padding: Spacing.four,
-    gap: Spacing.three,
+    padding: Spacing.xl,
+    gap: Spacing.lg,
   },
   title: {
     fontSize: 16,
@@ -103,17 +105,17 @@ const styles = StyleSheet.create({
   input: {
     height: 44,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.lg,
     fontSize: 15,
   },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   button: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.medium,
   },
   confirm: {

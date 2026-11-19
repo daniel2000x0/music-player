@@ -507,7 +507,7 @@ export default function SettingsScreen() {
         <View
           style={[
             styles.card,
-            { backgroundColor: theme.backgroundElement, marginTop: Spacing.two },
+            { backgroundColor: theme.backgroundElement, marginTop: Spacing.sm },
           ]}
         >
           <ThemedText type="smallBold">Capacidades del dispositivo</ThemedText>
@@ -574,29 +574,29 @@ const styles = StyleSheet.create({
   capabilityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   card: {
     borderRadius: Radius.medium,
-    padding: Spacing.three,
-    gap: Spacing.two,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
   },
 
   section: {
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
 
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.three,
+    gap: Spacing.lg,
+    padding: Spacing.lg,
     borderRadius: Radius.medium,
   },
 
   rowInfo: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
 
   pressed: {
@@ -606,20 +606,20 @@ const styles = StyleSheet.create({
   scanning: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
   },
 
   scanSummary: {
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
   },
 
   updateCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.three,
+    gap: Spacing.lg,
+    padding: Spacing.lg,
     borderRadius: Radius.medium,
   },
 
@@ -632,6 +632,6 @@ const styles = StyleSheet.create({
 
   updateInfo: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
 });

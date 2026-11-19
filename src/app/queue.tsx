@@ -7,7 +7,7 @@ import { Artwork } from '@/components/artwork';
 import { EmptyState } from '@/components/empty-state';
 import { ScreenShell } from '@/components/screen-shell';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import { BottomTabInset, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { usePlayerStore } from '@/stores/player.store';
@@ -50,7 +50,8 @@ const QueueRow = memo(function QueueRow({
       <Pressable
         onPress={() => onPlay(song.queueIndex)}
         style={styles.main}
-        accessibilityLabel={`Reproducir ${song.title}`}>
+        accessibilityRole="button"
+        accessibilityLabel={`Reproducir ${song.title}, de ${song.artist}`}>
         <Artwork uri={song.artwork} size={44} />
         <View style={styles.info}>
           <ThemedText
@@ -70,6 +71,8 @@ const QueueRow = memo(function QueueRow({
         disabled={!canMoveUp}
         onPress={() => onMoveUp(song.queueIndex)}
         style={[styles.control, !canMoveUp && styles.disabled]}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !canMoveUp }}
         accessibilityLabel="Subir">
         <Ionicons name="chevron-up" size={20} color={theme.textSecondary} />
       </Pressable>
@@ -78,6 +81,8 @@ const QueueRow = memo(function QueueRow({
         disabled={!canMoveDown}
         onPress={() => onMoveDown(song.queueIndex)}
         style={[styles.control, !canMoveDown && styles.disabled]}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !canMoveDown }}
         accessibilityLabel="Bajar">
         <Ionicons name="chevron-down" size={20} color={theme.textSecondary} />
       </Pressable>
@@ -85,7 +90,8 @@ const QueueRow = memo(function QueueRow({
         hitSlop={6}
         onPress={() => onRemove(song.queueIndex)}
         style={styles.control}
-        accessibilityLabel="Quitar de la cola">
+        accessibilityRole="button"
+        accessibilityLabel={`Quitar ${song.title} de la cola`}>
         <Ionicons name="close" size={20} color={theme.textSecondary} />
       </Pressable>
     </View>
@@ -129,13 +135,21 @@ export default function QueueScreen() {
       subtitle={`${queue.length} canciones`}
       scroll={false}
       leading={
-        <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Volver">
           <Ionicons name="chevron-back" size={26} color={theme.text} />
         </Pressable>
       }
       action={
         queue.length > 1 ? (
-          <Pressable onPress={confirmClear} hitSlop={8} accessibilityLabel="Vaciar cola">
+          <Pressable
+            onPress={confirmClear}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Vaciar cola">
             <Ionicons name="trash-outline" size={22} color={theme.danger} />
           </Pressable>
         ) : null
@@ -184,22 +198,22 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    padding: Spacing.two,
+    gap: Spacing.xs,
+    padding: Spacing.sm,
     borderRadius: Radius.medium,
   },
   main: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    gap: Spacing.lg,
   },
   info: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   control: {
-    padding: Spacing.one,
+    padding: Spacing.xs,
   },
   disabled: {
     opacity: 0.3,
@@ -208,7 +222,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingBottom: BottomTabInset + 110,
+    paddingBottom: BottomTabInset + MiniPlayerInset,
     paddingRight: ScrollbarGutter,
   },
 });

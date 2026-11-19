@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /** Campos editables de una pista (corrección local, no reescribe el archivo). */
@@ -104,7 +104,7 @@ function SongEditContent({
           </Field>
 
           <View style={styles.actions}>
-            <Pressable onPress={onClose} style={styles.button}>
+            <Pressable onPress={onClose} style={styles.button} accessibilityRole="button">
               <ThemedText type="smallBold" themeColor="textSecondary">
                 Cancelar
               </ThemedText>
@@ -112,6 +112,8 @@ function SongEditContent({
             <Pressable
               onPress={confirm}
               disabled={!canSave}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canSave }}
               style={[
                 styles.button,
                 styles.confirm,
@@ -144,36 +146,36 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.four,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    padding: Spacing.xl,
+    backgroundColor: Scrim,
   },
   card: {
     width: '100%',
     maxWidth: 420,
     borderRadius: Radius.large,
-    padding: Spacing.four,
-    gap: Spacing.three,
+    padding: Spacing.xl,
+    gap: Spacing.lg,
   },
   title: {
     fontSize: 16,
   },
   field: {
-    gap: Spacing.one,
+    gap: Spacing.xs,
   },
   input: {
     height: 44,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.lg,
     fontSize: 15,
   },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   button: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.medium,
   },
   confirm: {

@@ -95,6 +95,16 @@ export const SongRow = memo(function SongRow({
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={300}
+      accessibilityRole="button"
+      accessibilityLabel={
+        selectionActive
+          ? `${song.title}, ${song.artist}${selected ? ', seleccionada' : ''}`
+          : `Reproducir ${song.title}, de ${song.artist}`
+      }
+      accessibilityHint={
+        selectionActive ? 'Toca para seleccionar o deseleccionar.' : undefined
+      }
+      accessibilityState={selectionActive ? { selected } : undefined}
       style={({ pressed }) => [
         styles.row,
         pressed && styles.pressed,
@@ -142,6 +152,8 @@ export const SongRow = memo(function SongRow({
           hitSlop={8}
           onPress={handleToggleFavorite}
           style={styles.action}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isFavorite }}
           accessibilityLabel={
             isFavorite
               ? 'Quitar de favoritos'
@@ -165,6 +177,7 @@ export const SongRow = memo(function SongRow({
           hitSlop={8}
           onPress={handleMore}
           style={styles.action}
+          accessibilityRole="button"
           accessibilityLabel="Más opciones"
         >
           <Ionicons
@@ -182,15 +195,15 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.two,
-    gap: Spacing.three,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.lg,
   },
   pressed: {
     opacity: 0.6,
   },
   info: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   title: {
     flexShrink: 1,
@@ -200,6 +213,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   action: {
-    padding: Spacing.one,
+    padding: Spacing.xs,
   },
 });

@@ -37,6 +37,7 @@ export function SelectionActions({
         hitSlop={8}
         onPress={onClose}
         style={styles.icon}
+        accessibilityRole="button"
         accessibilityLabel="Salir de la selección">
         <Ionicons name="close" size={22} color={theme.text} />
       </Pressable>
@@ -49,6 +50,7 @@ export function SelectionActions({
         hitSlop={8}
         onPress={onSelectAll}
         style={styles.icon}
+        accessibilityRole="button"
         accessibilityLabel="Seleccionar todo">
         <Ionicons name="checkmark-done-outline" size={22} color={theme.text} />
       </Pressable>
@@ -57,6 +59,7 @@ export function SelectionActions({
         hitSlop={8}
         onPress={onDelete}
         style={styles.icon}
+        accessibilityRole="button"
         accessibilityLabel="Eliminar selección">
         <Ionicons name="trash-outline" size={21} color={theme.danger} />
       </Pressable>
@@ -68,13 +71,13 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   count: {
     minWidth: 18,
     textAlign: 'center',
   },
   icon: {
-    padding: Spacing.one,
+    padding: Spacing.xs,
   },
 });

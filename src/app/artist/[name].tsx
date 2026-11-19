@@ -129,7 +129,11 @@ export default function ArtistDetailScreen() {
       <ScreenShell
         title="Artista"
         leading={
-          <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }>
@@ -145,7 +149,11 @@ export default function ArtistDetailScreen() {
         subtitle={`${formatSongCount(artist.songCount)} · ${artist.albumCount} álbumes`}
         scroll={false}
         leading={
-          <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }
@@ -238,27 +246,27 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.four,
-    paddingVertical: Spacing.two,
+    gap: Spacing.xl,
+    paddingVertical: Spacing.sm,
   },
   playButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.pill,
   },
   albumRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.three,
+    gap: Spacing.lg,
   },
   albumItem: {
     width: 80,
-    gap: Spacing.one,
+    gap: Spacing.xs,
   },
   albumTitle: {
-    marginTop: Spacing.half,
+    marginTop: Spacing.xs,
   },
 });

@@ -51,7 +51,11 @@ export default function AutoPlaylistScreen() {
         subtitle={definition.description}
         scroll={false}
         leading={
-          <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Volver">
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }
@@ -60,6 +64,7 @@ export default function AutoPlaylistScreen() {
             <Pressable
               onPress={() => play(list[0], list)}
               style={[styles.playButton, { backgroundColor: theme.accent }]}
+              accessibilityRole="button"
               accessibilityLabel={`Reproducir ${definition.name}`}>
               <Ionicons name="play" size={18} color={theme.accentText} />
             </Pressable>
@@ -113,8 +118,8 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.three,
+    gap: Spacing.lg,
+    padding: Spacing.lg,
     borderRadius: Radius.medium,
   },
   bannerIcon: {

@@ -56,8 +56,8 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.six,
-    gap: Spacing.two,
+    paddingVertical: Spacing.xxl,
+    gap: Spacing.sm,
   },
   iconWrap: {
     width: 72,
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.sm,
   },
   title: {
     fontSize: 18,
@@ -75,9 +75,9 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   button: {
-    marginTop: Spacing.three,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.four,
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
     borderRadius: Radius.pill,
   },
   pressed: {

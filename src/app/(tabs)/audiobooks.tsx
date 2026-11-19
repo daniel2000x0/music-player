@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -17,8 +16,9 @@ import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
+import { SkeletonList } from '@/components/skeleton';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import { BottomTabInset, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
 import { collectAudiobooks, type Audiobook } from '@/domain/library/audiobooks';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
@@ -58,7 +58,8 @@ const BookRow = memo(function BookRow({
     <Pressable
       onPress={() => book.albumId !== null && router.push(`/album/${book.albumId}`)}
       style={({ pressed }) => [styles.book, pressed && styles.pressed]}
-      accessibilityLabel={`Abrir audiolibro ${book.title}`}>
+      accessibilityRole="button"
+      accessibilityLabel={`Abrir audiolibro ${book.title}, de ${book.author}`}>
       <Artwork uri={book.chapters[0]?.artwork ?? null} size={56} radius={Radius.small} />
 
       <View style={styles.bookInfo}>
@@ -77,6 +78,7 @@ const BookRow = memo(function BookRow({
         hitSlop={8}
         onPress={() => onOptions(book)}
         style={styles.action}
+        accessibilityRole="button"
         accessibilityLabel={`Opciones de ${book.title}`}>
         <Ionicons name="ellipsis-horizontal" size={20} color={theme.textSecondary} />
       </Pressable>
@@ -85,6 +87,7 @@ const BookRow = memo(function BookRow({
         hitSlop={8}
         onPress={() => onPlay(book)}
         style={[styles.playButton, { backgroundColor: theme.accent }]}
+        accessibilityRole="button"
         accessibilityLabel={`Reproducir ${book.title}`}>
         <Ionicons name="play" size={18} color={theme.accentText} />
       </Pressable>
@@ -198,7 +201,7 @@ export default function AudiobooksScreen() {
         action={<RefreshButton />}
         header={header}>
       {isLoading ? (
-        <ActivityIndicator color={theme.accent} style={styles.loader} />
+        <SkeletonList rows={6} />
       ) : error && songs.length === 0 ? (
         <EmptyState
           icon="alert-circle-outline"
@@ -283,30 +286,30 @@ export default function AudiobooksScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    paddingBottom: Spacing.two,
+    paddingBottom: Spacing.sm,
     paddingRight: ScrollbarGutter,
   },
   search: {
     height: 44,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.lg,
     fontSize: 15,
   },
   book: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.two,
+    gap: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   pressed: {
     opacity: 0.6,
   },
   bookInfo: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   action: {
-    padding: Spacing.one,
+    padding: Spacing.xs,
   },
   playButton: {
     width: 38,
@@ -315,7 +318,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     // Ajuste óptico: el triángulo de "play" se ve mejor un poco a la derecha.
-    paddingLeft: 2,
+    paddingLeft: Spacing.xs,
   },
   flex: {
     flex: 1,
@@ -325,11 +328,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   listContent: {
-    paddingBottom: BottomTabInset + 110,
+    paddingBottom: BottomTabInset + MiniPlayerInset,
     // Carril del indicador; la barra alfabética vive en el margen derecho.
     paddingRight: ScrollbarGutter,
-  },
-  loader: {
-    marginTop: Spacing.five,
   },
 });

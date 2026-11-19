@@ -50,8 +50,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.two,
-    marginBottom: Spacing.two,
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
   title: {
     flexShrink: 1,

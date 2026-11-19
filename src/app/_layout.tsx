@@ -1,12 +1,10 @@
 import {
-  DarkTheme,
-  DefaultTheme,
   Stack,
   ThemeProvider,
   usePathname,
   useSegments,
 } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -14,11 +12,13 @@ import { StatusBar } from 'expo-status-bar';
 import { AudioBridge } from '@/components/audio-bridge';
 import { MiniPlayer } from '@/components/mini-player';
 import { NoticeBanner } from '@/components/notice-banner';
-import { Colors, TabBarBaseHeight } from '@/constants/theme';
+import { TabBarBaseHeight } from '@/constants/theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useAppUpdatePrompt } from '@/hooks/use-app-update-prompt';
+import { useNavigationTheme } from '@/hooks/use-navigation-theme';
+import { useTheme } from '@/hooks/use-theme';
 
 /**
  * Layout raíz. Hidrata SQLite y los stores globales (biblioteca, ajustes y
@@ -33,6 +33,8 @@ export default function RootLayout() {
   const segments = useSegments();
   const insets = useSafeAreaInsets();
   const theme = useSettingsStore((state) => state.theme);
+  const palette = useTheme();
+  const navigationTheme = useNavigationTheme();
   const showMiniPlayer = pathname !== '/player';
 
   // El mini-reproductor se apoya justo encima de la barra de pestañas
@@ -61,33 +63,16 @@ export default function RootLayout() {
     document.documentElement.style.setProperty('color-scheme', theme);
   }, [theme]);
 
-  const navigationTheme = useMemo(() => {
-    const base = theme === 'dark' ? DarkTheme : DefaultTheme;
-    const palette = Colors[theme];
-    return {
-      ...base,
-      colors: {
-        ...base.colors,
-        primary: palette.accent,
-        background: palette.background,
-        card: palette.backgroundElement,
-        text: palette.text,
-        border: palette.border,
-        notification: palette.danger,
-      },
-    };
-  }, [theme]);
-
   return (
     <ThemeProvider value={navigationTheme}>
-      <View style={[styles.root, { backgroundColor: Colors[theme].background }]}>
+      <View style={[styles.root, { backgroundColor: palette.background }]}>
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
         <AudioBridge />
         <NoticeBanner />
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: Colors[theme].background },
+            contentStyle: { backgroundColor: palette.background },
           }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen

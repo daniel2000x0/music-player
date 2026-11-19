@@ -1,18 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Linking,
   Pressable,
-  ScrollView,
   StyleSheet,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Artwork } from '@/components/artwork';
+import { ArtworkReveal } from '@/components/artwork-reveal';
 import { EmptyState } from '@/components/empty-state';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { SeekBar } from '@/components/seek-bar';
@@ -85,7 +85,21 @@ export default function PlayerScreen() {
 
   const [pickerVisible, setPickerVisible] = useState(false);
 
-  const artworkSize = Math.min(width - Spacing.four * 2, MaxContentWidth - Spacing.four * 2, 360);
+  // Transición mini-reproductor → reproductor (`UI-08`): el contenido entra
+  // con un leve deslizamiento hacia arriba y un fundido, dando continuidad
+  // con el mini-reproductor del que se viene.
+  const [enter] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    const animation = Animated.timing(enter, {
+      toValue: 1,
+      duration: 280,
+      useNativeDriver: true,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [enter]);
+
+  const artworkSize = Math.min(width - Spacing.xl * 2, MaxContentWidth - Spacing.xl * 2, 360);
 
   if (!currentSong) {
     return (
@@ -119,7 +133,11 @@ export default function PlayerScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
-          <Pressable hitSlop={8} onPress={() => router.back()} accessibilityLabel="Cerrar">
+          <Pressable
+            hitSlop={8}
+            onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Cerrar">
             <Ionicons name="chevron-down" size={28} color={theme.text} />
           </Pressable>
           <ThemedText type="small" themeColor="textSecondary">
@@ -128,6 +146,7 @@ export default function PlayerScreen() {
           <Pressable
             hitSlop={8}
             onPress={() => router.push('/queue')}
+            accessibilityRole="button"
             accessibilityLabel="Cola de reproducción">
             <Ionicons name="list" size={24} color={theme.text} />
           </Pressable>
@@ -163,10 +182,16 @@ export default function PlayerScreen() {
           </View>
         ) : null}
 
-        <ScrollView
+        <Animated.ScrollView
           contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}>
-          <Artwork uri={currentSong.artwork} size={artworkSize} radius={Radius.large} />
+          showsVerticalScrollIndicator={false}
+          style={{
+            opacity: enter,
+            transform: [
+              { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+            ],
+          }}>
+          <ArtworkReveal uri={currentSong.artwork} size={artworkSize} radius={Radius.large} />
 
           <View style={styles.meta}>
             <ThemedText type="subtitle" numberOfLines={2} style={styles.songTitle}>
@@ -180,21 +205,38 @@ export default function PlayerScreen() {
           <PlayerProgress onSeek={seek} trackKey={currentSong.id} />
 
           <View style={styles.controls}>
-            <Pressable hitSlop={8} onPress={toggleShuffle} accessibilityLabel="Aleatorio">
+            <Pressable
+              hitSlop={8}
+              onPress={toggleShuffle}
+              style={styles.controlWithState}
+              accessibilityRole="button"
+              accessibilityLabel="Aleatorio"
+              accessibilityState={{ selected: shuffle }}>
               <Ionicons
                 name="shuffle"
                 size={24}
                 color={shuffle ? theme.accent : theme.textSecondary}
               />
+              <View
+                style={[
+                  styles.activeDot,
+                  { backgroundColor: shuffle ? theme.accent : 'transparent' },
+                ]}
+              />
             </Pressable>
 
-            <Pressable hitSlop={8} onPress={previous} accessibilityLabel="Anterior">
+            <Pressable
+              hitSlop={8}
+              onPress={previous}
+              accessibilityRole="button"
+              accessibilityLabel="Anterior">
               <Ionicons name="play-skip-back" size={34} color={theme.text} />
             </Pressable>
 
             <Pressable
               onPress={toggle}
               style={[styles.playButton, { backgroundColor: theme.accent }]}
+              accessibilityRole="button"
               accessibilityLabel="Reproducir o pausar">
               {isBuffering ? (
                 <ActivityIndicator color={theme.accentText} />
@@ -208,14 +250,21 @@ export default function PlayerScreen() {
               )}
             </Pressable>
 
-            <Pressable hitSlop={8} onPress={next} accessibilityLabel="Siguiente">
+            <Pressable
+              hitSlop={8}
+              onPress={next}
+              accessibilityRole="button"
+              accessibilityLabel="Siguiente">
               <Ionicons name="play-skip-forward" size={34} color={theme.text} />
             </Pressable>
 
             <Pressable
               hitSlop={8}
               onPress={cycleRepeat}
-              accessibilityLabel={`Repetir: ${repeatMode}`}>
+              style={styles.controlWithState}
+              accessibilityRole="button"
+              accessibilityLabel={`Repetir: ${repeatMode}`}
+              accessibilityState={{ selected: repeatMode !== 'none' }}>
               <View>
                 <Ionicons
                   name={repeatMode === 'none' ? 'repeat-outline' : 'repeat'}
@@ -230,6 +279,12 @@ export default function PlayerScreen() {
                   </View>
                 ) : null}
               </View>
+              <View
+                style={[
+                  styles.activeDot,
+                  { backgroundColor: repeatMode !== 'none' ? theme.accent : 'transparent' },
+                ]}
+              />
             </Pressable>
           </View>
 
@@ -240,7 +295,9 @@ export default function PlayerScreen() {
               hitSlop={8}
               onPress={() => void toggleFavorite(currentSong.id)}
               style={styles.actionItem}
-              accessibilityLabel="Favorito">
+              accessibilityRole="button"
+              accessibilityLabel="Favorito"
+              accessibilityState={{ selected: favorite }}>
               <Ionicons
                 name={favorite ? 'heart' : 'heart-outline'}
                 size={26}
@@ -255,7 +312,8 @@ export default function PlayerScreen() {
               hitSlop={8}
               onPress={() => setPickerVisible(true)}
               style={styles.actionItem}
-              accessibilityLabel="Playlist">
+              accessibilityRole="button"
+              accessibilityLabel="Agregar a playlist">
               <Ionicons name="add-circle-outline" size={26} color={theme.textSecondary} />
               <ThemedText type="small" themeColor="textSecondary">
                 Playlist
@@ -266,14 +324,15 @@ export default function PlayerScreen() {
               hitSlop={8}
               onPress={() => router.push('/queue')}
               style={styles.actionItem}
-              accessibilityLabel="Cola">
+              accessibilityRole="button"
+              accessibilityLabel="Cola de reproducción">
               <Ionicons name="list-outline" size={26} color={theme.textSecondary} />
               <ThemedText type="small" themeColor="textSecondary">
                 Cola
               </ThemedText>
             </Pressable>
           </View>
-        </ScrollView>
+        </Animated.ScrollView>
       </SafeAreaView>
 
       <PlaylistPicker
@@ -294,7 +353,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     maxWidth: MaxContentWidth,
-    paddingHorizontal: Spacing.four,
+    paddingHorizontal: Spacing.xl,
   },
   closeButton: {
     alignItems: 'flex-start',
@@ -303,31 +362,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.three,
+    paddingVertical: Spacing.lg,
   },
   scrollContent: {
     alignItems: 'center',
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.five,
-    gap: Spacing.four,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xxl,
+    gap: Spacing.xl,
   },
   lockNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: Spacing.two,
+    gap: Spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   lockNoticeBody: {
     flex: 1,
-    gap: Spacing.one,
+    gap: Spacing.xs,
   },
   meta: {
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.lg,
   },
   songTitle: {
     fontSize: 24,
@@ -340,14 +399,23 @@ const styles = StyleSheet.create({
   timeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.half,
+    paddingHorizontal: Spacing.xs,
   },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.lg,
+  },
+  controlWithState: {
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  activeDot: {
+    width: Spacing.xs,
+    height: Spacing.xs,
+    borderRadius: Radius.pill,
   },
   playButton: {
     width: 72,
@@ -357,7 +425,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playIcon: {
-    marginLeft: 2,
+    marginLeft: Spacing.xs,
   },
   repeatBadge: {
     position: 'absolute',
@@ -376,11 +444,11 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: Spacing.six,
-    marginTop: Spacing.two,
+    gap: Spacing.xxl,
+    marginTop: Spacing.sm,
   },
   actionItem: {
     alignItems: 'center',
-    gap: Spacing.one,
+    gap: Spacing.xs,
   },
 });

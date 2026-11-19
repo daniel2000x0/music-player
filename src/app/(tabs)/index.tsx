@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   RefreshControl,
   StyleSheet,
   View,
@@ -16,6 +15,7 @@ import { QuickAccess, type QuickAccessItem } from '@/components/quick-access';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
+import { SkeletonList } from '@/components/skeleton';
 import { InlineSongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -48,8 +48,8 @@ export default function HomeScreen() {
   const [pickerSong, setPickerSong] = useState<Song | null>(null);
   const [pickerVisible, setPickerVisible] = useState(false);
 
-  const contentWidth = Math.min(width, MaxContentWidth) - Spacing.four * 2;
-  const albumCardWidth = (contentWidth - Spacing.three) / 2;
+  const contentWidth = Math.min(width, MaxContentWidth) - Spacing.xl * 2;
+  const albumCardWidth = (contentWidth - Spacing.lg) / 2;
 
   // Los audiolibros no cuentan como canciones en Inicio (ni en contadores
   // ni en recientes/más escuchadas): viven en su propia pestaña.
@@ -117,12 +117,7 @@ export default function HomeScreen() {
   if (isLoading) {
     return (
       <ScreenShell title="Mi Música" scroll={false}>
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} />
-          <ThemedText type="small" themeColor="textSecondary">
-            Cargando tu biblioteca…
-          </ThemedText>
-        </View>
+        <SkeletonList rows={6} />
       </ScreenShell>
     );
   }
@@ -266,21 +261,15 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.three,
-  },
   statsRow: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   stat: {
     flex: 1,
     borderRadius: Radius.medium,
-    padding: Spacing.three,
-    gap: Spacing.half,
+    padding: Spacing.lg,
+    gap: Spacing.xs,
   },
   statValue: {
     fontSize: 24,
@@ -289,7 +278,7 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.three,
-    rowGap: Spacing.four,
+    gap: Spacing.lg,
+    rowGap: Spacing.xl,
   },
 });

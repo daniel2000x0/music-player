@@ -164,7 +164,11 @@ export default function AlbumDetailScreen() {
   );
 
   const back = (
-    <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
+    <Pressable
+      onPress={() => router.back()}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel="Volver">
       <Ionicons name="chevron-back" size={26} color={theme.text} />
     </Pressable>
   );
@@ -197,6 +201,7 @@ export default function AlbumDetailScreen() {
               onPress={() => setAlbumMenuVisible(true)}
               hitSlop={8}
               style={styles.headerAction}
+              accessibilityRole="button"
               accessibilityLabel="Opciones del álbum">
               <Ionicons name="ellipsis-horizontal" size={22} color={theme.text} />
             </Pressable>
@@ -286,23 +291,23 @@ const styles = StyleSheet.create({
   hero: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    paddingVertical: Spacing.two,
+    gap: Spacing.lg,
+    paddingVertical: Spacing.sm,
   },
   heroInfo: {
     flex: 1,
-    gap: Spacing.three,
+    gap: Spacing.lg,
   },
   playButton: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: Spacing.one,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.pill,
   },
   headerAction: {
-    padding: Spacing.one,
+    padding: Spacing.xs,
   },
 });

@@ -51,6 +51,9 @@ export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
   return (
     <Pressable
       onPress={() => router.push('/player')}
+      accessibilityRole="button"
+      accessibilityLabel={`Abrir reproductor: ${currentSong.title}, de ${currentSong.artist}`}
+      accessibilityHint="Abre la pantalla completa del reproductor."
       style={[
         styles.container,
         { backgroundColor: theme.backgroundElement, bottom: bottomOffset },
@@ -70,11 +73,11 @@ export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
           </ThemedText>
         </View>
 
-        <Pressable hitSlop={8} onPress={toggle} style={styles.control} accessibilityLabel="Reproducir o pausar">
+        <Pressable hitSlop={8} onPress={toggle} style={styles.control} accessibilityRole="button" accessibilityLabel="Reproducir o pausar">
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={26} color={theme.text} />
         </Pressable>
 
-        <Pressable hitSlop={8} onPress={next} style={styles.control} accessibilityLabel="Siguiente">
+        <Pressable hitSlop={8} onPress={next} style={styles.control} accessibilityRole="button" accessibilityLabel="Siguiente">
           <Ionicons name="play-skip-forward" size={24} color={theme.text} />
         </Pressable>
       </View>
@@ -85,8 +88,8 @@ export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: Spacing.two,
-    right: Spacing.two,
+    left: Spacing.sm,
+    right: Spacing.sm,
     borderRadius: Radius.large,
     overflow: 'hidden',
   },
@@ -100,15 +103,15 @@ const styles = StyleSheet.create({
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
-    gap: Spacing.three,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    gap: Spacing.lg,
   },
   info: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   control: {
-    padding: Spacing.one,
+    padding: Spacing.xs,
   },
 });

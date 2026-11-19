@@ -10,6 +10,7 @@ import { PlaylistPicker } from '@/components/playlist-picker';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SelectionActions } from '@/components/selection-actions';
+import { SkeletonList } from '@/components/skeleton';
 import { SongDeleteSheet, type DeleteChoice } from '@/components/song-delete-sheet';
 import { SongEditModal } from '@/components/song-edit-modal';
 import { SortSheet, type SortField } from '@/components/sort-sheet';
@@ -180,6 +181,7 @@ export default function SongsScreen() {
           <Pressable
             onPress={() => setSortVisible(true)}
             style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
+            accessibilityRole="button"
             accessibilityLabel="Ordenar canciones">
             <Ionicons name="swap-vertical" size={16} color={theme.text} />
             <ThemedText type="small" numberOfLines={1}>
@@ -228,6 +230,7 @@ export default function SongsScreen() {
             <Pressable
               onPress={() => play(visibleSongs[0], visibleSongs)}
               style={[styles.playAll, { backgroundColor: theme.accent }]}
+              accessibilityRole="button"
               accessibilityLabel="Reproducir todo">
               <Ionicons name="play" size={16} color={theme.accentText} />
               <ThemedText type="smallBold" style={{ color: theme.accentText }}>
@@ -248,7 +251,7 @@ export default function SongsScreen() {
           </View>
         ) : null}
         {isLoading ? (
-          <ActivityIndicator color={theme.accent} style={styles.loader} />
+          <SkeletonList />
         ) : error && songs.length === 0 ? (
           <EmptyState
             icon="alert-circle-outline"
@@ -350,32 +353,32 @@ export default function SongsScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    gap: Spacing.two,
-    paddingBottom: Spacing.two,
+    gap: Spacing.sm,
+    paddingBottom: Spacing.sm,
   },
   search: {
     height: 44,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.lg,
     fontSize: 15,
   },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   toolbarActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
     borderRadius: Radius.pill,
     maxWidth: '65%',
     flexShrink: 1,
@@ -383,22 +386,19 @@ const styles = StyleSheet.create({
   playAll: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.pill,
-  },
-  loader: {
-    marginTop: Spacing.five,
   },
   scanBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.medium,
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.sm,
   },
   scanText: {
     flex: 1,

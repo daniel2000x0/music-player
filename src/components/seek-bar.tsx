@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, StyleSheet, View } from 'react-native';
+import { PanResponder, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
+import { formatClock } from '@/utils/format';
 
 export type SeekBarProps = {
   /** Posición actual en segundos. */
@@ -129,12 +130,32 @@ export function SeekBar({ position, duration, onSeek }: SeekBarProps) {
   const progress = duration > 0 ? Math.max(0, Math.min(1, current / duration)) : 0;
   const thumbLeft = Math.max(0, Math.min(width - THUMB_SIZE, progress * width - THUMB_SIZE / 2));
 
+  // Salto de los gestos de accesibilidad (TalkBack): ~5 % de la pista, mínimo 5 s.
+  const handleAccessibilityAction = (event: AccessibilityActionEvent) => {
+    if (!enabled) {
+      return;
+    }
+    const step = Math.max(5, duration * 0.05);
+    const delta = event.nativeEvent.actionName === 'increment' ? step : -step;
+    onSeek(clampSeconds(current + delta, duration));
+  };
+
   return (
     <View
       onLayout={(event) => {
         setWidth(event.nativeEvent.layout.width);
       }}
       style={styles.hitArea}
+      accessibilityRole="adjustable"
+      accessibilityLabel="Posición de reproducción"
+      accessibilityValue={{
+        min: 0,
+        max: Math.round(duration),
+        now: Math.round(current),
+        text: `${formatClock(current)} de ${formatClock(duration)}`,
+      }}
+      accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+      onAccessibilityAction={handleAccessibilityAction}
       {...responder.panHandlers}>
       <View
         pointerEvents="none"

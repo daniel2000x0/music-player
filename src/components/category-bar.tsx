@@ -37,6 +37,7 @@ export function CategoryBar<T extends string>({ options, value, onChange }: Cate
               { backgroundColor: active ? theme.accent : theme.backgroundElement },
             ]}
             accessibilityRole="button"
+            accessibilityLabel={option.label}
             accessibilityState={{ selected: active }}>
             <ThemedText
               type="smallBold"
@@ -53,11 +54,11 @@ export function CategoryBar<T extends string>({ options, value, onChange }: Cate
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   pill: {
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.pill,
   },
 });

@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useNoticeStore } from '@/stores/notice.store';
 
@@ -34,7 +34,7 @@ export function NoticeBanner() {
 
   return (
     <View
-      style={[styles.container, { top: insets.top + Spacing.two }]}
+      style={[styles.container, { top: insets.top + Spacing.sm }]}
       pointerEvents="box-none">
       <View
         style={[
@@ -71,6 +71,7 @@ export function NoticeBanner() {
           hitSlop={8}
           onPress={() => dismiss(notice.code)}
           style={styles.close}
+          accessibilityRole="button"
           accessibilityLabel="Descartar aviso">
           <Ionicons name="close" size={18} color={theme.textSecondary} />
         </Pressable>
@@ -82,32 +83,32 @@ export function NoticeBanner() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: Spacing.three,
-    right: Spacing.three,
+    left: Spacing.lg,
+    right: Spacing.lg,
     zIndex: 100,
   },
   banner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: Spacing.two,
-    padding: Spacing.three,
+    gap: Spacing.sm,
+    padding: Spacing.lg,
     borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
     // Se eleva sobre las pantallas para que el aviso no quede oculto.
     elevation: 6,
-    shadowColor: '#000',
+    shadowColor: Shadow,
     shadowOpacity: 0.2,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
   },
   content: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   action: {
-    paddingTop: Spacing.one,
+    paddingTop: Spacing.xs,
   },
   close: {
-    padding: Spacing.half,
+    padding: Spacing.xs,
   },
 });

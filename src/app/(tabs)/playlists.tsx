@@ -1,13 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistCard } from '@/components/playlist-card';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
+import { SkeletonList } from '@/components/skeleton';
 import { TextPromptModal } from '@/components/text-prompt-modal';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
@@ -120,6 +121,7 @@ export default function PlaylistsScreen() {
               setPromptVisible(true);
             }}
             style={[styles.newButton, { backgroundColor: theme.accent }]}
+            accessibilityRole="button"
             accessibilityLabel="Crear playlist">
             <Ionicons name="add" size={18} color={theme.accentText} />
             <ThemedText type="smallBold" style={{ color: theme.accentText }}>
@@ -128,7 +130,7 @@ export default function PlaylistsScreen() {
           </Pressable>
         }>
         {isLoading ? (
-          <ActivityIndicator color={theme.accent} style={styles.loader} />
+          <SkeletonList rows={5} />
         ) : error && songs.length === 0 ? (
           <EmptyState
             icon="alert-circle-outline"
@@ -261,22 +263,19 @@ const styles = StyleSheet.create({
   newButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.one,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
     borderRadius: Radius.pill,
   },
-  loader: {
-    marginTop: Spacing.five,
-  },
   autoGrid: {
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   autoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
-    padding: Spacing.three,
+    gap: Spacing.lg,
+    padding: Spacing.lg,
     borderRadius: Radius.medium,
   },
   autoIcon: {
@@ -288,7 +287,7 @@ const styles = StyleSheet.create({
   },
   autoInfo: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   pressed: {
     opacity: 0.7,

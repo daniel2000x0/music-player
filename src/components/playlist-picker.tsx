@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { Song } from '@/types/song';
@@ -55,7 +55,7 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
             <ThemedText type="smallBold" style={styles.headerTitle}>
               Agregar a playlist
             </ThemedText>
-            <Pressable hitSlop={8} onPress={onClose}>
+            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar">
               <Ionicons name="close" size={22} color={theme.textSecondary} />
             </Pressable>
           </View>
@@ -72,6 +72,9 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
                   <Pressable
                     key={playlist.id}
                     onPress={() => handleAdd(playlist.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: contains }}
+                    accessibilityLabel={`Agregar a ${playlist.name}${contains ? ', ya incluida' : ''}`}
                     style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
                     <Ionicons name="list" size={20} color={theme.textSecondary} />
                     <ThemedText type="smallBold" numberOfLines={1} style={styles.itemLabel}>
@@ -99,6 +102,8 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
             />
             <Pressable
               onPress={handleCreate}
+              accessibilityRole="button"
+              accessibilityLabel="Crear playlist y agregar la canción"
               style={({ pressed }) => [
                 styles.createButton,
                 { backgroundColor: theme.accent },
@@ -117,21 +122,21 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: Scrim,
   },
   sheet: {
     borderTopLeftRadius: Radius.large,
     borderTopRightRadius: Radius.large,
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.five,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xxl,
     maxHeight: '70%',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.two,
+    marginBottom: Spacing.sm,
   },
   headerTitle: {
     fontSize: 16,
@@ -140,14 +145,14 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   listContent: {
-    paddingVertical: Spacing.two,
-    gap: Spacing.one,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.xs,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.two,
-    gap: Spacing.three,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.lg,
   },
   itemLabel: {
     flex: 1,
@@ -155,15 +160,15 @@ const styles = StyleSheet.create({
   createRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingTop: Spacing.three,
+    gap: Spacing.sm,
+    paddingTop: Spacing.lg,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   input: {
     flex: 1,
     height: 44,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Spacing.lg,
     fontSize: 15,
   },
   createButton: {

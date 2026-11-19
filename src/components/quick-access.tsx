@@ -63,13 +63,13 @@ export function QuickAccess({ items }: QuickAccessProps) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: Spacing.two,
+    gap: Spacing.sm,
   },
   card: {
     flex: 1,
     borderRadius: Radius.medium,
-    padding: Spacing.three,
-    gap: Spacing.two,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
   },
   pressed: {
     opacity: 0.7,

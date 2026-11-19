@@ -2,8 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import type { ColorValue } from 'react-native';
 
-import { Colors } from '@/constants/theme';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useTheme } from '@/hooks/use-theme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -20,8 +19,7 @@ function icon(name: IconName) {
  * viven fuera del grupo para que el tab bar no aparezca en ellos.
  */
 export default function TabsLayout() {
-  const theme = useSettingsStore((state) => state.theme);
-  const palette = Colors[theme];
+  const palette = useTheme();
 
   return (
     <Tabs
@@ -29,6 +27,13 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: palette.accent,
         tabBarInactiveTintColor: palette.textSecondary,
+        // UI-05: seis pestañas deben caber a 320 dp. La etiqueta se reduce y
+        // no escala con la fuente del sistema (el nombre accesible completo lo
+        // sigue anunciando el lector de pantalla), así la barra no se rompe ni
+        // recorta texto con fuentes grandes.
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        tabBarItemStyle: { paddingHorizontal: 0 },
+        tabBarAllowFontScaling: false,
         tabBarStyle: {
           backgroundColor: palette.backgroundElement,
           borderTopColor: palette.border,

@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/empty-state';
 import { ScreenShell } from '@/components/screen-shell';
 import { ThemedText } from '@/components/themed-text';
 import { errorLogRepository } from '@/data/repositories/error-log.repository';
-import { Radius, Spacing } from '@/constants/theme';
+import { OnDanger, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { ErrorLogEntry, ErrorLogLevel } from '@/types/error-log';
 
@@ -41,7 +41,7 @@ function LogRow({ entry }: { entry: ErrorLogEntry }) {
         <Ionicons
           name={isError ? 'alert-circle' : 'warning'}
           size={16}
-          color={isError ? '#FFFFFF' : theme.textSecondary}
+          color={isError ? OnDanger : theme.textSecondary}
         />
       </View>
       <View style={styles.rowInfo}>
@@ -112,13 +112,21 @@ export default function LogsScreen() {
       title="Registro de errores"
       subtitle={entries === null ? 'Cargando…' : `${total} sucesos`}
       leading={
-        <Pressable onPress={() => router.back()} hitSlop={8} accessibilityLabel="Volver">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Volver">
           <Ionicons name="chevron-back" size={26} color={theme.text} />
         </Pressable>
       }
       action={
         total > 0 ? (
-          <Pressable onPress={confirmClear} hitSlop={8} accessibilityLabel="Borrar registro">
+          <Pressable
+            onPress={confirmClear}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Borrar registro">
             <Ionicons name="trash-outline" size={22} color={theme.danger} />
           </Pressable>
         ) : null
@@ -145,13 +153,13 @@ export default function LogsScreen() {
 
 const styles = StyleSheet.create({
   filters: {
-    paddingBottom: Spacing.two,
+    paddingBottom: Spacing.sm,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: Spacing.three,
-    padding: Spacing.three,
+    gap: Spacing.lg,
+    padding: Spacing.lg,
     borderRadius: Radius.medium,
   },
   iconWrap: {
@@ -160,16 +168,16 @@ const styles = StyleSheet.create({
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.half,
+    marginTop: Spacing.xs,
   },
   rowInfo: {
     flex: 1,
-    gap: Spacing.half,
+    gap: Spacing.xs,
   },
   meta: {
     fontSize: 12,
   },
   loader: {
-    marginTop: Spacing.five,
+    marginTop: Spacing.xxl,
   },
 });

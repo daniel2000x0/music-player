@@ -22,13 +22,13 @@ const BAR_WIDTH = 24;
  * píldora, dejar espacio al gesto "atrás" de Android y cubrir por completo
  * el indicador nativo de scroll (evita dos barras verticales seguidas).
  */
-const BAR_EDGE_GAP = Spacing.two;
+const BAR_EDGE_GAP = Spacing.sm;
 
 /**
  * Índice alfabético flotante para listas largas.
  *
  * POSICIÓN: se ancla al borde derecho de la pantalla compensando el padding
- * horizontal de `ScreenShell` (`Spacing.four`). El contenedor padre debe ser
+ * horizontal de `ScreenShell` (`Spacing.xl`). El contenedor padre debe ser
  * el área de contenido de una pantalla y ocupar todo su alto.
  */
 export function AlphabetBar({ letters, onSelect, itemNoun }: AlphabetBarProps) {
@@ -74,15 +74,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     // Compensa el padding horizontal de `ScreenShell` para llegar al borde
     // de la pantalla (respetando el área segura) dejando un pequeño aire.
-    right: -(Spacing.four - BAR_EDGE_GAP),
-    top: 8,
-    bottom: 8,
+    right: -(Spacing.xl - BAR_EDGE_GAP),
+    top: Spacing.sm,
+    bottom: Spacing.sm,
     width: BAR_WIDTH,
     justifyContent: 'space-around',
     alignItems: 'center',
     borderRadius: Radius.medium,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: Spacing.half,
+    paddingVertical: Spacing.xs,
     elevation: 3,
     zIndex: 10,
   },
