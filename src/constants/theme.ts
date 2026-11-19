@@ -160,10 +160,12 @@ export const OnDanger = '#FFFFFF';
  * Ancho reservado en el borde derecho de las listas para el indicador
  * vertical de scroll.
  *
- * LÓGICA: la barra nativa se dibuja sobre el contenido. En Android además
- * queda siempre visible (`persistentScrollbar`), así que este margen evita
- * que tape botones o tarjetas; en Canciones también deja aire entre las
- * filas y la barra alfabética anclada al borde derecho.
+ * LÓGICA: en las listas sin índice alfabético la barra nativa se dibuja sobre
+ * el contenido y en Android queda siempre visible (`persistentScrollbar`),
+ * así que este margen evita que tape botones o tarjetas. En Canciones y
+ * Audiolibros, donde `AlphabetBar` hace las veces de indicador y el nativo se
+ * desactiva, el mismo margen pasa a ser el aire entre las filas y la píldora
+ * anclada al borde derecho: una sola barra, sin carriles superpuestos.
  */
 export const ScrollbarGutter = 12;
 

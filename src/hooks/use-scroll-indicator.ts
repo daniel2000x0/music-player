@@ -8,6 +8,15 @@ type ScrollIndicatorProps = Pick<
   'showsVerticalScrollIndicator' | 'persistentScrollbar' | 'indicatorStyle'
 >;
 
+export type ScrollIndicatorOptions = {
+  /**
+   * `false` cuando la lista ya monta `AlphabetBar`: la píldora hace las veces
+   * de indicador de posición y un segundo carril solo provocaría solape.
+   * Por defecto `true` para el resto de listas.
+   */
+  native?: boolean;
+};
+
 /**
  * Props del indicador vertical de scroll con el color del tema activo.
  *
@@ -19,16 +28,21 @@ type ScrollIndicatorProps = Pick<
  *   visible al terminar el gesto para que todas las listas se vean igual.
  * - En web estas props se ignoran: el color lo resuelve `color-scheme`
  *   (ver `_layout.tsx`) y el grosor `global.css`.
+ * - En `scrollIndicatorInsets` (iOS) no se puede apoyar la integración porque
+ *   Android no tiene equivalente: cuando hay índice alfabético se desactiva
+ *   directamente el indicador nativo.
  */
-export function useScrollIndicator(): ScrollIndicatorProps {
+export function useScrollIndicator({
+  native = true,
+}: ScrollIndicatorOptions = {}): ScrollIndicatorProps {
   const theme = useTheme();
 
   return useMemo(
     () => ({
-      showsVerticalScrollIndicator: true,
-      persistentScrollbar: true,
-      indicatorStyle: theme.scrollbarIndicator,
+      showsVerticalScrollIndicator: native,
+      persistentScrollbar: native,
+      indicatorStyle: native ? theme.scrollbarIndicator : undefined,
     }),
-    [theme.scrollbarIndicator]
+    [native, theme.scrollbarIndicator]
   );
 }

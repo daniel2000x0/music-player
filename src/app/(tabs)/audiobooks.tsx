@@ -25,7 +25,12 @@ import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
-import { collectInitials, normalizeLetter } from '@/utils/alphabet';
+import {
+  collectInitials,
+  firstVisibleLetter,
+  normalizeLetter,
+  type ViewableLetterToken,
+} from '@/utils/alphabet';
 import { formatDuration } from '@/utils/format';
 
 function pluralizeChapters(count: number): string {
@@ -98,7 +103,6 @@ const BookRow = memo(function BookRow({
 /** Pantalla "Audiolibros": contenido marcado como audiolibro, agrupado por carpeta. */
 export default function AudiobooksScreen() {
   const theme = useTheme();
-  const scrollIndicator = useScrollIndicator();
   const songs = useLibraryStore((state) => state.songs);
   const albums = useLibraryStore((state) => state.albums);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
@@ -112,6 +116,7 @@ export default function AudiobooksScreen() {
 
   const [query, setQuery] = useState('');
   const [optionsBook, setOptionsBook] = useState<Audiobook | null>(null);
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   const books = useMemo(() => collectAudiobooks(songs, albums), [songs, albums]);
   // El filtrado corre sobre el texto "asentado" (ver `useDebouncedValue`).
@@ -145,6 +150,22 @@ export default function AudiobooksScreen() {
   const availableLetters = useMemo(
     () => collectInitials(visibleBooks.map((book) => book.title)),
     [visibleBooks]
+  );
+
+  // La píldora sustituye al indicador nativo mientras haya letras que indexar.
+  const scrollIndicator = useScrollIndicator({ native: availableLetters.length === 0 });
+
+  const viewabilityConfig = useMemo(
+    () => ({ itemVisiblePercentThreshold: 50, minimumViewTime: 0 }),
+    []
+  );
+
+  const handleViewableItemsChanged = useCallback(
+    ({ viewableItems }: { viewableItems: ViewableLetterToken<Audiobook>[] }) => {
+      const letter = firstVisibleLetter(viewableItems);
+      setActiveLetter((current) => (current === letter ? current : letter));
+    },
+    []
   );
 
   // Desplaza la lista hasta el primer audiolibro de la letra elegida.
@@ -245,6 +266,8 @@ export default function AudiobooksScreen() {
             windowSize={5}
             keyboardShouldPersistTaps="handled"
             {...scrollIndicator}
+            onViewableItemsChanged={handleViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
             style={styles.flex}
             contentContainerStyle={styles.listContent}
             refreshControl={
@@ -259,6 +282,7 @@ export default function AudiobooksScreen() {
 
           <AlphabetBar
             letters={availableLetters}
+            activeLetter={activeLetter}
             onSelect={scrollToLetter}
             itemNoun="audiolibros"
           />
