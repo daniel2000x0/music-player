@@ -117,10 +117,16 @@ Estas mediciones son **manuales** y se registran por release. No se simulan en J
 
 | Métrica | Protocolo | Valor |
 | --- | --- | --- |
-| Arranque en frío | `am start -W` tras `am force-stop`, 5 repeticiones, mediana | Pendiente de medir en el dispositivo de QA |
-| Escaneo de 12 000 pistas | Biblioteca de 12 k archivos, primer arranque, cronómetro desde «enumerate» hasta «done» | Pendiente de medir en el dispositivo de QA |
-| Memoria con 5 000 filas | `dumpsys meminfo` con la vista «Canciones» desplazada hasta el final | Pendiente de medir en el dispositivo de QA |
-| Batería en 30 min | Reproducción con pantalla apagada, `dumpsys batterystats` | Pendiente de medir en el dispositivo de QA |
+| OTA `preview` aplicada | Relanzar tras publicar, aceptar el diálogo «Actualización disponible» | ✅ Grupo `d69222e3-1967-439b-b949-3bb9a40e2137`, runtime `1.0.0`, 19/11/2026 |
+| Carga de biblioteca tras OTA | `uiautomator dump` tras el reinicio | ✅ 1805 canciones · 684 artistas, sin excepciones en `logcat` |
+| Reproducción y mini-reproductor | Pulsar una pista, pausar con `input keyevent 127`, volcar la jerarquía | ✅ Tema y controles correctos; etiquetas de accesibilidad presentes |
+| Arranque en frío | `am start -W` tras `am force-stop`, 5 repeticiones, mediana | Pendiente de medir en FASE 8 |
+| Escaneo de 12 000 pistas | Biblioteca de 12 k archivos, primer arranque, cronómetro desde «enumerate» hasta «done» | Pendiente de medir en FASE 8 |
+| Memoria con 5 000 filas | `dumpsys meminfo` con la vista «Canciones» desplazada hasta el final | Pendiente de medir en FASE 8 |
+| Batería en 30 min | Reproducción con pantalla apagada, `dumpsys batterystats` | Pendiente de medir en FASE 8 |
+
+El resto del guion de 12 pasos (sección 4) requiere una biblioteca de prueba
+específica y capturas largas; se ejecutará al cerrar FASE 8.
 
 Los benchmarks JS equivalentes (escaneo y preparación de listas) sí están automatizados en `src/testing/bench/` y se ejecutan con `npm run bench`.
 

@@ -1206,8 +1206,22 @@ se difiere a FASE 8. La política está documentada en `docs/TESTING.md` §6.
 
 **Verificación en dispositivo y OTA**
 
-Pendiente de registrar tras la publicación `preview` (dispositivo
-`09729372AM004325`).
+Dispositivo `09729372AM004325`. Se publicó la OTA `preview` desde el commit
+`99698d2`: grupo `d69222e3-1967-439b-b949-3bb9a40e2137`, Android
+`01a1f472-bb3b-7655-a7db-46302214af92`, iOS
+`01a1f472-bb3b-7361-b55d-fed81f564c7c`, runtime `1.0.0` (sin cambio).
+
+Al relanzar la app apareció el diálogo «Actualización disponible»; se aceptó,
+se reinició y la biblioteca cargó con **1805 canciones · 684 artistas**. Se
+pulsó una pista desde la lista y el mini-reproductor mostró el tema y los
+controles (reproducir/pausar y siguiente); se pausó con `input keyevent 127` y
+el estado quedó coherente. `uiautomator dump` confirmó las etiquetas de
+accesibilidad de los controles. No se registraron excepciones de la app en
+`logcat` durante la secuencia.
+
+Queda para FASE 8 el resto del guion de 12 pasos (mediciones de arranque,
+escaneo de 12 k pistas, memoria y batería), que requiere una biblioteca de
+prueba específica y captures largas.
 
 ---
 
