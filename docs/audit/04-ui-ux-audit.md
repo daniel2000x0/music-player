@@ -179,16 +179,16 @@ El patrón de `EmptyState` es correcto; el problema es que **no se usa para erro
 | --- | --- | --- | --- |
 | `UI-01` | ALTO | El widget usa `#7C5CFF`, un acento que no existe en el sistema de diseño, y no adapta claro/oscuro | Confirmado |
 | `UI-02` | ALTO | Fallos de escaneo/permiso/lock screen sin feedback visible | Confirmado (`A-04`) |
-| `UI-03` | MEDIO | Splash siempre oscuro → destello en tema claro | Confirmado |
-| `UI-04` | MEDIO | `userInterfaceStyle: automatic` vs. tema manual → superficies nativas desalineadas | Confirmado |
-| `UI-05` | MEDIO | Seis pestañas inferiores con etiquetas largas en pantallas estrechas | Riesgo (requiere dispositivo) |
-| `UI-06` | MEDIO | Arranque en frío sin progreso granular de escaneo | Confirmado |
-| `UI-07` | MEDIO | Botones de icono que comunican estado solo por color | Confirmado |
+| `UI-03` | MEDIO | Splash siempre oscuro → destello en tema claro | Resuelto (FASE 6) |
+| `UI-04` | MEDIO | `userInterfaceStyle: automatic` vs. tema manual → superficies nativas desalineadas | Parcial (FASE 6: splash responde al esquema) |
+| `UI-05` | MEDIO | Seis pestañas inferiores con etiquetas largas en pantallas estrechas | Resuelto (FASE 6) |
+| `UI-06` | MEDIO | Arranque en frío sin progreso granular de escaneo | Resuelto (FASE 3/6) |
+| `UI-07` | MEDIO | Botones de icono que comunican estado solo por color | Resuelto (FASE 6) |
 | `UI-08` | BAJO | Glifos de texto en el widget en lugar de iconos | Confirmado |
-| `UI-09` | BAJO | Restos de plantilla: `expo-logo.png`, `react-logo*.png`, `tutorial-web.png`, `logo-glow.png`; `adaptiveIcon.backgroundColor: "#E6F4FE"` (azul por defecto) | Confirmado |
-| `UI-10` | BAJO | `CategoryBar` sin etiqueta accesible propia | Confirmado |
-| `UI-11` | BAJO | `Spacing` sin paso de 12; varios literales 10/12 en estilos | Confirmado |
-| `UI-12` | BAJO | Hojas modales: posible cierre al tocar el contenido | Riesgo (requiere dispositivo) |
+| `UI-09` | BAJO | Restos de plantilla: `expo-logo.png`, `react-logo*.png`, `tutorial-web.png`, `logo-glow.png`; `adaptiveIcon.backgroundColor: "#E6F4FE"` (azul por defecto) | Resuelto (FASE 6) |
+| `UI-10` | BAJO | `CategoryBar` sin etiqueta accesible propia | Resuelto (FASE 6) |
+| `UI-11` | BAJO | `Spacing` sin paso de 12; varios literales 10/12 en estilos | Resuelto (FASE 6) |
+| `UI-12` | BAJO | Hojas modales: posible cierre al tocar el contenido | Resuelto (FASE 6, verificado en dispositivo) |
 
 ---
 

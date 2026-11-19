@@ -1001,6 +1001,52 @@ Context7 ✅ · Expo MCP ❌ · GitHub MCP ❌.
 6. `UI-12` verificado en dispositivo (cierra o no cierra; comportamiento documentado).
 7. Verdes: `tsc`, `jest`, `expo-doctor`, `expo lint`.
 
+### Cierre (FASE 6)
+
+| Criterio | Resultado |
+| --- | --- |
+| Cero literales de color | ✅ fuera de tokens solo queda la **excepción documentada** `media-widget.contract.ts` (bundle Hermes aislado que no importa `constants/theme`; hay prueba de contrato que vigila la paridad) |
+| Cero literales de espaciado | ✅ el único número suelto es `paddingHorizontal: 0` en `(tabs)/_layout.tsx` (no es una medida de la escala) |
+| TalkBack completo | ✅ etiquetas, roles y estado en filas, tarjetas, reproductor, cola y hojas modales; el estado activo (aleatorio/repetir/favorito) ya no se comunica solo por color (`UI-07`) |
+| Fuente 200 % / 320 dp | ✅ la barra de 6 pestañas no escala la etiqueta (`tabBarAllowFontScaling: false`) y usa `fontSize: 10`; no se recorta a 320 dp |
+| Splash y tema | ✅ splash claro `#ffffff` + variante `dark` `#0B0B0F`; `adaptiveIcon.backgroundColor` `#0B0B0F`. **Pendiente de ver en build nativo** (cambiar el splash no viaja por OTA) |
+| `UI-12` en dispositivo | ✅ el contenido de las hojas modales no cierra el modal; el backdrop sí cierra. Verificado en el selector de playlist (el toque en el contenido no lo cerró) |
+| Verdes | `tsc` limpio · `jest` **39 suites / 308 pruebas** · `expo lint` 0 problemas |
+
+**Decisiones registradas:**
+
+- **Pestañas:** se mantienen los **6 destinos existentes** (sin cambiar rutas ni deep links) y se ajusta solo la presentación (etiqueta compacta y `paddingHorizontal: 0`), en lugar de agrupar en «Más».
+- **Animaciones:** `Animated` de React Native, **sin dependencias nativas nuevas** (no se reinstaló `react-native-reanimated`). Para esquivar la regla de lint `react-hooks/refs`, los valores animados se crean con `useState(() => new Animated.Value(...))`.
+- **Tema de navegación (`B-06`):** el mapeo se centraliza en `useNavigationTheme()`; `(tabs)/_layout.tsx` usa `useTheme()` en lugar de `Colors[theme]` directo.
+
+### Verificación en dispositivo (FASE 6)
+
+Dispositivo: Infinix X6826 (`09729372AM004325`), Android 12 (SDK 31), APK release 1.0.0 canal `preview`, app `com.abelo.mimusicplayer`.
+OTA aplicada: grupo `53bcc651-211e-4494-9dfb-a81a99cb99b4`, update Android `01a1f253-84ce-7eb1-8cbe-176ef284e33b`, runtime `1.0.0`, commit `e483e6b`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| Pestañas (`UI-05`) | ✅ la barra inferior muestra las 6 pestañas (`Inicio`, `Canciones`, `Álbumes`, `Audiolibros`, `Playlists`, `Ajustes`) a 720 px; cada una mide 120 px y no se recorta |
+| Fila de canción | ✅ cada fila anuncia «Reproducir {título}, de {artista}» y expone «Agregar a favoritos» / «Más opciones» como botones |
+| Reproductor (`UI-07`, `UI-08`) | ✅ controles con rol: «Aleatorio» (`selected="true"`), «Repetir: single» (`selected="true"`), «Favorito» (`selected="false"`); el estado se expone por accesibilidad, no solo por color |
+| Barra de búsqueda / volumen | ✅ «Posición de reproducción, 1:04 de 3:56» y «Volumen» como elementos `adjustable` con `accessibilityValue` |
+| Hojas modales (`UI-12`) | ✅ el selector de playlist expone «Cerrar» y «Crear playlist y agregar la canción» como botones; el toque sobre el contenido no cerró el modal |
+| Navegación por pestañas | ✅ Canciones muestra el buscador, las categorías (`Todas`/`Favoritos`/`Escuchadas`/`Sin reproducir`), «Actualizar biblioteca» y «Ordenar canciones» como botones |
+
+**Método de medición:** `uiautomator dump` con la reproducción **pausada** (`adb shell input keyevent 127`; con reproducción activa la ventana nunca queda «idle» y el dump falla). El sistema puede devolver el foco a otra app tras un `keyevent`/`intent`; se relanzó la app con `am start -n` y se detuvieron temporalmente las apps que robaban el foco.
+
+### Subidas (GitHub y OTA)
+
+| Subida | Detalle |
+| --- | --- |
+| Commit | `e483e6b` — «feat(ui): tokens, accesibilidad, animaciones y estados de carga (FASE 6)» (51 archivos, +829/−351) |
+| Rama | `fase/6-ui-ux-accesibilidad` empujada a `origin` |
+| Fusión | `master` por **fast-forward** (mismo commit que la OTA) |
+| OTA `preview` | grupo `53bcc651-211e-4494-9dfb-a81a99cb99b4`; Android `01a1f253-84ce-7eb1-8cbe-176ef284e33b`; runtime `1.0.0` |
+| Estado OTA | descargada y aplicada en el Infinix X6826 |
+| Rebuild nativo | **Pendiente:** el splash claro/oscuro y el icono adaptativo exigen `eas build` (no viajan por OTA); se hará al cerrar la fase con build |
+| `CHANGELOG.md` | entrada de FASE 6 en la sección «Sin publicar» (el sello de versión se hace en FASE 8) |
+
 ---
 
 ## FASE 7 · Pruebas y optimización

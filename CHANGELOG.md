@@ -16,6 +16,14 @@ Fases 1 a 5.2 de la hoja de ruta (aún sin versión publicada; `app.json` sigue 
 
 ### Añadido
 
+- **UI/UX, animaciones y accesibilidad (FASE 6):** escala de espaciado semántica
+  (`xs`…`xxl`) y tokens nuevos (área táctil mínima, tamaños de icono, velo, sombra,
+  color de enlace); estados de carga con **esqueleto animado** en biblioteca y
+  playlists; animaciones con propósito (aparición de la portada y entrada del
+  reproductor, con `Animated` de React Native); **accesibilidad** con etiquetas,
+  roles y estado en filas, tarjetas, reproductor, cola y hojas modales (el estado
+  activo de aleatorio/repetir/favorito ya no se comunica solo por color); y barra
+  inferior de 6 pestañas compacta y estable en pantallas estrechas.
 - **Gestión de la biblioteca (FASE 5.2):** editar el título, el artista y el álbum
   de una pista (corrección local, no reescribe el archivo) y eliminarla — quitarla
   de la biblioteca sin tocar el archivo o borrarla del dispositivo — desde el menú
@@ -39,6 +47,10 @@ Fases 1 a 5.2 de la hoja de ruta (aún sin versión publicada; `app.json` sigue 
 
 ### Cambiado
 
+- **Splash y tema nativo (FASE 6):** splash claro (`#ffffff`) con variante oscura
+  (`#0B0B0F`) y `adaptiveIcon.backgroundColor` acorde, en vez del azul por defecto.
+- El **tema de navegación** se centraliza en `useNavigationTheme()` (una sola
+  fuente de verdad derivada de los tokens), en lugar de duplicar el mapeo.
 - `MAX_ATTEMPTS_PER_ALBUM` sube de 2 a **5** en la resolución de portada: en discos
   donde la primera pista no trae arte ya no se rinde tan pronto.
 - `upsertBatch` conserva la portada previa (`COALESCE`) para no perderla si una
@@ -58,6 +70,8 @@ Fases 1 a 5.2 de la hoja de ruta (aún sin versión publicada; `app.json` sigue 
 
 ### Eliminado
 
+- Assets de plantilla sin uso (`expo-logo.png`, `react-logo*.png`,
+  `tutorial-web.png`, `logo-glow.png`, `expo-badge*.png`) (FASE 6).
 - `audio-engine.ts`: repartido en módulos con una sola responsabilidad (FASE 2) y
   eliminado al cerrar la FASE 4.
 - Dependencias y permisos innecesarios (FASE 2).

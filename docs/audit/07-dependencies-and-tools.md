@@ -218,7 +218,7 @@ Estado **real** de esta sesión de auditoría, sin inventar capacidades:
 | Secretos en repo | ✅ No hay `.env` ni credenciales | `app.json` solo contiene `projectId` público |
 | `node_modules` versionado | ✅ Excluido por `.gitignore` | — |
 | Archivos de agente sin commitear | ⚠️ `.agents/`, `agent/`, `opencode.json`, `skills-lock.json` | Decidir si se versionan o se ignoran (`A-09`) |
-| Assets de plantilla | ⚠️ `expo-logo.png`, `react-logo*.png`, `tutorial-web.png`, `logo-glow.png`, `expo-badge*.png` | Peso y ruido; retirar en FASE 6 (`UI-09`) |
+| Assets de plantilla | ✅ Retirados en FASE 6 (`UI-09`) | `expo-logo.png`, `react-logo*.png`, `tutorial-web.png`, `logo-glow.png`, `expo-badge*.png` eliminados |
 | Duplicación de gestores | ✅ Solo npm | `npx` es correcto; no hay `bun.lock` ni `yarn.lock` |
 | `engines` | ❌ Ausente y documentado como existente | `B-01`; añadirlo o corregir el README |
 
