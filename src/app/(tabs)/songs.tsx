@@ -3,11 +3,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { CategoryBar, type CategoryOption } from '@/components/category-bar';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
-import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SelectionActions } from '@/components/selection-actions';
 import { SkeletonList } from '@/components/skeleton';
@@ -30,11 +28,11 @@ import { usePlayerStore } from '@/stores/player.store';
 import type { SongSortKey, SongView } from '@/types/filters';
 import type { Song } from '@/types/song';
 
-const VIEWS: readonly CategoryOption<SongView>[] = [
-  { key: 'all', label: 'Todas' },
-  { key: 'favorites', label: 'Favoritos' },
-  { key: 'played', label: 'Escuchadas' },
-  { key: 'unplayed', label: 'Sin reproducir' },
+const VIEWS: readonly Option<SongView>[] = [
+  { value: 'all', label: 'Todas' },
+  { value: 'favorites', label: 'Favoritos' },
+  { value: 'played', label: 'Escuchadas' },
+  { value: 'unplayed', label: 'Sin reproducir' },
 ];
 
 type SongAction = 'playlist' | 'audiobook' | 'edit' | 'delete';
@@ -95,6 +93,7 @@ export default function SongsScreen() {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SongSortKey>('title-asc');
   const [sortVisible, setSortVisible] = useState(false);
+  const [viewVisible, setViewVisible] = useState(false);
   const [menuSong, setMenuSong] = useState<Song | null>(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [pickerSong, setPickerSong] = useState<Song | null>(null);
@@ -171,29 +170,35 @@ export default function SongsScreen() {
         returnKeyType="search"
         style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
       />
-      <CategoryBar options={VIEWS} value={view} onChange={setView} />
       <View style={styles.toolbar}>
-        <ThemedText type="small" themeColor="textSecondary">
-          {visibleSongs.length} canciones
-        </ThemedText>
-        <View style={styles.toolbarActions}>
-          <RefreshButton />
-          <Pressable
-            onPress={() => setSortVisible(true)}
-            style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
-            accessibilityRole="button"
-            accessibilityLabel="Ordenar canciones">
-            <Ionicons name="swap-vertical" size={16} color={theme.text} />
-            <ThemedText type="small" numberOfLines={1}>
-              {SORT_FIELDS.find((field) => sortFieldOf(field.value) === sortFieldOf(sortKey))?.label}
-            </ThemedText>
-            <Ionicons
-              name={sortDirectionOf(sortKey) === 'asc' ? 'arrow-up' : 'arrow-down'}
-              size={14}
-              color={theme.text}
-            />
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => setViewVisible(true)}
+          style={[styles.menuButton, { backgroundColor: theme.backgroundElement }]}
+          accessibilityRole="button"
+          accessibilityLabel="Filtrar canciones por vista"
+          accessibilityHint="Abre las opciones Todas, Favoritos, Escuchadas y Sin reproducir">
+          <Ionicons name="list-outline" size={16} color={theme.text} />
+          <ThemedText type="small" numberOfLines={1} style={styles.menuButtonLabel}>
+            {VIEWS.find((option) => option.value === view)?.label ?? 'Todas'}
+          </ThemedText>
+          <Ionicons name="chevron-down" size={14} color={theme.textSecondary} />
+        </Pressable>
+
+        <Pressable
+          onPress={() => setSortVisible(true)}
+          style={[styles.menuButton, { backgroundColor: theme.backgroundElement }]}
+          accessibilityRole="button"
+          accessibilityLabel="Ordenar canciones">
+          <Ionicons name="swap-vertical" size={16} color={theme.text} />
+          <ThemedText type="small" numberOfLines={1} style={styles.menuButtonLabel}>
+            {SORT_FIELDS.find((field) => sortFieldOf(field.value) === sortFieldOf(sortKey))?.label}
+          </ThemedText>
+          <Ionicons
+            name={sortDirectionOf(sortKey) === 'asc' ? 'arrow-up' : 'arrow-down'}
+            size={14}
+            color={theme.textSecondary}
+          />
+        </Pressable>
       </View>
     </View>
   );
@@ -318,6 +323,14 @@ export default function SongsScreen() {
         }}
         onClose={() => setMenuVisible(false)}
       />
+      <OptionSheet
+        visible={viewVisible}
+        title="Mostrar canciones"
+        options={VIEWS}
+        value={view}
+        onSelect={setView}
+        onClose={() => setViewVisible(false)}
+      />
       <SortSheet
         visible={sortVisible}
         title="Ordenar canciones"
@@ -365,22 +378,20 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: Spacing.sm,
   },
-  toolbarActions: {
+  menuButton: {
+    flex: 1,
+    minHeight: 40,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    justifyContent: 'center',
     gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     borderRadius: Radius.pill,
-    maxWidth: '65%',
+  },
+  menuButtonLabel: {
     flexShrink: 1,
   },
   playAll: {
