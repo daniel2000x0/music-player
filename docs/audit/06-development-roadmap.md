@@ -875,6 +875,44 @@ Nada de esto reescribe las etiquetas del archivo: la corrección es local a la a
 | Pruebas | `migrations.test.ts` (V8), `song.repository.test.ts` (edición, renombrado con y sin fusión, quitar, ignorados) y `library-scan.service.test.ts` (filtro de ignoradas) |
 | Verdes | `tsc` limpio · `jest` **38 suites / 299 pruebas** · `expo lint` 0 problemas |
 
+### Verificación en dispositivo (FASE 5.2)
+
+Dispositivo: Infinix X6826 (`09729372AM004325`), Android 12 (SDK 31), APK release 1.0.0 canal `preview`, app `com.abelo.mimusicplayer`.
+OTA aplicada: grupo `e8a8dd93-cf4e-4756-bb76-c0093f061515`, update Android `01a1ef0e-b614-731f-8ba5-9437da54dd4d`, runtime `1.0.0`, commit `94ba5ab`.
+
+| Comprobación | Resultado |
+| --- | --- |
+| OTA aplicada | ✅ el chequeo de arranque registra `CheckCompleteUnavailable` (`isUpdateAvailable=false`) con el bundle de `94ba5ab`; las opciones nuevas aparecen en la UI |
+| Menú de la pista | ✅ «Más opciones» de una fila muestra **Editar información** y **Eliminar** (además de playlist/audiolibro) |
+| Editar pista (`GB-01`) | ✅ el modal abre con Título/Artista/Álbum; renombrar «… For Everything to Be the Same» a `ZZPruebaF52` se persiste (la búsqueda por `ZZPrueba` encuentra la fila) y se revierte al original |
+| Diálogo de eliminar | ✅ ofrece **Quitar de la biblioteca** (no toca el archivo) y **Borrar del dispositivo** (irreversible) |
+| Quitar de la biblioteca (`GB-02`) | ✅ la biblioteca pasa de 1848 a 1847 y Ajustes muestra «Restaurar pistas quitadas (1)» |
+| Restaurar pistas quitadas | ✅ el diálogo confirma y RESTAURAR dispara el reescaneo («1 nueva · 1 s»); la fila desaparece (`hiddenCount = 0`), vuelve a 1848 y la pista reaparece |
+| Selección múltiple (`GB-03`) | ✅ pulsación larga activa el modo: contador «1», acciones «Salir de la selección», «Seleccionar todo» y «Eliminar selección»; «Seleccionar todo» → «2»; «Eliminar selección» abre el diálogo de lote («2 pistas») |
+| Borrar del dispositivo | ✅ abre el diálogo del sistema (`com.android.providers.media.PermissionActivity`, «¿Deseas permitir que mi-music-player borre este archivo de audio?»); al **RECHAZAR** no se borra nada y aparece el aviso honesto «No se borraron los archivos» |
+| Menú del álbum (`GB-04`) | ✅ «Opciones del álbum» en la cabecera del detalle muestra **Renombrar álbum** y **Eliminar álbum** |
+| Renombrar álbum | ✅ renombra «.5: The Gray Chapter» a `ZZAlbumF52` (se refleja en la cabecera con «Slipknot · 3 canciones») y se revierte al original |
+| Eliminar álbum | ✅ «Quitar de la biblioteca» baja el total de 1009 a 1008 álbumes y, al quedarse el detalle sin pistas, la pantalla vuelve sola a la lista (`router.back()`) |
+| Restauración del álbum | ✅ «Restaurar pistas quitadas (3)» devuelve las tres pistas («3 nuevas · 1 s») y el total vuelve a 1009 álbumes / 1848 canciones |
+
+**Pendiente de reproducir en este dispositivo (limitación del entorno, no del código):**
+
+- **Confirmación de borrado real:** se verificó el diálogo del sistema y la ruta de **rechazo** (no se borra nada + aviso honesto); no se pulsó «PERMITIR» para no destruir archivos de música del usuario. La ruta de borrado en sí queda cubierta por el código de `media.service.deleteDeviceAssets` y por el contrato de `Asset.delete`.
+- **Android ≤ 10:** la ruta heredada de borrado exige `WRITE_EXTERNAL_STORAGE`, bloqueado en `app.json`; en ese caso el borrado falla y se avisa con honestidad (no se pide el permiso).
+
+**Método de medición:** `uiautomator dump` con la reproducción **pausada** (`adb shell input keyevent 127`; con reproducción activa la ventana nunca queda «idle» y el dump falla). En el modal de edición el teclado cubre los botones: `keyevent 4` (BACK) oculta el teclado sin cerrar el modal y `keyevent 111` (ESCAPE) lo cierra descartando.
+
+### Subidas (GitHub y OTA)
+
+| Subida | Detalle |
+| --- | --- |
+| Commit | `94ba5ab` — «feat(library): editar y eliminar pistas y albumes, con seleccion multiple (FASE 5.2)» (23 archivos, +1742/−69) |
+| Rama | `fase/5.2-gestion-biblioteca` empujada a `origin` |
+| Fusión | `master` por **fast-forward** (mismo commit que la OTA) |
+| OTA `preview` | grupo `e8a8dd93-cf4e-4756-bb76-c0093f061515`; Android `01a1ef0e-b614-731f-8ba5-9437da54dd4d`; runtime `1.0.0` |
+| Estado OTA | descargada y aplicada en el Infinix X6826 (`CheckCompleteUnavailable`, `isUpdateAvailable=false`) |
+| `CHANGELOG.md` | entrada de FASE 5.2 en la sección «Sin publicar» (el sello de versión se hace en FASE 8) |
+
 ---
 
 ## FASE 6 · UI/UX, animaciones y accesibilidad
