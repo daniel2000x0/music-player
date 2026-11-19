@@ -30,11 +30,18 @@ npx expo start
 Comandos útiles:
 
 ```bash
-npx tsc --noEmit   # verificación de tipos
-npx eslint .       # lint
-npx jest           # pruebas
-npx expo-doctor    # diagnóstico de dependencias y configuración
+npx tsc --noEmit          # verificación de tipos
+npx expo lint             # lint
+npx jest                  # pruebas
+npx jest --coverage       # pruebas con umbrales de cobertura
+npm run bench             # benchmarks de dominio, escaneo y listas
+npx expo-doctor           # diagnóstico de dependencias y configuración
 ```
+
+El guion de verificación en dispositivo, los umbrales de cobertura y la
+política de `runtimeVersion` están en [`docs/TESTING.md`](docs/TESTING.md).
+El workflow `.github/workflows/ci.yml` ejecuta tipado, lint, pruebas y
+`expo-doctor` en cada push y pull request.
 
 ## Compilación
 

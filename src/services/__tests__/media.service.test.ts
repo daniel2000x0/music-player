@@ -1,10 +1,20 @@
+import {
+  getPermissionsAsync,
+  PermissionStatus,
+  requestPermissionsAsync,
+  type PermissionResponse,
+} from 'expo-media-library';
+
 import { logError, logWarning } from '@/services/error-log.service';
 import {
   AUDIO_PAGE_SIZE,
+  deleteDeviceAssets,
   enumerateDeviceAudio,
   folderFromUri,
+  hasAudioPermission,
   listDeviceAudioIds,
   readDeviceTrack,
+  requestAudioAccess,
 } from '@/services/media.service';
 
 /**
@@ -24,10 +34,19 @@ type MockAsset = {
 
 const mockMetadata: MockMetadata[] = [];
 const mockAssets = new Map<string, MockAsset>();
+/** Consultas construidas por `audioQuery`, para verificar filtro y paginación. */
+const mockQueryCalls: {
+  filters: { field: string; value: unknown }[];
+  orderBy: string | null;
+  limit: number | null;
+  offsets: number[];
+}[] = [];
 let mockFailQueries = false;
 let mockPageReads = 0;
 let mockRepeatFirstPage = false;
 let mockFailAssetId: string | null = null;
+let mockDeleteCancelled = false;
+const mockDeleteCalls: string[][] = [];
 
 function mockPage(offset: number): MockMetadata[] {
   mockPageReads += 1;
@@ -44,21 +63,35 @@ function mockPage(offset: number): MockMetadata[] {
 jest.mock('expo-media-library', () => {
   class Query {
     private offsetValue = 0;
+    private readonly record = {
+      filters: [] as { field: string; value: unknown }[],
+      orderBy: null as string | null,
+      limit: null as number | null,
+      offsets: [] as number[],
+    };
 
-    eq() {
+    constructor() {
+      mockQueryCalls.push(this.record);
+    }
+
+    eq(field: string, value: unknown) {
+      this.record.filters.push({ field, value });
       return this;
     }
 
-    orderBy() {
+    orderBy(field: string) {
+      this.record.orderBy = field;
       return this;
     }
 
-    limit() {
+    limit(value: number) {
+      this.record.limit = value;
       return this;
     }
 
     offset(value: number) {
       this.offsetValue = value;
+      this.record.offsets.push(value);
       return this;
     }
 
@@ -72,6 +105,14 @@ jest.mock('expo-media-library', () => {
 
     constructor(id: string) {
       this.id = id;
+    }
+
+    static async delete(assets: Asset[]): Promise<boolean> {
+      mockDeleteCalls.push(assets.map((asset) => asset.id));
+      if (mockDeleteCancelled) {
+        throw new Error('El usuario canceló el diálogo');
+      }
+      return assets.length > 0;
     }
 
     async getInfo() {
@@ -91,6 +132,7 @@ jest.mock('expo-media-library', () => {
     Asset,
     AssetField: { MEDIA_TYPE: 'mediaType', CREATION_TIME: 'creationTime' },
     MediaType: { AUDIO: 'audio' },
+    PermissionStatus: { GRANTED: 'granted', DENIED: 'denied', UNDETERMINED: 'undetermined' },
     getPermissionsAsync: jest.fn(async () => ({ granted: true })),
     requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
   };
@@ -111,6 +153,19 @@ jest.mock('@/services/tag.service', () => ({
   })),
 }));
 
+const mockedGetPermissions = jest.mocked(getPermissionsAsync);
+const mockedRequestPermissions = jest.mocked(requestPermissionsAsync);
+
+/** Respuesta completa de permisos, tal como la expone la API de Expo. */
+function permission(granted: boolean): PermissionResponse {
+  return {
+    granted,
+    status: granted ? PermissionStatus.GRANTED : PermissionStatus.DENIED,
+    expires: 'never',
+    canAskAgain: true,
+  };
+}
+
 function makeMetadata(count: number): void {
   for (let index = 0; index < count; index += 1) {
     mockMetadata.push({ id: `media-${index}`, modificationTime: 1_000 + index });
@@ -120,11 +175,18 @@ function makeMetadata(count: number): void {
 beforeEach(() => {
   mockMetadata.length = 0;
   mockAssets.clear();
+  mockQueryCalls.length = 0;
   mockFailQueries = false;
   mockPageReads = 0;
   mockRepeatFirstPage = false;
   mockFailAssetId = null;
+  mockDeleteCancelled = false;
+  mockDeleteCalls.length = 0;
   jest.clearAllMocks();
+  mockedGetPermissions.mockReset();
+  mockedGetPermissions.mockResolvedValue(permission(true));
+  mockedRequestPermissions.mockReset();
+  mockedRequestPermissions.mockResolvedValue(permission(true));
 });
 
 describe('enumerateDeviceAudio (C-02: sin tope silencioso)', () => {
@@ -270,5 +332,86 @@ describe('folderFromUri (A-07: agrupación con content://)', () => {
   it('devuelve null cuando el URI no alcanza para deducir carpeta', () => {
     expect(folderFromUri('file:///pista.mp3')).toBeNull();
     expect(folderFromUri('')).toBeNull();
+  });
+});
+
+describe('enumerateDeviceAudio: forma de la consulta paginada', () => {
+  it('filtra por tipo audio, ordena por fecha y pide el offset de cada página', async () => {
+    makeMetadata(AUDIO_PAGE_SIZE * 2 + 1);
+
+    const tracks = await enumerateDeviceAudio();
+
+    expect(tracks).toHaveLength(AUDIO_PAGE_SIZE * 2 + 1);
+    expect(mockQueryCalls).toHaveLength(3);
+    expect(mockQueryCalls.map((call) => call.offsets)).toEqual([
+      [0],
+      [AUDIO_PAGE_SIZE],
+      [AUDIO_PAGE_SIZE * 2],
+    ]);
+    for (const call of mockQueryCalls) {
+      // La API nueva solo filtra por MEDIA_TYPE: el MIME concreto se decide
+      // después leyendo la firma del archivo en `readAudioTags`.
+      expect(call.filters).toEqual([{ field: 'mediaType', value: 'audio' }]);
+      expect(call.orderBy).toBe('creationTime');
+      expect(call.limit).toBe(AUDIO_PAGE_SIZE);
+    }
+  });
+});
+
+describe('permisos de audio', () => {
+  it('hasAudioPermission consulta el permiso sin abrir un diálogo', async () => {
+    mockedGetPermissions.mockResolvedValueOnce(permission(false));
+
+    await expect(hasAudioPermission()).resolves.toBe(false);
+    expect(mockedGetPermissions).toHaveBeenCalledWith(false, ['audio']);
+
+    await expect(hasAudioPermission()).resolves.toBe(true);
+  });
+
+  it('hasAudioPermission degrada a false y registra si la consulta falla', async () => {
+    const error = new Error('permisos no disponibles');
+    mockedGetPermissions.mockRejectedValueOnce(error);
+
+    await expect(hasAudioPermission()).resolves.toBe(false);
+    expect(logError).toHaveBeenCalledWith('media-service', 'getPermissionsAsync', error);
+  });
+
+  it('requestAudioAccess pide el permiso de audio y refleja la respuesta', async () => {
+    mockedRequestPermissions.mockResolvedValueOnce(permission(false));
+
+    await expect(requestAudioAccess()).resolves.toBe(false);
+    expect(mockedRequestPermissions).toHaveBeenCalledWith(false, ['audio']);
+
+    await expect(requestAudioAccess()).resolves.toBe(true);
+  });
+
+  it('requestAudioAccess degrada a false y registra si falla la petición', async () => {
+    const error = new Error('sin diálogo de permisos');
+    mockedRequestPermissions.mockRejectedValueOnce(error);
+
+    await expect(requestAudioAccess()).resolves.toBe(false);
+    expect(logError).toHaveBeenCalledWith('media-service', 'requestPermissionsAsync', error);
+  });
+});
+
+describe('deleteDeviceAssets (FASE 5.2)', () => {
+  it('no molesta al sistema si la lista está vacía', async () => {
+    await expect(deleteDeviceAssets([])).resolves.toEqual({ deleted: 0 });
+    expect(mockDeleteCalls).toHaveLength(0);
+  });
+
+  it('borra el lote y devuelve cuántos archivos confirmó el sistema', async () => {
+    await expect(deleteDeviceAssets(['media-1', 'media-2'])).resolves.toEqual({ deleted: 2 });
+    expect(mockDeleteCalls).toEqual([['media-1', 'media-2']]);
+  });
+
+  it('no lanza y explica el fallo si el usuario cancela el diálogo', async () => {
+    mockDeleteCancelled = true;
+
+    const result = await deleteDeviceAssets(['media-1']);
+
+    expect(result.deleted).toBe(0);
+    expect(result.error).toContain('cancelado');
+    expect(logError).toHaveBeenCalledWith('media-service', 'asset.delete', expect.any(Error));
   });
 });

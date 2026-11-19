@@ -2,6 +2,7 @@ import { createAudioPlaylist, type AudioPlaylist } from 'expo-audio';
 
 import type { RepeatMode } from '@/domain/playback/session';
 import { computeQueueWindow, needsWindowRecenter } from '@/domain/playback/queue-window';
+import { AUDIO_CONFIG } from '@/services/audio/config';
 import { logError } from '@/services/error-log.service';
 import type { Song } from '@/types/song';
 
@@ -43,9 +44,6 @@ export type PlaylistEvents = {
   onStatus: (status: PlaybackStatus) => void;
   onTrack: (song: Song) => void;
 };
-
-/** Frecuencia de los ticks de estado (posición, duración, buffering). */
-const UPDATE_INTERVAL_MS = 500;
 
 let playlist: AudioPlaylist | null = null;
 /** Orden de reproducción COMPLETO (no solo el tramo que tiene el motor). */
@@ -156,7 +154,7 @@ export function createPlaylist(
       .map((index) => songs[index])
       .filter((song): song is Song => song !== undefined)
       .map((song) => ({ uri: song.uri })),
-    updateInterval: UPDATE_INTERVAL_MS,
+    updateInterval: AUDIO_CONFIG.updateIntervalMs,
     loop,
   });
   playlist = instance;

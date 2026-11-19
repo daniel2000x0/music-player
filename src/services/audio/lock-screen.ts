@@ -5,6 +5,7 @@ import type {
   AudioPlaylist,
 } from 'expo-audio';
 
+import { AUDIO_CONFIG } from '@/services/audio/config';
 import { getCurrentSong, getPlaylist } from '@/services/audio/native-playlist';
 import { logError } from '@/services/error-log.service';
 import type { Song } from '@/types/song';
@@ -24,9 +25,6 @@ const LOCK_SCREEN_OPTIONS: AudioLockScreenOptions = {
   showPreviousTrack: true,
   showNextTrack: true,
 };
-
-/** Esperas entre reintentos; tras agotarlas la sesión queda `degraded`. */
-const RETRY_DELAYS_MS = [1000, 3000, 10000] as const;
 
 export type LockScreenStatus = 'unknown' | 'active' | 'degraded' | 'unsupported';
 
@@ -129,7 +127,7 @@ function tryRegister(instance: AudioPlaylist, song: Song): boolean {
 
 /** Programa el siguiente reintento o declara la sesión degradada. */
 function scheduleRetry(instance: AudioPlaylist, song: Song): void {
-  const delay = RETRY_DELAYS_MS[attempts];
+  const delay = AUDIO_CONFIG.lockScreenRetryDelaysMs[attempts];
   if (delay === undefined) {
     status = 'degraded';
     emitHealth();

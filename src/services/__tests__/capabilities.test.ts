@@ -100,3 +100,83 @@ describe('capabilities: web', () => {
     expect(values.every((value) => value === false)).toBe(true);
   });
 });
+
+describe('capabilities: detección de Expo Go', () => {
+  it('detecta Expo Go por appOwnership aunque el entorno sea standalone', () => {
+    const capabilities = loadCapabilities('android', 'standalone', 'expo');
+
+    expect(capabilities.getCapabilities()).toMatchObject({
+      'playback.background': true,
+      'playback.lockScreen': false,
+      'widget.homeScreen': false,
+    });
+  });
+
+  it('detecta Expo Go por executionEnvironment sin appOwnership', () => {
+    const capabilities = loadCapabilities('ios', 'storeClient');
+
+    expect(capabilities.getCapabilities()).toMatchObject({
+      'playback.background': true,
+      'playback.lockScreen': false,
+      'widget.homeScreen': false,
+    });
+  });
+});
+
+describe('capabilities: notificaciones y reactividad', () => {
+  it('en iOS no exige permiso de notificaciones', () => {
+    const capabilities = loadCapabilities('ios', 'standalone');
+
+    capabilities.setPermissionSnapshot({ notifications: false, mediaLibrary: false });
+
+    expect(capabilities.getCapabilities()['playback.notifications']).toBe(true);
+  });
+
+  it('en Android las notificaciones dependen del permiso concedido', () => {
+    const capabilities = loadCapabilities('android', 'standalone');
+
+    expect(capabilities.getCapabilities()['playback.notifications']).toBe(false);
+
+    capabilities.setPermissionSnapshot({ notifications: true });
+
+    expect(capabilities.getCapabilities()['playback.notifications']).toBe(true);
+  });
+
+  it('guarda en caché la fotografía y no emite si el permiso no cambia', () => {
+    const capabilities = loadCapabilities('android', 'standalone');
+    const snapshot = capabilities.getCapabilities();
+    const seen: unknown[] = [];
+    const unsubscribe = capabilities.subscribeCapabilities((next) => seen.push(next));
+
+    expect(seen).toEqual([snapshot]);
+    expect(capabilities.getCapabilities()).toBe(snapshot);
+
+    capabilities.setPermissionSnapshot({ mediaLibrary: false, notifications: false });
+
+    expect(seen).toEqual([snapshot]);
+    expect(capabilities.getCapabilities()).toBe(snapshot);
+
+    unsubscribe();
+  });
+
+  it('emite a todos los suscriptores y respeta el unsubscribe de cada uno', () => {
+    const capabilities = loadCapabilities('android', 'standalone');
+    const first: boolean[] = [];
+    const second: boolean[] = [];
+    const stopFirst = capabilities.subscribeCapabilities((next) =>
+      first.push(next['mediaLibrary.read'])
+    );
+    const stopSecond = capabilities.subscribeCapabilities((next) =>
+      second.push(next['mediaLibrary.read'])
+    );
+
+    capabilities.setPermissionSnapshot({ mediaLibrary: true });
+    stopFirst();
+    capabilities.setPermissionSnapshot({ mediaLibrary: false });
+
+    expect(first).toEqual([false, true]);
+    expect(second).toEqual([false, true, false]);
+
+    stopSecond();
+  });
+});

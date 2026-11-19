@@ -16,6 +16,11 @@ Fases 1 a 5.2 de la hoja de ruta (aún sin versión publicada; `app.json` sigue 
 
 ### Añadido
 
+- **Pruebas y optimización (FASE 7):** dobles reutilizables de los módulos
+  nativos (`expo-audio`, `expo-file-system`, `expo-widgets`, `expo-modules-core` y
+  SQLite), cobertura con umbrales en `jest.config`, **CI** en GitHub Actions
+  (tipado, lint, pruebas y `expo-doctor`), benchmarks de escaneo y preparación de
+  listas, y guion de verificación manual de 12 pasos en `docs/TESTING.md`.
 - **UI/UX, animaciones y accesibilidad (FASE 6):** escala de espaciado semántica
   (`xs`…`xxl`) y tokens nuevos (área táctil mínima, tamaños de icono, velo, sombra,
   color de enlace); estados de carga con **esqueleto animado** en biblioteca y
@@ -51,6 +56,10 @@ Fases 1 a 5.2 de la hoja de ruta (aún sin versión publicada; `app.json` sigue 
   (`#0B0B0F`) y `adaptiveIcon.backgroundColor` acorde, en vez del azul por defecto.
 - El **tema de navegación** se centraliza en `useNavigationTheme()` (una sola
   fuente de verdad derivada de los tokens), en lugar de duplicar el mapeo.
+- **Constantes del motor centralizadas (FASE 7):** cadencia de ticks, backoff del
+  lock screen y del modo de audio, timeouts de seek y persistencia del volumen
+  viven ahora en `src/services/audio/config.ts` (`B-05`). Los valores son los
+  mismos, así que el comportamiento no cambia.
 - `MAX_ATTEMPTS_PER_ALBUM` sube de 2 a **5** en la resolución de portada: en discos
   donde la primera pista no trae arte ya no se rinde tan pronto.
 - `upsertBatch` conserva la portada previa (`COALESCE`) para no perderla si una

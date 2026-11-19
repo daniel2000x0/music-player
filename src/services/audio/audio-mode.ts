@@ -1,6 +1,7 @@
 import { requestNotificationPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import { Linking, Platform } from 'react-native';
 
+import { AUDIO_CONFIG } from '@/services/audio/config';
 import { getCapabilities, setPermissionSnapshot } from '@/services/capabilities';
 import { logError } from '@/services/error-log.service';
 import { useNoticeStore } from '@/stores/notice.store';
@@ -13,12 +14,6 @@ import { useNoticeStore } from '@/stores/notice.store';
  * reintentan con espera acotada y quedan en `error_logs`; no se propaga la
  * excepción porque un build sin soporte no debe impedir reproducir.
  */
-
-/** Esperas antes de reintentar la configuración de la sesión de audio. */
-const AUDIO_MODE_RETRY_DELAYS_MS = [1000, 3000] as const;
-
-/** Código del aviso de permiso: deduplica y permite reemplazarlo al denegar. */
-const NOTIFICATION_NOTICE_CODE = 'playback.notifications';
 
 /** El aviso se ofrece una sola vez por sesión: no se insiste al reproducir. */
 let notificationPromptShown = false;
@@ -36,7 +31,7 @@ async function applyAudioMode(attempt: number): Promise<void> {
     });
   } catch (error) {
     logError('audio/mode', 'setAudioModeAsync', error);
-    const delay = AUDIO_MODE_RETRY_DELAYS_MS[attempt];
+    const delay = AUDIO_CONFIG.audioModeRetryDelaysMs[attempt];
     if (delay === undefined) {
       return;
     }
@@ -101,7 +96,7 @@ export function promptNotificationPermission(): void {
   }
   notificationPromptShown = true;
   useNoticeStore.getState().push({
-    code: NOTIFICATION_NOTICE_CODE,
+    code: AUDIO_CONFIG.notificationNoticeCode,
     severity: 'info',
     title: 'Controles en la pantalla de bloqueo',
     message:
@@ -114,11 +109,11 @@ export function promptNotificationPermission(): void {
 async function grantNotificationPermission(): Promise<void> {
   await requestNotificationPermission();
   if (getCapabilities()['playback.notifications']) {
-    useNoticeStore.getState().dismiss(NOTIFICATION_NOTICE_CODE);
+    useNoticeStore.getState().dismiss(AUDIO_CONFIG.notificationNoticeCode);
     return;
   }
   useNoticeStore.getState().push({
-    code: NOTIFICATION_NOTICE_CODE,
+    code: AUDIO_CONFIG.notificationNoticeCode,
     severity: 'warning',
     title: 'Notificaciones desactivadas',
     message:

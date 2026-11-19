@@ -48,12 +48,26 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "test:coverage": "jest --coverage",
+    "check:coverage": "node scripts/check-coverage.js",
     "bench": "jest src/testing/bench --silent=false --verbose"
   },
   "jest": {
     "preset": "jest-expo",
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
+    },
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/src/testing/"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "lines": 90,
+        "statements": 89,
+        "branches": 84,
+        "functions": 88
+      }
     }
   },
   "private": true

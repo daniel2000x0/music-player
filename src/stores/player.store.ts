@@ -33,6 +33,7 @@ import {
   type SessionSnapshot,
   type SessionState,
 } from '@/services/audio';
+import { AUDIO_CONFIG } from '@/services/audio/config';
 import {
   flushSessionPersistence,
   savePositionThrottled,
@@ -114,12 +115,6 @@ let lastPosition = 0;
 let seekTarget: number | null = null;
 let seekRequestedAt = 0;
 
-/** Tiempo máximo que se espera la confirmación nativa de un seek (ms). */
-const SEEK_CONFIRMATION_TIMEOUT_MS = 1500;
-
-/** Retardo con el que se persiste el volumen tras el último arrastre (ms). */
-const VOLUME_PERSIST_DEBOUNCE_MS = 500;
-
 let hydrateSessionPromise: Promise<void> | null = null;
 let sessionHydrated = false;
 let volumePersistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -155,7 +150,7 @@ function scheduleVolumePersist(volume: number): void {
     void settingsRepository
       .setVolume(volume)
       .catch((error: unknown) => logError('player-store', 'setVolume', error));
-  }, VOLUME_PERSIST_DEBOUNCE_MS);
+  }, AUDIO_CONFIG.volumePersistDebounceMs);
 }
 
 /**
@@ -526,7 +521,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       // la barra no salte atrás tras soltar el dedo.
       if (seekTarget !== null) {
         const confirmed = Math.abs(status.currentTime - seekTarget) < 1;
-        const expired = Date.now() - seekRequestedAt > SEEK_CONFIRMATION_TIMEOUT_MS;
+        const expired = Date.now() - seekRequestedAt > AUDIO_CONFIG.seekConfirmationTimeoutMs;
         if (confirmed || expired) {
           clearSeekTarget();
         }

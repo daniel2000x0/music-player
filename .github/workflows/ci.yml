@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# Un solo job: las comprobaciones son rapidas y comparten `node_modules`.
+jobs:
+  verify:
+    name: Typecheck · Lint · Jest · expo-doctor
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # Jest aplica los umbrales globales de package.json; el script comprueba
+      # además los promedios por capa (dominio / servicios / stores).
+      - name: Tests y cobertura
+        run: npm test -- --ci --coverage --runInBand
+
+      - name: Umbrales por capa
+        run: npm run check:coverage
+
+      # Deriva de versiones upstream pre-existente (FASE 5.1 / 6): corregirla
+      # exigiria subir paquetes nativos y validar el APK otra vez. Se ejecuta
+      # y se informa, pero no bloquea el pipeline; se revisa al cerrar FASE 8.
+      - name: expo-doctor (informativo)
+        continue-on-error: true
+        run: npx expo-doctor
