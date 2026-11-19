@@ -1,18 +1,4 @@
-import {
-  ALPHABET,
-  collectInitials,
-  firstVisibleLetter,
-  normalizeLetter,
-  type ViewableLetterToken,
-} from '@/utils/alphabet';
-
-function token(
-  title: string,
-  index: number,
-  isViewable = true
-): ViewableLetterToken<{ title: string }> {
-  return { isViewable, index, item: { title } };
-}
+import { ALPHABET, collectInitials, normalizeLetter } from '@/utils/alphabet';
 
 describe('normalizeLetter', () => {
   it('normaliza tildes y minúsculas a la inicial mayúscula', () => {
@@ -39,26 +25,5 @@ describe('collectInitials', () => {
 
   it('cubre el alfabeto completo', () => {
     expect(ALPHABET).toHaveLength(26);
-  });
-});
-
-describe('firstVisibleLetter', () => {
-  it('elige la fila visible con el índice menor aunque lleguen desordenados', () => {
-    const tokens = [token('Zorro', 42), token('Beso', 7), token('Águila', 19)];
-    expect(firstVisibleLetter(tokens)).toBe('B');
-  });
-
-  it('ignora filas no visibles y tokens sin índice', () => {
-    const tokens = [
-      token('Águila', 2, false),
-      { isViewable: true, index: undefined, item: { title: 'Beso' } },
-      token('Zorro', 30),
-    ];
-    expect(firstVisibleLetter(tokens)).toBe('Z');
-  });
-
-  it('devuelve null cuando no hay ninguna fila visible', () => {
-    expect(firstVisibleLetter([])).toBeNull();
-    expect(firstVisibleLetter([token('Águila', 1, false)])).toBeNull();
   });
 });

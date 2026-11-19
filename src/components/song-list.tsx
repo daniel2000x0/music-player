@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useMemo, useRef, type ReactElement } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -9,19 +9,14 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { AlphabetBar } from '@/components/alphabet-bar';
+import { AlphabetChips } from '@/components/alphabet-chips';
 import { SongRow } from '@/components/song-row';
 import { BottomTabInset, MiniPlayerInset, ScrollbarGutter } from '@/constants/theme';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { Song } from '@/types/song';
-import {
-  collectInitials,
-  firstVisibleLetter,
-  normalizeLetter,
-  type ViewableLetterToken,
-} from '@/utils/alphabet';
+import { collectInitials, normalizeLetter } from '@/utils/alphabet';
 
 export type SongListProps = {
   songs: Song[];
@@ -74,9 +69,9 @@ export function SongList({
   onLongPressSong,
 }: SongListProps) {
   const listRef = useRef<FlatList<Song>>(null);
-  const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   const theme = useTheme();
+  const scrollIndicator = useScrollIndicator();
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
 
@@ -148,24 +143,6 @@ export function SongList({
     [songs]
   );
 
-  // Con índice alfabético, la píldora es el indicador de posición; sin él
-  // (títulos solo numéricos) conservamos la barra nativa.
-  const scrollIndicator = useScrollIndicator({ native: availableLetters.length === 0 });
-
-  // Estable: `viewabilityConfig` no se puede cambiar mientras la lista scrollea.
-  const viewabilityConfig = useMemo(
-    () => ({ itemVisiblePercentThreshold: 50, minimumViewTime: 0 }),
-    []
-  );
-
-  const handleViewableItemsChanged = useCallback(
-    ({ viewableItems }: { viewableItems: ViewableLetterToken<Song>[] }) => {
-      const letter = firstVisibleLetter(viewableItems);
-      setActiveLetter((current) => (current === letter ? current : letter));
-    },
-    []
-  );
-
   // Desplaza la lista hasta la primera canción de la letra elegida.
   const scrollToLetter = useCallback(
     (letter: string) => {
@@ -186,6 +163,12 @@ export function SongList({
 
   return (
     <View style={styles.container}>
+      <AlphabetChips
+        letters={availableLetters}
+        onSelect={scrollToLetter}
+        itemNoun="canciones"
+      />
+
       <FlatList
         ref={listRef}
         data={songs}
@@ -198,8 +181,6 @@ export function SongList({
         windowSize={5}
         keyboardShouldPersistTaps="handled"
         {...scrollIndicator}
-        onViewableItemsChanged={handleViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
         style={styles.flex}
         refreshControl={
           onRefresh ? (
@@ -214,13 +195,6 @@ export function SongList({
         ListHeaderComponent={ListHeaderComponent ?? undefined}
         ListFooterComponent={ListFooterComponent ?? undefined}
         contentContainerStyle={[styles.content, contentContainerStyle]}
-      />
-
-      <AlphabetBar
-        letters={availableLetters}
-        activeLetter={activeLetter}
-        onSelect={scrollToLetter}
-        itemNoun="canciones"
       />
     </View>
   );
@@ -269,7 +243,6 @@ export function InlineSongList({ songs, onMore }: InlineSongListProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    position: 'relative',
   },
 
   flex: {
@@ -282,8 +255,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingBottom: BottomTabInset + MiniPlayerInset,
-    // La barra alfabética vive en el margen derecho de la pantalla; solo
-    // se reserva el carril del indicador para que no toque las filas.
+    // Carril del indicador nativo de scroll.
     paddingRight: ScrollbarGutter,
   },
 });
