@@ -1011,7 +1011,9 @@ Context7 ✅ · Expo MCP ❌ · GitHub MCP ❌.
 | Fuente 200 % / 320 dp | ✅ la barra de 6 pestañas no escala la etiqueta (`tabBarAllowFontScaling: false`) y usa `fontSize: 10`; no se recorta a 320 dp |
 | Splash y tema | ✅ splash claro `#ffffff` + variante `dark` `#0B0B0F`; `adaptiveIcon.backgroundColor` `#0B0B0F`. **Pendiente de ver en build nativo** (cambiar el splash no viaja por OTA) |
 | `UI-12` en dispositivo | ✅ el contenido de las hojas modales no cierra el modal; el backdrop sí cierra. Verificado en el selector de playlist (el toque en el contenido no lo cerró) |
-| Verdes | `tsc` limpio · `jest` **39 suites / 308 pruebas** · `expo lint` 0 problemas |
+| Verdes | `tsc` limpio · `jest` **39 suites / 308 pruebas** · `expo lint` 0 problemas · `expo-doctor` ⚠️ deriva de versiones upstream (9 paquetes; pre-existente, ver nota) |
+
+**Nota `expo-doctor`:** la comprobación de versiones falla por deriva del upstream (`expo` ~58.0.26 vs 58.0.25, `expo-router`, `expo-sqlite`, `jest-expo`, `@expo/ui`, `expo-dev-client`, `expo-file-system`, `expo-widgets`). Es **pre-existente** (idéntica a la de FASE 5.1) y no se toca: subir módulos nativos rompería la coincidencia con el APK instalado, y los cambios de esta fase son solo JS y viajan por OTA. `package.json` y `package-lock.json` quedan sin cambios.
 
 **Decisiones registradas:**
 
