@@ -12,6 +12,9 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+import { HeroThemes } from '@/constants/hero-themes';
+import { isHeroTheme, type ThemeMode } from '@/types/settings';
+
 /**
  * Paleta de colores por modo del sistema.
  *
@@ -57,7 +60,49 @@ export const Colors = {
     // Indicador de desplazamiento
     scrollbarIndicator: 'white',
   },
+
+  // Familias de superhéroe (cada una con variante clara y oscura).
+  ...HeroThemes,
 } as const;
+
+/** Claves base compartidas por TODOS los temas, héroes incluidos. */
+export type AppPalette = {
+  text: string;
+  background: string;
+  backgroundElement: string;
+  backgroundSelected: string;
+  textSecondary: string;
+  border: string;
+  accent: string;
+  accentText: string;
+  danger: string;
+  link: string;
+  scrollbarIndicator: string;
+  /** Solo temas con fondo de pantalla propio; veladura sobre la imagen. */
+  backdropScrim?: string;
+};
+
+/**
+ * Esquema efectivo: los temas base fijan claro/oscuro; los de héroe siguen
+ * la preferencia del sistema para usar su variante `light` o `dark`.
+ */
+export function resolveScheme(
+  mode: ThemeMode,
+  systemScheme: 'light' | 'dark'
+): 'light' | 'dark' {
+  return isHeroTheme(mode) ? systemScheme : mode;
+}
+
+/** Paleta plana que deben consumir los componentes, sin importar el tema. */
+export function resolvePalette(
+  mode: ThemeMode,
+  systemScheme: 'light' | 'dark'
+): AppPalette {
+  if (!isHeroTheme(mode)) {
+    return Colors[mode];
+  }
+  return Colors[mode][resolveScheme(mode, systemScheme)];
+}
 
 /**
  * Unión de claves que existen tanto en el modo claro como en el oscuro.
@@ -165,6 +210,18 @@ export const OnDanger = '#FFFFFF';
  * botones o tarjetas.
  */
 export const ScrollbarGutter = 12;
+
+/**
+ * Margen horizontal que cancela el `paddingHorizontal: Spacing.xl` del
+ * `SafeAreaView` de `ScreenShell` en las listas con indicador nativo.
+ *
+ * LÓGICA: Android e iOS dibujan la barra en el borde del ScrollView/FlatList,
+ * no en el del dispositivo. Al extender el marco de la lista hasta el borde
+ * del área segura, el thumb queda pegado al borde real. El contenido se
+ * reinserta con `paddingLeft: Spacing.xl` en el `contentContainerStyle`,
+ * mientras `ScrollbarGutter` sigue protegiendo las filas del thumb.
+ */
+export const ScrollbarEdgeMargin = -Spacing.xl;
 
 /**
  * Radios de esquina reutilizables (píldoras, tarjetas, artwork).

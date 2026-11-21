@@ -12,13 +12,21 @@ import {
 
 import { AlphabetChips } from '@/components/alphabet-chips';
 import { Artwork } from '@/components/artwork';
+import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SkeletonList } from '@/components/skeleton';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import {
+  BottomTabInset,
+  MiniPlayerInset,
+  Radius,
+  ScrollbarEdgeMargin,
+  ScrollbarGutter,
+  Spacing,
+} from '@/constants/theme';
 import { collectAudiobooks, type Audiobook } from '@/domain/library/audiobooks';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
@@ -228,34 +236,37 @@ export default function AudiobooksScreen() {
       ) : visibleBooks.length === 0 ? (
         <EmptyState title="Sin resultados" message="No hay audiolibros que coincidan." />
       ) : (
-        <FlatList
-          ref={listRef}
-          data={visibleBooks}
-          keyExtractor={keyExtractor}
-          renderItem={({ item }) => (
-            <BookRow book={item} onPlay={handlePlay} onOptions={setOptionsBook} />
-          )}
-          getItemLayout={(_, index) => ({
-            length: ROW_HEIGHT,
-            offset: ROW_HEIGHT * index,
-            index,
-          })}
-          initialNumToRender={12}
-          maxToRenderPerBatch={12}
-          windowSize={5}
-          keyboardShouldPersistTaps="handled"
-          {...scrollIndicator}
-          style={styles.flex}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isScanning}
-              onRefresh={() => void refresh()}
-              tintColor={theme.accent}
-              colors={[theme.accent]}
-            />
-          }
-        />
+        <View style={styles.listFrame}>
+          <FlatList
+            ref={listRef}
+            data={visibleBooks}
+            keyExtractor={keyExtractor}
+            renderItem={({ item }) => (
+              <BookRow book={item} onPlay={handlePlay} onOptions={setOptionsBook} />
+            )}
+            getItemLayout={(_, index) => ({
+              length: ROW_HEIGHT,
+              offset: ROW_HEIGHT * index,
+              index,
+            })}
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={5}
+            keyboardShouldPersistTaps="handled"
+            {...scrollIndicator.scrollProps}
+            style={styles.flex}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl
+                refreshing={isScanning}
+                onRefresh={() => void refresh()}
+                tintColor={theme.accent}
+                colors={[theme.accent]}
+              />
+            }
+          />
+          <EdgeScrollIndicator {...scrollIndicator.indicatorProps} />
+        </View>
       )}
     </ScreenShell>
 
@@ -313,12 +324,21 @@ const styles = StyleSheet.create({
     // Ajuste óptico: el triángulo de "play" se ve mejor un poco a la derecha.
     paddingLeft: Spacing.xs,
   },
+  listFrame: {
+    flex: 1,
+    position: 'relative',
+    // El marco llega al borde real para que el indicador propio quede pegado a él.
+    marginHorizontal: ScrollbarEdgeMargin,
+  },
+
   flex: {
     flex: 1,
   },
   listContent: {
     paddingBottom: BottomTabInset + MiniPlayerInset,
-    // Carril del indicador nativo de scroll.
+    // Reinserta las filas respecto al área segura...
+    paddingLeft: Spacing.xl,
+    // ...y deja el carril del indicador nativo de scroll.
     paddingRight: ScrollbarGutter,
   },
 });

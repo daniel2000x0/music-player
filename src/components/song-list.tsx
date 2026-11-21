@@ -10,8 +10,15 @@ import {
 } from 'react-native';
 
 import { AlphabetChips } from '@/components/alphabet-chips';
+import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { SongRow } from '@/components/song-row';
-import { BottomTabInset, MiniPlayerInset, ScrollbarGutter } from '@/constants/theme';
+import {
+  BottomTabInset,
+  MiniPlayerInset,
+  ScrollbarEdgeMargin,
+  ScrollbarGutter,
+  Spacing,
+} from '@/constants/theme';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
@@ -169,33 +176,36 @@ export function SongList({
         itemNoun="canciones"
       />
 
-      <FlatList
-        ref={listRef}
-        data={songs}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        getItemLayout={getItemLayout}
-        extraData={extraData}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
-        windowSize={5}
-        keyboardShouldPersistTaps="handled"
-        {...scrollIndicator}
-        style={styles.flex}
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.accent}
-              colors={[theme.accent]}
-            />
-          ) : undefined
-        }
-        ListHeaderComponent={ListHeaderComponent ?? undefined}
-        ListFooterComponent={ListFooterComponent ?? undefined}
-        contentContainerStyle={[styles.content, contentContainerStyle]}
-      />
+      <View style={styles.listFrame}>
+        <FlatList
+          ref={listRef}
+          data={songs}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          getItemLayout={getItemLayout}
+          extraData={extraData}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={5}
+          keyboardShouldPersistTaps="handled"
+          {...scrollIndicator.scrollProps}
+          style={styles.flex}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.accent}
+                colors={[theme.accent]}
+              />
+            ) : undefined
+          }
+          ListHeaderComponent={ListHeaderComponent ?? undefined}
+          ListFooterComponent={ListFooterComponent ?? undefined}
+          contentContainerStyle={[styles.content, contentContainerStyle]}
+        />
+        <EdgeScrollIndicator {...scrollIndicator.indicatorProps} />
+      </View>
     </View>
   );
 }
@@ -245,6 +255,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  listFrame: {
+    flex: 1,
+    position: 'relative',
+    // El marco llega al borde real para que el indicador propio quede pegado a él.
+    marginHorizontal: ScrollbarEdgeMargin,
+  },
+
   flex: {
     flex: 1,
   },
@@ -255,7 +272,9 @@ const styles = StyleSheet.create({
 
   content: {
     paddingBottom: BottomTabInset + MiniPlayerInset,
-    // Carril del indicador nativo de scroll.
+    // Reinserta las filas respecto al área segura...
+    paddingLeft: Spacing.xl,
+    // ...y deja el carril del indicador nativo de scroll.
     paddingRight: ScrollbarGutter,
   },
 });

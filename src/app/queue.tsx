@@ -4,10 +4,18 @@ import { memo, useCallback } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { Artwork } from '@/components/artwork';
+import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
 import { ScreenShell } from '@/components/screen-shell';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import {
+  BottomTabInset,
+  MiniPlayerInset,
+  Radius,
+  ScrollbarEdgeMargin,
+  ScrollbarGutter,
+  Spacing,
+} from '@/constants/theme';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { usePlayerStore } from '@/stores/player.store';
@@ -161,34 +169,37 @@ export default function QueueScreen() {
           message="Reproduce una canción para llenar la cola."
         />
       ) : (
-        <FlatList
-          data={items}
-          keyExtractor={keyExtractor}
-          renderItem={({ item }) => (
-            <QueueRow
-              song={item}
-              isCurrent={item.id === currentId}
-              canMoveUp={item.queueIndex > 0}
-              canMoveDown={item.queueIndex < lastIndex}
-              onPlay={handlePlay}
-              onMoveUp={handleMoveUp}
-              onMoveDown={handleMoveDown}
-              onRemove={handleRemove}
-            />
-          )}
-          getItemLayout={(_, index) => ({
-            length: ROW_HEIGHT,
-            offset: ROW_HEIGHT * index,
-            index,
-          })}
-          initialNumToRender={12}
-          maxToRenderPerBatch={12}
-          windowSize={5}
-          keyboardShouldPersistTaps="handled"
-          {...scrollIndicator}
-          style={styles.flex}
-          contentContainerStyle={styles.listContent}
-        />
+        <View style={styles.listFrame}>
+          <FlatList
+            data={items}
+            keyExtractor={keyExtractor}
+            renderItem={({ item }) => (
+              <QueueRow
+                song={item}
+                isCurrent={item.id === currentId}
+                canMoveUp={item.queueIndex > 0}
+                canMoveDown={item.queueIndex < lastIndex}
+                onPlay={handlePlay}
+                onMoveUp={handleMoveUp}
+                onMoveDown={handleMoveDown}
+                onRemove={handleRemove}
+              />
+            )}
+            getItemLayout={(_, index) => ({
+              length: ROW_HEIGHT,
+              offset: ROW_HEIGHT * index,
+              index,
+            })}
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={5}
+            keyboardShouldPersistTaps="handled"
+            {...scrollIndicator.scrollProps}
+            style={styles.flex}
+            contentContainerStyle={styles.listContent}
+          />
+          <EdgeScrollIndicator {...scrollIndicator.indicatorProps} />
+        </View>
       )}
     </ScreenShell>
   );
@@ -218,11 +229,21 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.3,
   },
+  listFrame: {
+    flex: 1,
+    position: 'relative',
+    // El marco llega al borde real para que el indicador propio quede pegado a él.
+    marginHorizontal: ScrollbarEdgeMargin,
+  },
+
   flex: {
     flex: 1,
   },
   listContent: {
     paddingBottom: BottomTabInset + MiniPlayerInset,
+    // Reinserta las filas respecto al área segura...
+    paddingLeft: Spacing.xl,
+    // ...y deja el carril del indicador nativo de scroll.
     paddingRight: ScrollbarGutter,
   },
 });

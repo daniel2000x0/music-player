@@ -1,11 +1,13 @@
-import { Colors } from '@/constants/theme';
+import { resolvePalette } from '@/constants/theme';
+import { useEffectiveColorScheme } from '@/hooks/use-effective-color-scheme';
 import { useSettingsStore } from '@/stores/settings.store';
 
 /**
- * Devuelve la paleta de colores del tema activo.
+ * Devuelve la paleta del tema activo (base o de superhéroe).
  * El tema se hidrata desde SQLite y se cambia desde Configuración.
  */
 export function useTheme() {
   const theme = useSettingsStore((state) => state.theme);
-  return Colors[theme];
+  const scheme = useEffectiveColorScheme();
+  return resolvePalette(theme, scheme);
 }

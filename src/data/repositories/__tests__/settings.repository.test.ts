@@ -41,6 +41,15 @@ describe('settingsRepository.get', () => {
     });
   });
 
+  it('conserva un tema de superhéroe guardado', async () => {
+    mockFake.setFirst(() => row('{"theme":"ironman","volume":0.5}'));
+
+    await expect(settingsRepository.get()).resolves.toEqual({
+      theme: 'ironman',
+      volume: 0.5,
+    });
+  });
+
   it('descarta un JSON corrupto en lugar de lanzar', async () => {
     mockFake.setFirst(() => row('no es json'));
 

@@ -11,15 +11,16 @@ import {
   View,
 } from 'react-native';
 
-import { CategoryBar, type CategoryOption } from '@/components/category-bar';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
+import { ThemePicker } from '@/components/theme-picker';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { describeScanProgress } from '@/domain/library/scan-progress';
 import { describeScanReport } from '@/domain/library/scan-report';
 import { useCapabilities } from '@/hooks/use-capabilities';
 import { useTheme } from '@/hooks/use-theme';
+import { canChangeAppIcon, setAppIconForTheme } from '@/services/app-icon.service';
 import type { Capability } from '@/services/capabilities';
 import {
   applyAppUpdate,
@@ -27,13 +28,9 @@ import {
   downloadAppUpdate,
 } from '@/services/update.service';
 import { useLibraryStore } from '@/stores/library.store';
+import { useNoticeStore } from '@/stores/notice.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import type { ThemeMode } from '@/types/settings';
-
-const THEMES: readonly CategoryOption<ThemeMode>[] = [
-  { key: 'dark', label: 'Oscuro' },
-  { key: 'light', label: 'Claro' },
-];
 
 const CAPABILITY_LABELS: readonly { key: Capability; label: string }[] = [
   { key: 'playback.background', label: 'Reproducción en segundo plano' },
@@ -185,6 +182,26 @@ export default function SettingsScreen() {
 
   const themeMode = useSettingsStore((state) => state.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
+  const pushNotice = useNoticeStore((state) => state.push);
+
+  const handleThemeChange = useCallback(
+    async (value: ThemeMode) => {
+      await setTheme(value);
+      const result = await setAppIconForTheme(value);
+
+      if (result === 'unsupported' || result === 'error') {
+        pushNotice({
+          code: 'theme.app-icon-unavailable',
+          severity: 'warning',
+          title: 'Icono del launcher no disponible',
+          message: canChangeAppIcon()
+            ? 'El tema se aplicó, pero el sistema no permitió cambiar el icono.'
+            : 'El tema se aplicó. Cambiar el icono requiere una build de desarrollo/EAS; Expo Go no incluye ese módulo nativo.',
+        });
+      }
+    },
+    [pushNotice, setTheme]
+  );
 
   const songs = useLibraryStore((state) => state.songs);
   const playlists = useLibraryStore((state) => state.playlists);
@@ -365,13 +382,13 @@ export default function SettingsScreen() {
           </ThemedText>
 
           <ThemedText type="small" themeColor="textSecondary">
-            Elige entre modo oscuro o claro. Se guarda en tu dispositivo.
+            Elige claro, oscuro o una familia de superhéroe. Cada héroe cambia
+            los colores y, en builds nativos, el icono de la app.
           </ThemedText>
 
-          <CategoryBar
-            options={THEMES}
+          <ThemePicker
             value={themeMode}
-            onChange={(value) => void setTheme(value)}
+            onChange={(value) => void handleThemeChange(value)}
           />
         </View>
       </View>

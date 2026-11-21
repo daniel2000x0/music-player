@@ -1,5 +1,10 @@
 import { getDatabase } from '@/data/db/database';
-import { DEFAULT_SETTINGS, type AppSettings, type ThemeMode } from '@/types/settings';
+import {
+  DEFAULT_SETTINGS,
+  isThemeMode,
+  type AppSettings,
+  type ThemeMode,
+} from '@/types/settings';
 
 function toVolume(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -14,7 +19,7 @@ function parseSettings(value: string | null): AppSettings {
   try {
     const parsed = JSON.parse(value) as Partial<AppSettings>;
     return {
-      theme: parsed.theme === 'light' ? 'light' : 'dark',
+      theme: isThemeMode(parsed.theme) ? parsed.theme : DEFAULT_SETTINGS.theme,
       volume: toVolume(parsed.volume),
     };
   } catch {

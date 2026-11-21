@@ -101,6 +101,65 @@
             }
           ]
         }
+      ],
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "IronMan",
+            "ios": "./assets/images/launcher-icons/ironMan/ios.png",
+            "android": {
+              "foregroundImage": "./assets/images/launcher-icons/ironMan/android-foreground.png",
+              "monochromeImage": "./assets/images/launcher-icons/ironMan/android-monochrome.png",
+              "backgroundColor": "#1A0506"
+            }
+          },
+          {
+            "name": "Avengers",
+            "ios": "./assets/images/launcher-icons/Avengers/ios.png",
+            "android": {
+              "foregroundImage": "./assets/images/launcher-icons/Avengers/android-foreground.png",
+              "monochromeImage": "./assets/images/launcher-icons/Avengers/android-monochrome.png",
+              "backgroundColor": "#1A1A1D"
+            }
+          },
+          {
+            "name": "CapitanAmerica",
+            "ios": "./assets/images/launcher-icons/CapitanAmerica/ios.png",
+            "android": {
+              "foregroundImage": "./assets/images/launcher-icons/CapitanAmerica/android-foreground.png",
+              "monochromeImage": "./assets/images/launcher-icons/CapitanAmerica/android-monochrome.png",
+              "backgroundColor": "#1A1012"
+            }
+          },
+          {
+            "name": "SpiderMan",
+            "ios": "./assets/images/launcher-icons/spiderman/ios.png",
+            "android": {
+              "foregroundImage": "./assets/images/launcher-icons/spiderman/android-foreground.png",
+              "monochromeImage": "./assets/images/launcher-icons/spiderman/android-monochrome.png",
+              "backgroundColor": "#1A0C0E"
+            }
+          },
+          {
+            "name": "Superman",
+            "ios": "./assets/images/launcher-icons/superman/ios.png",
+            "android": {
+              "foregroundImage": "./assets/images/launcher-icons/superman/android-foreground.png",
+              "monochromeImage": "./assets/images/launcher-icons/superman/android-monochrome.png",
+              "backgroundColor": "#001E42"
+            }
+          },
+          {
+            "name": "GreenLantern",
+            "ios": "./assets/images/launcher-icons/greenLantern/ios.png",
+            "android": {
+              "foregroundImage": "./assets/images/launcher-icons/greenLantern/android-foreground.png",
+              "monochromeImage": "./assets/images/launcher-icons/greenLantern/android-monochrome.png",
+              "backgroundColor": "#0D110D"
+            }
+          }
+        ]
       ]
     ],
     "experiments": {

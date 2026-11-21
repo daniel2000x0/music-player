@@ -1,4 +1,6 @@
-import { Colors } from '@/constants/theme';
+import * as ReactNative from 'react-native';
+
+import { resolvePalette } from '@/constants/theme';
 import type { ThemeMode } from '@/types/settings';
 import type { MediaWidgetTheme } from '@/widgets/media-widget.contract';
 
@@ -11,8 +13,15 @@ import type { MediaWidgetTheme } from '@/widgets/media-widget.contract';
  * nativo de `expo-widgets`, que no debe cargarse para probar la resolución del
  * tema. Aquí solo se mapean nombres; la fuente de verdad sigue siendo `Colors`.
  */
+/** `Appearance` puede no existir en bundles aislados o en pruebas. */
+function systemScheme(): 'light' | 'dark' {
+  const appearance = (ReactNative as { Appearance?: { getColorScheme?: () => string | null } })
+    .Appearance;
+  return appearance?.getColorScheme?.() === 'light' ? 'light' : 'dark';
+}
+
 export function resolveWidgetTheme(mode: ThemeMode): MediaWidgetTheme {
-  const palette = Colors[mode];
+  const palette = resolvePalette(mode, systemScheme());
   return {
     background: palette.background,
     surface: palette.backgroundElement,

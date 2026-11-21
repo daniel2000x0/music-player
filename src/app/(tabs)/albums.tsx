@@ -14,6 +14,7 @@ import {
 
 import { AlbumCard } from '@/components/album-card';
 import { Artwork } from '@/components/artwork';
+import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
@@ -21,7 +22,15 @@ import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { SkeletonList } from '@/components/skeleton';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import {
+  BottomTabInset,
+  MaxContentWidth,
+  MiniPlayerInset,
+  Radius,
+  ScrollbarEdgeMargin,
+  ScrollbarGutter,
+  Spacing,
+} from '@/constants/theme';
 import { sortAlbums, sortArtists } from '@/domain/library/sorting';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
@@ -60,8 +69,10 @@ export default function AlbumsScreen() {
   // El filtrado corre sobre el texto "asentado" (ver `useDebouncedValue`).
   const debouncedQuery = useDebouncedValue(query);
 
+  // La cuadrícula ocupa el ancho del área segura: la lista cancela el padding
+  // horizontal de ScreenShell, así que solo se descuenta un Spacing.xl.
   const contentWidth =
-    Math.min(width, MaxContentWidth) - Spacing.xl * 2 - ScrollbarGutter;
+    Math.min(width, MaxContentWidth) - Spacing.xl - ScrollbarGutter;
   const cardWidth = (contentWidth - Spacing.lg) / 2;
 
   const visibleAlbums = useMemo(() => {
@@ -147,67 +158,70 @@ export default function AlbumsScreen() {
         ) : visibleAlbums.length === 0 ? (
           <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
         ) : (
-          <FlatList
-            data={visibleAlbums}
-            keyExtractor={keyExtractor}
-            numColumns={2}
-            columnWrapperStyle={{ columnGap: Spacing.lg }}
-            key={`${cardWidth}`}
-            renderItem={({ item }) => (
-              <AlbumCard album={item} width={cardWidth} onPress={() => handleAlbumPress(item.id)} />
-            )}
-            ListHeaderComponent={
-              visibleArtists.length > 0 ? (
-                <View style={styles.albumsHeader}>
-                  <SectionHeader title="Artistas" />
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.artistRow}>
-                    {visibleArtists.map((artist) => (
-                      <Pressable
-                        key={artist.id}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/artist/[name]',
-                            params: { name: encodeURIComponent(artist.name) },
-                          })
-                        }
-                        style={styles.artist}>
-                        <Artwork size={68} radius={Radius.pill} />
-                        <ThemedText type="smallBold" numberOfLines={1} style={styles.artistName}>
-                          {artist.name}
-                        </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                          {artist.songCount} canciones
-                        </ThemedText>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
+          <View style={styles.listFrame}>
+            <FlatList
+              data={visibleAlbums}
+              keyExtractor={keyExtractor}
+              numColumns={2}
+              columnWrapperStyle={{ columnGap: Spacing.lg }}
+              key={`${cardWidth}`}
+              renderItem={({ item }) => (
+                <AlbumCard album={item} width={cardWidth} onPress={() => handleAlbumPress(item.id)} />
+              )}
+              ListHeaderComponent={
+                visibleArtists.length > 0 ? (
+                  <View style={styles.albumsHeader}>
+                    <SectionHeader title="Artistas" />
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.artistRow}>
+                      {visibleArtists.map((artist) => (
+                        <Pressable
+                          key={artist.id}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/artist/[name]',
+                              params: { name: encodeURIComponent(artist.name) },
+                            })
+                          }
+                          style={styles.artist}>
+                          <Artwork size={68} radius={Radius.pill} />
+                          <ThemedText type="smallBold" numberOfLines={1} style={styles.artistName}>
+                            {artist.name}
+                          </ThemedText>
+                          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                            {artist.songCount} canciones
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                    <SectionHeader title="Álbumes" />
+                  </View>
+                ) : (
                   <SectionHeader title="Álbumes" />
-                </View>
-              ) : (
-                <SectionHeader title="Álbumes" />
-              )
-            }
-            ListEmptyComponent={
-              <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
-            }
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            {...scrollIndicator}
-            style={styles.flex}
-            contentContainerStyle={styles.gridContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={isScanning}
-                onRefresh={() => void refresh()}
-                tintColor={theme.accent}
-                colors={[theme.accent]}
-              />
-            }
-          />
+                )
+              }
+              ListEmptyComponent={
+                <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
+              }
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+              {...scrollIndicator.scrollProps}
+              style={styles.flex}
+              contentContainerStyle={styles.gridContent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isScanning}
+                  onRefresh={() => void refresh()}
+                  tintColor={theme.accent}
+                  colors={[theme.accent]}
+                />
+              }
+            />
+            <EdgeScrollIndicator {...scrollIndicator.indicatorProps} />
+          </View>
         )}
       </ScreenShell>
 
@@ -264,12 +278,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.xs,
   },
+  listFrame: {
+    flex: 1,
+    position: 'relative',
+    // El marco llega al borde real para que el indicador propio quede pegado a él.
+    marginHorizontal: ScrollbarEdgeMargin,
+  },
+
   flex: {
     flex: 1,
   },
   gridContent: {
     rowGap: Spacing.xl,
     paddingBottom: BottomTabInset + MiniPlayerInset,
+    // Reinserta las tarjetas respecto al área segura...
+    paddingLeft: Spacing.xl,
+    // ...y deja el carril del indicador nativo de scroll.
     paddingRight: ScrollbarGutter,
   },
 });

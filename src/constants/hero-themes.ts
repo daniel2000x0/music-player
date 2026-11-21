@@ -1,0 +1,270 @@
+import type { HeroThemeId } from '@/types/settings';
+
+/**
+ * Paletas personalizadas por superhéroe, derivadas de dos fuentes:
+ *
+ * 1. Las imágenes de `assets/images/background/` (colores muestreados con
+ *    cuantización de píxeles: dominantes, promedio y zonas).
+ * 2. El color canónico del personaje (rojo de Iron Man, azul de Superman,
+ *    esmeralda de Linterna Verde, etc.).
+ *
+ * LÓGICA: cada familia expone `light` y `dark` con las mismas claves base que
+ * `Colors.light`/`Colors.dark`, más los tokens propios del personaje y
+ * `backdropScrim` (veladura sobre su fondo de pantalla). Así el selector puede
+ * elegir la variante según el esquema del sistema sin que los componentes
+ * tengan que conocer los colores especiales.
+ */
+
+/** Iron Man — rojos #8B0305/#C50600 y oro #ECD078 de ironman.jpg. */
+const ironman = {
+  light: {
+    text: '#4A1206',
+    background: '#FFF3DE',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#F2D9A4',
+    textSecondary: '#8A533C',
+    border: '#E8C68D',
+    accent: '#C50600',
+    accentText: '#FFFFFF',
+    danger: '#B30501',
+    link: '#0E7C93',
+    scrollbarIndicator: '#C50600',
+    backdropScrim: 'rgba(255, 243, 222, 0.68)',
+    armorRed: '#C50600',
+    armorGold: '#ECD078',
+    armorEmber: '#9B613C',
+    crimsonDeep: '#6E0104',
+    reactorBlue: '#0E7C93',
+  },
+  dark: {
+    text: '#FFF1DF',
+    background: '#1A0506',
+    backgroundElement: '#2A0A0B',
+    backgroundSelected: '#4A1010',
+    textSecondary: '#D0A28C',
+    border: '#5A1A18',
+    accent: '#ECD078',
+    accentText: '#2A0A0B',
+    danger: '#FF5A48',
+    link: '#55D6EE',
+    scrollbarIndicator: '#ECD078',
+    backdropScrim: 'rgba(26, 5, 6, 0.60)',
+    armorRed: '#E32636',
+    armorGold: '#ECD078',
+    armorEmber: '#9B613C',
+    crimsonDeep: '#550101',
+    reactorBlue: '#55D6EE',
+  },
+} as const;
+
+/** Avengers — gris claro #F0F0F0 y humo #453335 de avengers.jpg. */
+const avengers = {
+  light: {
+    text: '#1B1A1C',
+    background: '#F0F0F0',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#E2E2E4',
+    textSecondary: '#615E62',
+    border: '#D5D5D8',
+    accent: '#C62828',
+    accentText: '#FFFFFF',
+    danger: '#B30501',
+    link: '#A8791A',
+    scrollbarIndicator: '#C62828',
+    backdropScrim: 'rgba(240, 240, 240, 0.68)',
+    avengerRed: '#C62828',
+    avengerGold: '#D4A72C',
+    avengerSteel: '#6A6161',
+    avengerSmoke: '#453335',
+  },
+  dark: {
+    text: '#F5F5F7',
+    background: '#1A1A1D',
+    backgroundElement: '#26262B',
+    backgroundSelected: '#3A3A40',
+    textSecondary: '#A9A9B2',
+    border: '#45454B',
+    accent: '#E32636',
+    accentText: '#FFFFFF',
+    danger: '#FF5A48',
+    link: '#F2C14E',
+    scrollbarIndicator: '#E32636',
+    backdropScrim: 'rgba(26, 26, 29, 0.62)',
+    avengerRed: '#E32636',
+    avengerGold: '#F2C14E',
+    avengerSteel: '#8492A6',
+    avengerSmoke: '#453335',
+  },
+} as const;
+
+/** Capitán América — rojo #D62E2D y rosa #E7CCCC de su imagen. */
+const capitanAmerica = {
+  light: {
+    text: '#2A1A1C',
+    background: '#F7EBEB',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#EED7D7',
+    textSecondary: '#7A5A5C',
+    border: '#E4C0C0',
+    accent: '#D62E2D',
+    accentText: '#FFFFFF',
+    danger: '#B30501',
+    link: '#2D5EA8',
+    scrollbarIndicator: '#D62E2D',
+    backdropScrim: 'rgba(247, 235, 235, 0.68)',
+    shieldRed: '#D62E2D',
+    shieldBlue: '#2D5EA8',
+    shieldWhite: '#FFFFFF',
+    shieldShadow: '#201D1E',
+  },
+  dark: {
+    text: '#FFF1F1',
+    background: '#1A1012',
+    backgroundElement: '#261618',
+    backgroundSelected: '#3E2023',
+    textSecondary: '#D2ABAD',
+    border: '#4A2528',
+    accent: '#E8443C',
+    accentText: '#FFFFFF',
+    danger: '#FF5A48',
+    link: '#6BA6FF',
+    scrollbarIndicator: '#E8443C',
+    backdropScrim: 'rgba(26, 16, 18, 0.60)',
+    shieldRed: '#E8443C',
+    shieldBlue: '#3B7DD8',
+    shieldWhite: '#FFF1F1',
+    shieldShadow: '#201D1E',
+  },
+} as const;
+
+/** Spider-Man — #EC2F2C, #F1664A y #F87552 de spiderman.jpg. */
+const spiderman = {
+  light: {
+    text: '#3A1A18',
+    background: '#FFF1EC',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#FADBD1',
+    textSecondary: '#8A5A52',
+    border: '#F0C4B8',
+    accent: '#EC2F2C',
+    accentText: '#FFFFFF',
+    danger: '#B30501',
+    link: '#1D5BA8',
+    scrollbarIndicator: '#EC2F2C',
+    backdropScrim: 'rgba(255, 241, 236, 0.68)',
+    webRed: '#EC2F2C',
+    suitBlue: '#1D5BA8',
+    webBlack: '#602B2F',
+    emberOrange: '#F87552',
+  },
+  dark: {
+    text: '#FFF1EC',
+    background: '#1A0C0E',
+    backgroundElement: '#2A1215',
+    backgroundSelected: '#421B1F',
+    textSecondary: '#D2A6A0',
+    border: '#55252A',
+    accent: '#FF5647',
+    accentText: '#1A0C0E',
+    danger: '#FF5A48',
+    link: '#5CCFFF',
+    scrollbarIndicator: '#FF5647',
+    backdropScrim: 'rgba(26, 12, 14, 0.60)',
+    webRed: '#FF5647',
+    suitBlue: '#2E6FD9',
+    webBlack: '#120809',
+    emberOrange: '#F87552',
+  },
+} as const;
+
+/** Superman — rojo #D90D1F y azul #001E42 de superman.jpg (optimizada). */
+const superman = {
+  light: {
+    text: '#14213D',
+    background: '#EFF3FB',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#D9E4F6',
+    textSecondary: '#5D6D88',
+    border: '#C6D6EE',
+    accent: '#D90D1F',
+    accentText: '#FFFFFF',
+    danger: '#B30501',
+    link: '#1D5BA8',
+    scrollbarIndicator: '#D90D1F',
+    backdropScrim: 'rgba(239, 243, 251, 0.68)',
+    capeRed: '#D90D1F',
+    suitBlue: '#001E42',
+    shieldYellow: '#F2C14E',
+    shieldShadow: '#76182D',
+  },
+  dark: {
+    text: '#F5F8FF',
+    background: '#001E42',
+    backgroundElement: '#072B59',
+    backgroundSelected: '#0E3D7A',
+    textSecondary: '#A9C2E0',
+    border: '#1A4F8F',
+    accent: '#EF1F31',
+    accentText: '#FFFFFF',
+    danger: '#FF5A48',
+    link: '#6BA6FF',
+    scrollbarIndicator: '#EF1F31',
+    backdropScrim: 'rgba(0, 30, 66, 0.58)',
+    capeRed: '#EF1F31',
+    suitBlue: '#001E42',
+    shieldYellow: '#F2C14E',
+    shieldShadow: '#76182D',
+  },
+} as const;
+
+/** Linterna Verde — verde #1A331D/#53A256 y tierra #AF5829 de greenlantern.jpg. */
+const greenLantern = {
+  light: {
+    text: '#12271A',
+    background: '#EFF5E9',
+    backgroundElement: '#FFFFFF',
+    backgroundSelected: '#DCEBD2',
+    textSecondary: '#57705E',
+    border: '#C9DFBE',
+    accent: '#16833A',
+    accentText: '#FFFFFF',
+    danger: '#B30501',
+    link: '#126A9C',
+    scrollbarIndicator: '#16833A',
+    backdropScrim: 'rgba(239, 245, 233, 0.68)',
+    lanternGreen: '#2ECC71',
+    lanternBlack: '#0D110D',
+    energyGreen: '#53A256',
+    earthBrown: '#AF5829',
+  },
+  dark: {
+    text: '#F2FFF5',
+    background: '#0D110D',
+    backgroundElement: '#162018',
+    backgroundSelected: '#223326',
+    textSecondary: '#9BBBA5',
+    border: '#2A442F',
+    accent: '#50C878',
+    accentText: '#04140A',
+    danger: '#FF5A48',
+    link: '#5CCFFF',
+    scrollbarIndicator: '#50C878',
+    backdropScrim: 'rgba(13, 17, 13, 0.60)',
+    lanternGreen: '#50C878',
+    lanternBlack: '#0D110D',
+    energyGreen: '#53A256',
+    earthBrown: '#AF5829',
+  },
+} as const;
+
+/** Familias de tema con las dos variantes (clara y oscura) del personaje. */
+export const HeroThemes = {
+  ironman,
+  avengers,
+  capitanAmerica,
+  spiderman,
+  superman,
+  greenLantern,
+} satisfies Record<HeroThemeId, { light: object; dark: object }>;
+
+export type { HeroThemeId };
