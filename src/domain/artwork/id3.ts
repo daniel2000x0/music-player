@@ -201,6 +201,9 @@ export function extractId3Tags(tag: Uint8Array): AudioTags | null {
     album: null,
     albumArtist: null,
     track: null,
+    bitDepth: null,
+    sampleRate: null,
+    bitrate: null,
   };
   let found = false;
 

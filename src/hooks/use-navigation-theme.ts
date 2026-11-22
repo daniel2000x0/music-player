@@ -1,7 +1,8 @@
 import { DarkTheme, DefaultTheme } from 'expo-router';
 import { useMemo } from 'react';
 
-import { Colors } from '@/constants/theme';
+import { resolvePalette } from '@/constants/theme';
+import { useEffectiveColorScheme } from '@/hooks/use-effective-color-scheme';
 import { useSettingsStore } from '@/stores/settings.store';
 
 /**
@@ -15,10 +16,11 @@ import { useSettingsStore } from '@/stores/settings.store';
  */
 export function useNavigationTheme() {
   const theme = useSettingsStore((state) => state.theme);
+  const scheme = useEffectiveColorScheme();
 
   return useMemo(() => {
-    const base = theme === 'dark' ? DarkTheme : DefaultTheme;
-    const palette = Colors[theme];
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    const palette = resolvePalette(theme, scheme);
     return {
       ...base,
       colors: {
@@ -31,5 +33,5 @@ export function useNavigationTheme() {
         notification: palette.danger,
       },
     };
-  }, [theme]);
+  }, [theme, scheme]);
 }

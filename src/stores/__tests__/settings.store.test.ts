@@ -8,12 +8,15 @@
  */
 import { settingsRepository } from '@/data/repositories/settings.repository';
 import { useSettingsStore } from '@/stores/settings.store';
+import { DEFAULT_VIEW_MODES } from '@/types/view-mode';
 
 jest.mock('@/data/repositories/settings.repository', () => ({
   settingsRepository: {
-    get: jest.fn(async () => ({ theme: 'dark', volume: 1 })),
+    get: jest.fn(async () => ({ theme: 'dark', volume: 1, language: 'es', viewModes: {} })),
     setTheme: jest.fn(async () => undefined),
     setVolume: jest.fn(async () => undefined),
+    setLanguage: jest.fn(async () => undefined),
+    setViewMode: jest.fn(async () => undefined),
   },
 }));
 
@@ -23,9 +26,14 @@ const mockedSetTheme = jest.mocked(settingsRepository.setTheme);
 beforeEach(() => {
   // El store de zustand conserva su estado entre pruebas: se devuelve al estado
   // inicial para que la comprobación del valor por defecto sea fiable.
-  useSettingsStore.setState({ theme: 'dark', hydrated: false });
+  useSettingsStore.setState({
+    theme: 'dark',
+    hydrated: false,
+    language: 'es',
+    viewModes: { ...DEFAULT_VIEW_MODES },
+  });
   jest.clearAllMocks();
-  mockedGet.mockResolvedValue({ theme: 'dark', volume: 1 });
+  mockedGet.mockResolvedValue({ theme: 'dark', volume: 1, language: 'es', viewModes: {} });
 });
 
 describe('settings.store: tema', () => {
@@ -38,7 +46,7 @@ describe('settings.store: tema', () => {
   });
 
   it('hydrate lee el repositorio y aplica el tema guardado', async () => {
-    mockedGet.mockResolvedValueOnce({ theme: 'light', volume: 0.4 });
+    mockedGet.mockResolvedValueOnce({ theme: 'light', volume: 0.4, language: 'es', viewModes: {} });
 
     await useSettingsStore.getState().hydrate();
 
@@ -50,7 +58,7 @@ describe('settings.store: tema', () => {
   });
 
   it('hydrate respeta el tema oscuro persistido', async () => {
-    mockedGet.mockResolvedValueOnce({ theme: 'dark', volume: 1 });
+    mockedGet.mockResolvedValueOnce({ theme: 'dark', volume: 1, language: 'es', viewModes: {} });
 
     await useSettingsStore.getState().hydrate();
 
@@ -74,5 +82,45 @@ describe('settings.store: tema', () => {
     expect(useSettingsStore.getState().theme).toBe('dark');
     expect(useSettingsStore.getState().hydrated).toBe(true);
     expect(mockedSetTheme).toHaveBeenCalledWith('dark');
+  });
+});
+
+describe('settings.store: idioma y vistas', () => {
+  it('hidrata el idioma y las vistas guardadas', async () => {
+    mockedGet.mockResolvedValueOnce({
+      theme: 'dark',
+      volume: 1,
+      language: 'en',
+      // El repositorio ya entrega vistas normalizadas al hidratar.
+      viewModes: { albums: 'smallIcons' },
+    });
+
+    await useSettingsStore.getState().hydrate();
+
+    expect(useSettingsStore.getState()).toMatchObject({
+      language: 'en',
+      viewModes: {
+        songs: 'list',
+        albums: 'smallIcons',
+        audiobooks: 'list',
+        playlists: 'list',
+      },
+    });
+  });
+
+  it('setLanguage aplica el idioma al instante y persiste', async () => {
+    await useSettingsStore.getState().setLanguage('en');
+
+    expect(useSettingsStore.getState().language).toBe('en');
+    expect(settingsRepository.setLanguage).toHaveBeenCalledWith('en');
+  });
+
+  it('setViewMode no altera las demás pestañas', async () => {
+    await useSettingsStore.getState().setViewMode('songs', 'smallIcons');
+
+    expect(useSettingsStore.getState().viewModes.songs).toBe('smallIcons');
+    // El default de Álbumes ahora es smallIcons; el cambio en Canciones no lo toca.
+    expect(useSettingsStore.getState().viewModes.albums).toBe('smallIcons');
+    expect(settingsRepository.setViewMode).toHaveBeenCalledWith('songs', 'smallIcons');
   });
 });

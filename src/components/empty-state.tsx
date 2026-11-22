@@ -27,7 +27,7 @@ export function EmptyState({ icon = 'musical-notes', title, message, actionLabel
       <View style={[styles.iconWrap, { backgroundColor: theme.backgroundElement }]}>
         <Ionicons name={icon} size={32} color={theme.textSecondary} />
       </View>
-      <ThemedText type="smallBold" style={styles.title}>
+      <ThemedText type="default" style={styles.title}>
         {title}
       </ThemedText>
       {message ? (
@@ -68,7 +68,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   title: {
-    fontSize: 18,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   message: {
     textAlign: 'center',

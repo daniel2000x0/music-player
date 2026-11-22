@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useNoticeStore } from '@/stores/notice.store';
+import { useTranslation } from '@/hooks/use-translation';
 
 /**
  * Banner único de avisos.
@@ -17,6 +18,8 @@ import { useNoticeStore } from '@/stores/notice.store';
 export function NoticeBanner() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+
+  const { tr } = useTranslation();
   const notice = useNoticeStore((state) => state.notices[0]);
   const dismiss = useNoticeStore((state) => state.dismiss);
 
@@ -68,11 +71,11 @@ export function NoticeBanner() {
         </View>
 
         <Pressable
-          hitSlop={8}
+          hitSlop={10}
           onPress={() => dismiss(notice.code)}
           style={styles.close}
           accessibilityRole="button"
-          accessibilityLabel="Descartar aviso">
+          accessibilityLabel={tr('Descartar aviso')}>
           <Ionicons name="close" size={18} color={theme.textSecondary} />
         </Pressable>
       </View>

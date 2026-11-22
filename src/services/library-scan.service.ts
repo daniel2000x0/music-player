@@ -8,6 +8,7 @@ import { logError } from '@/services/error-log.service';
 import { TAG_CONCURRENCY, enumerateDeviceAudio, readDeviceTrack } from '@/services/media.service';
 import type { ScannedSong } from '@/types/song';
 import { mapLimit } from '@/utils/async';
+import { normalizeAudioFormat } from '@/utils/format';
 
 /**
  * Pipeline de escaneo de la biblioteca.
@@ -130,6 +131,14 @@ export async function runLibraryScan(
   // pista; con la biblioteca intacta no hace falta recorrerla otra vez.
   if (diff.added.length + diff.updated.length + diff.missing.length > 0) {
     await songRepository.reclassifyAudiobooks();
+  }
+
+  // Backfill de formato para filas anteriores a la migración v9. Es barato y
+  // evita que canciones ya conocidas queden sin etiqueta hasta ser reescaneadas.
+  try {
+    await songRepository.backfillFileFormats((uri) => normalizeAudioFormat(uri));
+  } catch (error) {
+    logError('library-scan', 'backfillFileFormats', error);
   }
 
   /**

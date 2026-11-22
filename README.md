@@ -27,6 +27,12 @@ npm install
 npx expo start
 ```
 
+> Como el proyecto incluye `expo-dev-client`, `npx expo start` genera el QR
+> para un **Development Build** (`exp+mi-music-player://`). Para probar en
+> **Expo Go** hay que forzar el modo Go: `npx expo start --go` (o
+> `npm run start:go`). Si se escanea el QR de development build con Expo Go,
+> la app se queda en el splash blanco con «Music» y no entra.
+
 Comandos útiles:
 
 ```bash

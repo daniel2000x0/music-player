@@ -19,26 +19,33 @@ import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
+import { useTranslation } from '@/hooks/use-translation';
+import { displayMetadata } from '@/utils/format';
 
 type SongAction = 'playNext' | 'up' | 'down' | 'remove' | 'edit' | 'delete';
 
-const SONG_ACTIONS: readonly Option<SongAction>[] = [
-  { value: 'playNext', label: 'Reproducir a continuación' },
-  { value: 'up', label: 'Subir en la lista' },
-  { value: 'down', label: 'Bajar en la lista' },
-  { value: 'edit', label: 'Editar información', description: 'Corrige el título, el artista o el álbum solo en esta app.' },
-  {
-    value: 'delete',
-    label: 'Eliminar',
-    description: 'Quítala de la biblioteca o bórrala del dispositivo.',
-    destructive: true,
-  },
-  { value: 'remove', label: 'Quitar de la playlist', destructive: true },
-];
+// NOTA (i18n): las opciones se construyen dentro del componente para que sus
+// etiquetas sigan el idioma activo (los `const` de módulo no pueden usar hooks).
 
 /** Detalle de una playlist manual con reordenamiento y eliminación. */
 export default function PlaylistDetailScreen() {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
+
+  const songActions: readonly Option<SongAction>[] = [
+    { value: 'playNext', label: tr('Reproducir a continuación') },
+    { value: 'up', label: tr('Subir en la lista') },
+    { value: 'down', label: tr('Bajar en la lista') },
+    { value: 'edit', label: tr('Editar información'), description: tr('Corrige el título, el artista o el álbum solo en esta app.') },
+    {
+      value: 'delete',
+      label: tr('Eliminar'),
+      description: tr('Quítala de la biblioteca o bórrala del dispositivo.'),
+      destructive: true,
+    },
+    { value: 'remove', label: tr('Quitar de la playlist'), destructive: true },
+  ];
   const params = useLocalSearchParams<{ id?: string }>();
   const playlistId = Number(params.id);
   const playlist = useLibraryStore((state) =>
@@ -108,15 +115,15 @@ export default function PlaylistDetailScreen() {
       onPress={() => router.back()}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel="Volver">
+      accessibilityLabel={tr('Volver')}>
       <Ionicons name="chevron-back" size={26} color={theme.text} />
     </Pressable>
   );
 
   if (!playlist) {
     return (
-      <ScreenShell title="Playlist" leading={back}>
-        <EmptyState title="Playlist no encontrada" message="Puede que hayas eliminado esta playlist." />
+      <ScreenShell title={tr('Playlist')} leading={back}>
+        <EmptyState title={tr('Playlist no encontrada')} message={tr('Puede que hayas eliminado esta playlist.')} />
       </ScreenShell>
     );
   }
@@ -124,8 +131,8 @@ export default function PlaylistDetailScreen() {
   return (
     <>
       <ScreenShell
-        title={playlist.name}
-        subtitle={`${songs.length} canciones`}
+        title={displayMetadata(playlist.name)}
+        subtitle={t('songsCount', { count: songs.length })}
         scroll={false}
         leading={back}
         action={
@@ -141,7 +148,7 @@ export default function PlaylistDetailScreen() {
               onPress={() => play(songs[0], songs)}
               style={[styles.playButton, { backgroundColor: theme.accent }]}
               accessibilityRole="button"
-              accessibilityLabel="Reproducir playlist">
+              accessibilityLabel={tr('Reproducir playlist')}>
               <Ionicons name="play" size={18} color={theme.accentText} />
             </Pressable>
           ) : null
@@ -149,8 +156,8 @@ export default function PlaylistDetailScreen() {
         {songs.length === 0 ? (
           <EmptyState
             icon="list-outline"
-            title="Playlist vacía"
-            message="Agrega canciones desde el menú de cada pista."
+            title={tr('Playlist vacía')}
+            message={tr('Agrega canciones desde el menú de cada pista.')}
           />
         ) : (
           <SongList
@@ -163,7 +170,7 @@ export default function PlaylistDetailScreen() {
             ListFooterComponent={
               <View style={styles.hint}>
                 <ThemedText type="small" themeColor="textSecondary">
-                  Usa el botón de opciones de cada canción para reordenarla o quitarla.
+                  {tr('Usa el botón de opciones de cada canción para reordenarla o quitarla.')}
                 </ThemedText>
               </View>
             }
@@ -173,8 +180,8 @@ export default function PlaylistDetailScreen() {
 
       <OptionSheet
         visible={actionSong !== null}
-        title={actionSong?.title ?? 'Canción'}
-        options={SONG_ACTIONS}
+        title={actionSong?.title ?? tr('Canción')}
+        options={songActions}
         onSelect={handleSongAction}
         onClose={() => setActionSong(null)}
       />
@@ -190,7 +197,7 @@ export default function PlaylistDetailScreen() {
       />
       <SongDeleteSheet
         visible={deleteTarget !== null}
-        title={deleteTarget?.title ?? 'Eliminar'}
+        title={deleteTarget?.title ?? tr('Eliminar')}
         onSelect={handleConfirmDelete}
         onClose={cancelDelete}
       />

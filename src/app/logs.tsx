@@ -11,6 +11,7 @@ import { errorLogRepository } from '@/data/repositories/error-log.repository';
 import { OnDanger, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import type { ErrorLogEntry, ErrorLogLevel } from '@/types/error-log';
+import { useTranslation } from '@/hooks/use-translation';
 
 type LevelFilter = 'all' | ErrorLogLevel;
 
@@ -30,6 +31,7 @@ function formatTimestamp(ms: number): string {
 
 function LogRow({ entry }: { entry: ErrorLogEntry }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const isError = entry.level === 'error';
   return (
     <View style={[styles.row, { backgroundColor: theme.backgroundElement }]}>
@@ -53,8 +55,12 @@ function LogRow({ entry }: { entry: ErrorLogEntry }) {
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary" style={styles.meta}>
           {formatTimestamp(entry.lastSeenAt)}
-          {entry.occurrences > 1 ? ` · ${entry.occurrences} veces` : ''}
-          {entry.occurrences > 1 ? ` (primera: ${formatTimestamp(entry.firstSeenAt)})` : ''}
+          {entry.occurrences > 1
+            ? ` · ${t('logOccurrences', { count: entry.occurrences })}`
+            : ''}
+          {entry.occurrences > 1
+            ? ` ${t('logFirstSeen', { time: formatTimestamp(entry.firstSeenAt) })}`
+            : ''}
         </ThemedText>
       </View>
     </View>
@@ -64,6 +70,8 @@ function LogRow({ entry }: { entry: ErrorLogEntry }) {
 /** Visor del registro de errores y advertencias persistido en SQLite. */
 export default function LogsScreen() {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
   const [entries, setEntries] = useState<ErrorLogEntry[] | null>(null);
   const [filter, setFilter] = useState<LevelFilter>('all');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -93,10 +101,10 @@ export default function LogsScreen() {
   }, []);
 
   const confirmClear = () => {
-    Alert.alert('Borrar registro', 'Se eliminarán todos los errores y advertencias guardados.', [
-      { text: 'Cancelar', style: 'cancel' },
+    Alert.alert(tr('Borrar registro'), tr('Se eliminarán todos los errores y advertencias guardados.'), [
+      { text: tr('Cancelar'), style: 'cancel' },
       {
-        text: 'Borrar',
+        text: tr('Borrar'),
         style: 'destructive',
         onPress: () => {
           void errorLogRepository.clear().then(reload);
@@ -109,14 +117,16 @@ export default function LogsScreen() {
 
   return (
     <ScreenShell
-      title="Registro de errores"
-      subtitle={entries === null ? 'Cargando…' : `${total} sucesos`}
+      title={tr('Registro de errores')}
+      subtitle={
+        entries === null ? tr('Cargando…') : t('logEventsCount', { count: total })
+      }
       leading={
         <Pressable
           onPress={() => router.back()}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Volver">
+          accessibilityLabel={tr('Volver')}>
           <Ionicons name="chevron-back" size={26} color={theme.text} />
         </Pressable>
       }
@@ -126,7 +136,7 @@ export default function LogsScreen() {
             onPress={confirmClear}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Borrar registro">
+            accessibilityLabel={tr('Borrar registro')}>
             <Ionicons name="trash-outline" size={22} color={theme.danger} />
           </Pressable>
         ) : null
@@ -141,8 +151,8 @@ export default function LogsScreen() {
       ) : entries.length === 0 ? (
         <EmptyState
           icon="checkmark-circle-outline"
-          title="Sin sucesos"
-          message="No se han registrado errores ni advertencias con este filtro."
+          title={tr('Sin sucesos')}
+          message={tr('No se han registrado errores ni advertencias con este filtro.')}
         />
       ) : (
         entries.map((entry) => <LogRow key={entry.id} entry={entry} />)

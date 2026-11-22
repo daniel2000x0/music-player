@@ -27,6 +27,7 @@ import { cleanText, decodeUtf8, parseTrackNumber, type AudioTags } from '@/domai
  * un bloque PICTURE; también se cubre ese caso.
  */
 
+const BLOCK_STREAMINFO = 0;
 const BLOCK_VORBIS_COMMENT = 4;
 const BLOCK_PICTURE = 6;
 const PICTURE_TYPE_FRONT_COVER = 3;
@@ -271,9 +272,40 @@ export async function extractFlacArtwork(
   return anyArtwork;
 }
 
+type FlacStreamInfo = {
+  bitDepth: number | null;
+  sampleRate: number | null;
+};
+
 /**
- * Lee las etiquetas de texto de un FLAC desde su bloque VORBIS_COMMENT.
- * Devuelve `null` si el archivo no es FLAC o no trae ningún campo útil.
+ * Lee el bloque STREAMINFO (tipo 0) para obtener bit depth y sample rate.
+ * Formato: 10 bytes min/max block/frame + 8 bytes con sampleRate(20) +
+ * channels(3) + bitsPerSample(5) + totalSamples(36).
+ */
+async function readStreamInfo(
+  read: AsyncByteReader,
+  blocks: FlacBlock[]
+): Promise<FlacStreamInfo> {
+  const block = blocks.find((item) => item.type === BLOCK_STREAMINFO);
+  if (!block || block.end - block.start < 18) {
+    return { bitDepth: null, sampleRate: null };
+  }
+  const data = await read(block.start, 18);
+  if (!data || data.length < 18) {
+    return { bitDepth: null, sampleRate: null };
+  }
+  // Bytes 10..13: sampleRate(20 bits) | channels-1(3) | bitsPerSample-1(5) | totalSamples_hi(4)
+  const sampleRate = ((data[10] << 12) | (data[11] << 4) | (data[12] >> 4)) >>> 0;
+  const bitDepth = (((data[12] & 0x01) << 4) | (data[13] >> 4)) + 1;
+  // Valida rangos reales: evita basura de fixtures/placeholders con ceros.
+  const validSampleRate = sampleRate > 0 ? sampleRate : null;
+  const validBitDepth = bitDepth >= 4 && bitDepth <= 32 ? bitDepth : null;
+  return { sampleRate: validSampleRate, bitDepth: validBitDepth };
+}
+
+/**
+ * Lee las etiquetas de texto y datos técnicos de un FLAC.
+ * Devuelve `null` si el archivo no es FLAC o no trae ningún dato útil.
  */
 export async function extractFlacTags(
   read: AsyncByteReader,
@@ -283,27 +315,31 @@ export async function extractFlacTags(
   if (!blocks) {
     return null;
   }
+  const streamInfo = await readStreamInfo(read, blocks);
   const comment = blocks.find((block) => block.type === BLOCK_VORBIS_COMMENT);
-  if (!comment) {
-    return null;
-  }
-  const length = Math.min(comment.end - comment.start, VORBIS_COMMENT_MAX_BYTES);
-  if (length <= 0) {
-    return null;
-  }
-  const data = await read(comment.start, length);
-  if (!data) {
-    return null;
-  }
-
   const tags: AudioTags = {
     title: null,
     artist: null,
     album: null,
     albumArtist: null,
     track: null,
+    bitDepth: streamInfo.bitDepth,
+    sampleRate: streamInfo.sampleRate,
+    bitrate: null,
   };
-  let found = false;
+  let found = streamInfo.bitDepth !== null || streamInfo.sampleRate !== null;
+
+  if (!comment) {
+    return found ? tags : null;
+  }
+  const length = Math.min(comment.end - comment.start, VORBIS_COMMENT_MAX_BYTES);
+  if (length <= 0) {
+    return found ? tags : null;
+  }
+  const data = await read(comment.start, length);
+  if (!data) {
+    return found ? tags : null;
+  }
 
   for (const entry of commentEntries(data)) {
     const pair = keyValue(entry);

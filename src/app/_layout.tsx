@@ -4,6 +4,7 @@ import {
   usePathname,
   useSegments,
 } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +18,16 @@ import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { useAppUpdatePrompt } from '@/hooks/use-app-update-prompt';
+import { useEffectiveColorScheme } from '@/hooks/use-effective-color-scheme';
 import { useNavigationTheme } from '@/hooks/use-navigation-theme';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { useTheme } from '@/hooks/use-theme';
+import { setAppIconForTheme } from '@/services/app-icon.service';
+import { logError } from '@/services/error-log.service';
+
+// El store nace en `dark` hasta que SQLite responde. Retener el splash evita
+// que se vea un destello oscuro cuando el usuario guardó otro tema.
+void SplashScreen.preventAutoHideAsync();
 
 /**
  * Layout raíz. Hidrata SQLite y los stores globales (biblioteca, ajustes y
@@ -32,9 +41,11 @@ export default function RootLayout() {
   const pathname = usePathname();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
-  const theme = useSettingsStore((state) => state.theme);
   const palette = useTheme();
+  const scheme = useEffectiveColorScheme();
   const navigationTheme = useNavigationTheme();
+  const reducedMotion = useReducedMotion();
+  const hydrated = useSettingsStore((state) => state.hydrated);
   const showMiniPlayer = pathname !== '/player';
 
   // El mini-reproductor se apoya justo encima de la barra de pestañas
@@ -49,8 +60,19 @@ export default function RootLayout() {
     void useSettingsStore
       .getState()
       .hydrate()
+      // Reafirma el icono guardado. El SO ya lo conserva entre reinicios, pero
+      // si un launcher o el sistema lo resetea, la app lo restaura. El servicio
+      // compara con `getAppIconName()` y no toca nada si ya coincide.
+      .then(() => setAppIconForTheme(useSettingsStore.getState().theme))
       .then(() => useLibraryStore.getState().hydrate())
-      .then(() => usePlayerStore.getState().hydrateSession());
+      .then(() => usePlayerStore.getState().hydrateSession())
+      .catch((error: unknown) => {
+        // Ante un fallo de SQLite se muestra igualmente la app con el tema por
+        // defecto; quedarse en blanco sería peor que perder la personalización.
+        logError('settings', 'hydrate-failed', error);
+        useSettingsStore.setState({ hydrated: true });
+      })
+      .finally(() => SplashScreen.hide());
   }, []);
 
   // En web, `color-scheme` alinea las barras de desplazamiento y los
@@ -60,13 +82,21 @@ export default function RootLayout() {
       return;
     }
 
-    document.documentElement.style.setProperty('color-scheme', theme);
-  }, [theme]);
+    document.documentElement.style.setProperty('color-scheme', scheme);
+  }, [scheme]);
+
+  // La UI no se monta hasta conocer el tema real; el splash sigue visible.
+  if (!hydrated) {
+    return null;
+  }
 
   return (
     <ThemeProvider value={navigationTheme}>
       <View style={[styles.root, { backgroundColor: palette.background }]}>
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+        <StatusBar
+          animated={!reducedMotion}
+          style={scheme === 'dark' ? 'light' : 'dark'}
+        />
         <AudioBridge />
         <NoticeBanner />
         <Stack
@@ -77,7 +107,10 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="player"
-            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+            options={{
+              presentation: 'modal',
+              animation: reducedMotion ? 'none' : 'slide_from_bottom',
+            }}
           />
         </Stack>
         {showMiniPlayer ? <MiniPlayer bottomOffset={miniPlayerBottom} /> : null}

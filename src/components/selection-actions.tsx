@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type SelectionActionsProps = {
   /** Cantidad de pistas seleccionadas. */
@@ -31,6 +32,8 @@ export function SelectionActions({
 }: SelectionActionsProps) {
   const theme = useTheme();
 
+  const { tr } = useTranslation();
+
   return (
     <View style={styles.bar}>
       <Pressable
@@ -38,7 +41,7 @@ export function SelectionActions({
         onPress={onClose}
         style={styles.icon}
         accessibilityRole="button"
-        accessibilityLabel="Salir de la selección">
+        accessibilityLabel={tr('Salir de la selección')}>
         <Ionicons name="close" size={22} color={theme.text} />
       </Pressable>
 
@@ -51,7 +54,7 @@ export function SelectionActions({
         onPress={onSelectAll}
         style={styles.icon}
         accessibilityRole="button"
-        accessibilityLabel="Seleccionar todo">
+        accessibilityLabel={tr('Seleccionar todo')}>
         <Ionicons name="checkmark-done-outline" size={22} color={theme.text} />
       </Pressable>
 
@@ -60,7 +63,7 @@ export function SelectionActions({
         onPress={onDelete}
         style={styles.icon}
         accessibilityRole="button"
-        accessibilityLabel="Eliminar selección">
+        accessibilityLabel={tr('Eliminar selección')}>
         <Ionicons name="trash-outline" size={21} color={theme.danger} />
       </Pressable>
     </View>

@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
+import { tr } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
 import {
   clearDegradation,
   configureAudioSession,
@@ -63,7 +65,8 @@ export function AudioBridge() {
       syncLockScreen(health);
       if (health.status === 'degraded') {
         degradeSession(
-          health.lastError ?? 'Controles de pantalla de bloqueo no disponibles'
+          health.lastError ??
+            tr(getCurrentLanguage(), 'Controles de pantalla de bloqueo no disponibles')
         );
         return;
       }
@@ -98,11 +101,11 @@ export function AudioBridge() {
         promptNotificationPermission();
       }
     });
-    // El tema del widget se resuelve al publicar; al cambiarlo hay que reescribir
-    // el snapshot aunque la reproducción esté en pausa (el servicio detecta el
-    // cambio de tema y no lo descarta por deduplicación).
-    const unsubscribeWidgetTheme = useSettingsStore.subscribe((state, previous) => {
-      if (state.theme === previous.theme) {
+    // Tema e idioma se resuelven al publicar; al cambiar cualquiera hay que
+    // reescribir el snapshot aunque la reproducción esté en pausa (el servicio
+    // detecta el cambio y no lo descarta por deduplicación).
+    const unsubscribeWidgetSettings = useSettingsStore.subscribe((state, previous) => {
+      if (state.theme === previous.theme && state.language === previous.language) {
         return;
       }
       const player = usePlayerStore.getState();
@@ -149,7 +152,7 @@ export function AudioBridge() {
       unsubscribeLockScreen();
       unsubscribeWidgetState();
       unsubscribeNotificationPrompt();
-      unsubscribeWidgetTheme();
+      unsubscribeWidgetSettings();
       unsubscribeWidgetProgress();
       unsubscribeWidgetReconcile();
       unsubscribeWidgetInteractions();

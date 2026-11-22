@@ -94,6 +94,11 @@ Cada ID corregido en fases anteriores tiene al menos una prueba de regresión:
 
 Se ejecuta en un **dev build o APK preview** con al menos unas decenas de canciones. Se registra el resultado de cada paso antes de cerrar un release.
 
+Para una comprobación rápida solo de UI en **Expo Go**, iniciar el servidor con
+`npx expo start --go` (o `npm run start:go`). El `npx expo start` habitual apunta
+al Development Build porque el proyecto incluye `expo-dev-client`; si se escanea
+ese QR con Expo Go, la app no carga y se queda en el splash blanco con «Music».
+
 | # | Escenario | Pasos | Resultado esperado |
 | --- | --- | --- | --- |
 | 1 | Instalación y permisos | Instalar el APK, abrir la app, denegar permiso de audio, concederlo desde Ajustes | Sin crash; al conceder se lanza el escaneo y se retira el aviso de permiso |

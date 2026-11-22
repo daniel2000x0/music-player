@@ -47,6 +47,9 @@ const TAGS: AudioTags = {
   album: 'Álbum',
   albumArtist: null,
   track: 3,
+  bitDepth: null,
+  sampleRate: null,
+  bitrate: null,
 };
 
 /** Cabecera ID3v2 de 14 bytes; el tamaño real lo decide el doble del parser. */

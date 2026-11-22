@@ -1,11 +1,18 @@
 import { useEffect } from 'react';
 import { Alert, Platform } from 'react-native';
 
+import { tr, type LiteralKey } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
 import {
   applyAppUpdate,
   checkForAppUpdate,
   downloadAppUpdate,
 } from '@/services/update.service';
+
+/** Este hook se ejecuta una vez al arrancar: lee el idioma del espejo al mostrar cada aviso. */
+function tx(key: LiteralKey): string {
+  return tr(getCurrentLanguage(), key);
+}
 
 /**
  * Comprueba actualizaciones OTA una vez al arrancar y ofrece descargarlas.
@@ -24,11 +31,11 @@ export function useAppUpdatePrompt() {
         await downloadAppUpdate();
 
         Alert.alert(
-          'Actualización descargada',
-          'La actualización está lista. Reinicia la aplicación para aplicar los cambios.',
+          tx('Actualización descargada'),
+          tx('La actualización está lista. Reinicia la aplicación para aplicar los cambios.'),
           [
             {
-              text: 'Reiniciar ahora',
+              text: tx('Reiniciar ahora'),
               onPress: () => {
                 void applyAppUpdate().catch((error) => {
                   console.error('Error aplicando actualización:', error);
@@ -36,7 +43,7 @@ export function useAppUpdatePrompt() {
               },
             },
             {
-              text: 'Después',
+              text: tx('Después'),
               style: 'cancel',
             },
           ]
@@ -45,8 +52,8 @@ export function useAppUpdatePrompt() {
         console.error('Error descargando actualización:', error);
 
         Alert.alert(
-          'Error',
-          'No se pudo descargar la actualización. Inténtalo nuevamente.'
+          tx('Error'),
+          tx('No se pudo descargar la actualización. Inténtalo nuevamente.')
         );
       }
     }
@@ -60,15 +67,15 @@ export function useAppUpdatePrompt() {
         }
 
         Alert.alert(
-          'Actualización disponible',
-          'Hay una nueva versión del reproductor. ¿Deseas descargarla?',
+          tx('Actualización disponible'),
+          tx('Hay una nueva versión del reproductor. ¿Deseas descargarla?'),
           [
             {
-              text: 'Más tarde',
+              text: tx('Más tarde'),
               style: 'cancel',
             },
             {
-              text: 'Actualizar',
+              text: tx('Actualizar'),
               onPress: () => {
                 void downloadAndApply();
               },

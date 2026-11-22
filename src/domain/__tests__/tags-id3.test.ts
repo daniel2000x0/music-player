@@ -112,6 +112,9 @@ describe('extractId3Tags', () => {
       album: 'El Hobbit (Audiolibro)',
       albumArtist: 'Tolkien',
       track: 3,
+      bitDepth: null,
+      sampleRate: null,
+      bitrate: null,
     });
   });
 
@@ -140,6 +143,9 @@ describe('extractId3Tags', () => {
       album: 'Libro',
       albumArtist: null,
       track: 1,
+      bitDepth: null,
+      sampleRate: null,
+      bitrate: null,
     });
   });
 

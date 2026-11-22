@@ -4,19 +4,31 @@ import {
   RefreshControl,
   StyleSheet,
   View,
+  useWindowDimensions,
   type ListRenderItemInfo,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
-import { AlphabetBar } from '@/components/alphabet-bar';
+import { AlphabetChips } from '@/components/alphabet-chips';
+import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
+import { MediaTile } from '@/components/media-tile';
 import { SongRow } from '@/components/song-row';
-import { BottomTabInset, MiniPlayerInset, ScrollbarGutter } from '@/constants/theme';
+import {
+  BottomTabInset,
+  MiniPlayerInset,
+  ScrollbarEdgeMargin,
+  Spacing,
+} from '@/constants/theme';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 import { useLibraryStore } from '@/stores/library.store';
+import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
-import { collectInitials, normalizeLetter } from '@/utils/alphabet';
+import type { ViewMode } from '@/types/view-mode';
+import { collectInitials, initialKey } from '@/utils/alphabet';
+import { getGridMetrics } from '@/utils/grid-layout';
 
 export type SongListProps = {
   songs: Song[];
@@ -41,6 +53,8 @@ export type SongListProps = {
   onToggleSelect?: (song: Song) => void;
   /** Pulsación larga: entra en el modo de selección. */
   onLongPressSong?: (song: Song) => void;
+  /** Estilo elegido en la pestaña. `list` mantiene el comportamiento histórico. */
+  mode?: ViewMode;
 };
 
 /** Altura fija de una fila (artwork 52 + padding 8×2). */
@@ -67,13 +81,17 @@ export function SongList({
   selectionActive = false,
   onToggleSelect,
   onLongPressSong,
+  mode = 'list',
 }: SongListProps) {
   const listRef = useRef<FlatList<Song>>(null);
 
+  const { width: windowWidth } = useWindowDimensions();
   const theme = useTheme();
+  const { tr } = useTranslation();
   const scrollIndicator = useScrollIndicator();
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
   const toggleFavorite = useLibraryStore((state) => state.toggleFavorite);
+  const play = usePlayerStore((state) => state.play);
 
   // El Set solo se reconstruye cuando cambian los favoritos.
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds]);
@@ -98,6 +116,14 @@ export function SongList({
       void toggleFavorite(song.id);
     },
     [toggleFavorite]
+  );
+
+  // Reproducción desde las celdas de rejilla: conserva la cola completa.
+  const playSong = useCallback(
+    (song: Song) => {
+      play(song, resolvedQueue);
+    },
+    [play, resolvedQueue]
   );
 
   const keyExtractor = useCallback((song: Song) => String(song.id), []);
@@ -137,6 +163,29 @@ export function SongList({
     ]
   );
 
+  // Geometría única de la rejilla: columnas, ancho de celda y paddings
+  // simétricos. El residuo del redondeo se reparte a ambos lados.
+  const grid = getGridMetrics(mode, windowWidth);
+  const { columns, tileWidth, gap, paddingLeft, paddingRight, isGrid, variant } = grid;
+
+  const renderTile = useCallback(
+    ({ item }: ListRenderItemInfo<Song>) => (
+      <MediaTile
+        width={tileWidth}
+        variant={variant}
+        artworkUri={item.artwork}
+        title={item.title}
+        subtitle={item.artist}
+        selectionActive={selectionActive}
+        selected={selectedSet.has(item.id)}
+        onToggleSelect={() => onToggleSelect?.(item)}
+        onPress={() => playSong(item)}
+        onLongPress={() => onLongPressSong?.(item)}
+      />
+    ),
+    [tileWidth, variant, selectionActive, selectedSet, onToggleSelect, onLongPressSong, playSong]
+  );
+
   // Letras presentes en la lista, en orden alfabético.
   const availableLetters = useMemo(
     () => collectInitials(songs.map((song) => song.title)),
@@ -147,7 +196,7 @@ export function SongList({
   const scrollToLetter = useCallback(
     (letter: string) => {
       const index = songs.findIndex(
-        (song) => normalizeLetter(song.title) === letter
+        (song) => initialKey(song.title) === letter
       );
 
       if (index !== -1) {
@@ -161,41 +210,62 @@ export function SongList({
     [songs]
   );
 
+  // En rejilla no se muestra el índice alfabético: `scrollToIndex` asume
+  // una fila por elemento y saltaría a la posición equivocada con numColumns.
+
   return (
     <View style={styles.container}>
-      <FlatList
-        ref={listRef}
-        data={songs}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        getItemLayout={getItemLayout}
-        extraData={extraData}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
-        windowSize={5}
-        keyboardShouldPersistTaps="handled"
-        {...scrollIndicator}
-        style={styles.flex}
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={theme.accent}
-              colors={[theme.accent]}
-            />
-          ) : undefined
-        }
-        ListHeaderComponent={ListHeaderComponent ?? undefined}
-        ListFooterComponent={ListFooterComponent ?? undefined}
-        contentContainerStyle={[styles.content, contentContainerStyle]}
-      />
+      {!isGrid ? (
+        <AlphabetChips
+          letters={availableLetters}
+          onSelect={scrollToLetter}
+          itemNoun={tr('canciones')}
+        />
+      ) : null}
 
-      <AlphabetBar
-        letters={availableLetters}
-        onSelect={scrollToLetter}
-        itemNoun="canciones"
-      />
+      <View style={styles.listFrame}>
+        <FlatList
+          ref={listRef}
+          key={mode}
+          data={songs}
+          keyExtractor={keyExtractor}
+          renderItem={isGrid ? renderTile : renderItem}
+          numColumns={isGrid ? columns : undefined}
+          columnWrapperStyle={
+            isGrid ? { columnGap: gap, justifyContent: 'center' } : undefined
+          }
+          getItemLayout={isGrid ? undefined : getItemLayout}
+          extraData={extraData}
+          initialNumToRender={isGrid ? 16 : 12}
+          maxToRenderPerBatch={isGrid ? 16 : 12}
+          windowSize={5}
+          keyboardShouldPersistTaps="handled"
+          {...scrollIndicator.scrollProps}
+          style={styles.flex}
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={theme.accent}
+                colors={[theme.accent]}
+              />
+            ) : undefined
+          }
+          ListHeaderComponent={ListHeaderComponent ?? undefined}
+          ListFooterComponent={ListFooterComponent ?? undefined}
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingLeft,
+              paddingRight,
+              ...(isGrid ? { gap, rowGap: Spacing.xl } : null),
+            },
+            contentContainerStyle,
+          ]}
+        />
+        <EdgeScrollIndicator {...scrollIndicator.indicatorProps} />
+      </View>
     </View>
   );
 }
@@ -243,7 +313,13 @@ export function InlineSongList({ songs, onMore }: InlineSongListProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+
+  listFrame: {
+    flex: 1,
     position: 'relative',
+    // El marco llega al borde real para que el indicador propio quede pegado a él.
+    marginHorizontal: ScrollbarEdgeMargin,
   },
 
   flex: {
@@ -256,8 +332,7 @@ const styles = StyleSheet.create({
 
   content: {
     paddingBottom: BottomTabInset + MiniPlayerInset,
-    // La barra alfabética vive en el margen derecho de la pantalla; solo
-    // se reserva el carril del indicador para que no toque las filas.
-    paddingRight: ScrollbarGutter,
+    // Los paddings horizontales los calcula `getGridMetrics`: ahora son
+    // simétricos y el indicador de 4 px cabe dentro de ese margen.
   },
 });

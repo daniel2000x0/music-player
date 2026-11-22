@@ -7,7 +7,10 @@ import {
   MinTouchTarget,
   OnDanger,
   Radius,
+  resolvePalette,
+  resolveScheme,
   Scrim,
+  ScrollbarEdgeMargin,
   ScrollbarGutter,
   Shadow,
   Spacing,
@@ -73,6 +76,63 @@ describe('Colors', () => {
     expect(Colors.light.background).not.toBe(Colors.dark.background);
     expect(Colors.light.text).not.toBe(Colors.dark.text);
   });
+
+  it('expone las seis familias de superhéroe con variante clara y oscura', () => {
+    const heroes = [
+      'ironman',
+      'avengers',
+      'capitanAmerica',
+      'spiderman',
+      'superman',
+      'greenLantern',
+    ] as const;
+
+    for (const hero of heroes) {
+      const family = Colors[hero];
+      expect(Object.keys(family.light).sort()).toEqual(Object.keys(family.dark).sort());
+
+      for (const palette of [family.light, family.dark]) {
+        expect('backdropScrim' in palette).toBe(true);
+        expect(Object.keys(palette).length).toBeGreaterThanOrEqual(16);
+
+        for (const key of [
+          'text', 'background', 'backgroundElement', 'backgroundSelected',
+          'textSecondary', 'border', 'accent', 'accentText', 'danger', 'link',
+        ] as const) {
+          expect(palette[key]).toMatch(/^#/);
+        }
+      }
+    }
+  });
+
+  it('deriva Iron Man de los colores de su imagen de fondo', () => {
+    // Rojos #C50600 / #8B0305 y oro #ECD078 muestreados de ironman.jpg.
+    expect(Colors.ironman.light.accent).toBe('#C50600');
+    expect(Colors.ironman.light.background).toBe('#FFF3DE');
+    expect(Colors.ironman.light.armorGold).toBe('#ECD078');
+    expect(Colors.ironman.dark.accent).toBe('#ECD078');
+    expect(Colors.ironman.dark.background).toBe('#1A0506');
+    expect(Colors.ironman.dark.armorGold).toBe('#ECD078');
+    expect(Colors.ironman.dark.backdropScrim).toContain('26, 5, 6');
+  });
+});
+
+describe('resolución de tema', () => {
+  it('los temas base fijan su esquema y los héroes siguen el del sistema', () => {
+    expect(resolveScheme('light', 'dark')).toBe('light');
+    expect(resolveScheme('dark', 'light')).toBe('dark');
+    expect(resolveScheme('ironman', 'light')).toBe('light');
+    expect(resolveScheme('ironman', 'dark')).toBe('dark');
+  });
+
+  it('devuelve la paleta plana correcta para cada combinación', () => {
+    expect(resolvePalette('light', 'dark')).toBe(Colors.light);
+    expect(resolvePalette('dark', 'light')).toBe(Colors.dark);
+    expect(resolvePalette('ironman', 'light')).toBe(Colors.ironman.light);
+    expect(resolvePalette('ironman', 'dark')).toBe(Colors.ironman.dark);
+    expect(resolvePalette('greenLantern', 'dark').accent).toBe('#50C878');
+    expect(resolvePalette('superman', 'dark').background).toBe('#001E42');
+  });
 });
 
 describe('tokens de medida', () => {
@@ -97,6 +157,7 @@ describe('tokens de medida', () => {
     expect(Shadow).toBe('#000');
     expect(OnDanger).toBe('#FFFFFF');
     expect(ScrollbarGutter).toBeGreaterThan(0);
+    expect(ScrollbarEdgeMargin).toBe(-Spacing.xl);
     expect(MaxContentWidth).toBeGreaterThan(0);
     expect(TabBarBaseHeight).toBeGreaterThan(0);
     expect(BottomTabInset).toBeGreaterThanOrEqual(0);

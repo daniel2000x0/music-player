@@ -3,6 +3,7 @@ import { Animated, StyleSheet, View, type DimensionValue } from 'react-native';
 
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type SkeletonBlockProps = {
   width: DimensionValue;
@@ -44,6 +45,7 @@ export type SkeletonListProps = {
  * un salto. Usa `Animated` de React Native: sin dependencias nuevas.
  */
 export function SkeletonList({ rows = 8 }: SkeletonListProps) {
+  const { tr } = useTranslation();
   const [pulse] = useState(() => new Animated.Value(0.45));
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function SkeletonList({ rows = 8 }: SkeletonListProps) {
     <Animated.View
       style={{ opacity: pulse }}
       accessibilityRole="progressbar"
-      accessibilityLabel="Cargando contenido">
+      accessibilityLabel={tr('Cargando contenido')}>
       {Array.from({ length: rows }).map((_, index) => (
         <View key={index} style={styles.row}>
           <SkeletonBlock width={52} height={52} radius={Radius.medium} />

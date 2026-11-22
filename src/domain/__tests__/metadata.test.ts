@@ -61,6 +61,9 @@ describe('resolveSongMetadata', () => {
     album: 'El Hobbit (Audiolibro)',
     albumArtist: null,
     track: 3,
+    bitDepth: null,
+    sampleRate: null,
+    bitrate: null,
   };
 
   it('prioriza las etiquetas sobre el nombre de archivo', () => {

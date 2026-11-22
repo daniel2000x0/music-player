@@ -12,6 +12,9 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+import { HeroThemes } from '@/constants/hero-themes';
+import { isHeroTheme, type ThemeMode } from '@/types/settings';
+
 /**
  * Paleta de colores por modo del sistema.
  *
@@ -36,6 +39,9 @@ export const Colors = {
     accent: '#12B76A',
     accentText: '#04140A',
     danger: '#E5484D',
+    /** Verde informativo para formatos de alta calidad (FLAC). */
+    success: '#1F7A45',
+    successBg: '#E6F6ED',
     link: '#1B6FD1',
 
     // Indicador de desplazamiento
@@ -52,12 +58,59 @@ export const Colors = {
     accent: '#1ED760',
     accentText: '#04140A',
     danger: '#FF453A',
+    /** Verde informativo para formatos de alta calidad (FLAC). */
+    success: '#34D399',
+    successBg: '#0E2A22',
     link: '#6BA6FF',
 
     // Indicador de desplazamiento
     scrollbarIndicator: 'white',
   },
+
+  // Familias de superhéroe (cada una con variante clara y oscura).
+  ...HeroThemes,
 } as const;
+
+/** Claves base compartidas por TODOS los temas, héroes incluidos. */
+export type AppPalette = {
+  text: string;
+  background: string;
+  backgroundElement: string;
+  backgroundSelected: string;
+  textSecondary: string;
+  border: string;
+  accent: string;
+  accentText: string;
+  danger: string;
+  success: string;
+  successBg: string;
+  link: string;
+  scrollbarIndicator: string;
+  /** Solo temas con fondo de pantalla propio; veladura sobre la imagen. */
+  backdropScrim?: string;
+};
+
+/**
+ * Esquema efectivo: los temas base fijan claro/oscuro; los de héroe siguen
+ * la preferencia del sistema para usar su variante `light` o `dark`.
+ */
+export function resolveScheme(
+  mode: ThemeMode,
+  systemScheme: 'light' | 'dark'
+): 'light' | 'dark' {
+  return isHeroTheme(mode) ? systemScheme : mode;
+}
+
+/** Paleta plana que deben consumir los componentes, sin importar el tema. */
+export function resolvePalette(
+  mode: ThemeMode,
+  systemScheme: 'light' | 'dark'
+): AppPalette {
+  if (!isHeroTheme(mode)) {
+    return Colors[mode];
+  }
+  return Colors[mode][resolveScheme(mode, systemScheme)];
+}
 
 /**
  * Unión de claves que existen tanto en el modo claro como en el oscuro.
@@ -160,12 +213,23 @@ export const OnDanger = '#FFFFFF';
  * Ancho reservado en el borde derecho de las listas para el indicador
  * vertical de scroll.
  *
- * LÓGICA: la barra nativa se dibuja sobre el contenido. En Android además
- * queda siempre visible (`persistentScrollbar`), así que este margen evita
- * que tape botones o tarjetas; en Canciones también deja aire entre las
- * filas y la barra alfabética anclada al borde derecho.
+ * LÓGICA: la barra nativa se dibuja sobre el contenido y en Android queda
+ * siempre visible (`persistentScrollbar`), así que este margen evita que tape
+ * botones o tarjetas.
  */
 export const ScrollbarGutter = 12;
+
+/**
+ * Margen horizontal que cancela el `paddingHorizontal: Spacing.xl` del
+ * `SafeAreaView` de `ScreenShell` en las listas con indicador nativo.
+ *
+ * LÓGICA: Android e iOS dibujan la barra en el borde del ScrollView/FlatList,
+ * no en el del dispositivo. Al extender el marco de la lista hasta el borde
+ * del área segura, el thumb queda pegado al borde real. El contenido se
+ * reinserta con `paddingLeft: Spacing.xl` en el `contentContainerStyle`,
+ * mientras `ScrollbarGutter` sigue protegiendo las filas del thumb.
+ */
+export const ScrollbarEdgeMargin = -Spacing.xl;
 
 /**
  * Radios de esquina reutilizables (píldoras, tarjetas, artwork).
@@ -175,6 +239,46 @@ export const Radius = {
   medium: 12,
   large: 20,
   pill: 999,
+} as const;
+
+/**
+ * Niveles de elevación/sombra reutilizables.
+ *
+ * LÓGICA: pocos niveles, aplicados con intención. Se usan en elementos que
+ * flotan o necesitan jerarquía (mini-player, carátula hero, cards destacadas),
+ * no en cada fila de lista. En Android se usa `elevation`; en iOS sombra.
+ */
+export const Elevation = {
+  card: Platform.select({
+    ios: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    android: { elevation: 2 },
+    default: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+  }),
+  floating: Platform.select({
+    ios: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+    },
+    android: { elevation: 6 },
+    default: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+    },
+  }),
 } as const;
 
 /**

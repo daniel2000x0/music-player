@@ -13,7 +13,10 @@ import {
 } from 'react-native';
 
 import { AlbumCard } from '@/components/album-card';
+import { AlbumRow } from '@/components/album-row';
 import { Artwork } from '@/components/artwork';
+import { MediaTile } from '@/components/media-tile';
+import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
@@ -21,28 +24,34 @@ import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { SkeletonList } from '@/components/skeleton';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MaxContentWidth, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import { ViewModePicker } from '@/components/view-mode-picker';
+import {
+  BottomTabInset,
+  MiniPlayerInset,
+  Radius,
+  ScrollbarEdgeMargin,
+  ScrollbarGutter,
+  Spacing,
+} from '@/constants/theme';
 import { sortAlbums, sortArtists } from '@/domain/library/sorting';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
+import { useViewMode } from '@/hooks/use-view-mode';
 import { useLibraryStore } from '@/stores/library.store';
 import type { AlbumSortKey } from '@/types/filters';
 import type { Album } from '@/types/song';
+import { getGridMetrics } from '@/utils/grid-layout';
 
-const SORT_OPTIONS: readonly Option<AlbumSortKey>[] = [
-  { value: 'title-asc', label: 'Título (A-Z)' },
-  { value: 'title-desc', label: 'Título (Z-A)' },
-  { value: 'artist-asc', label: 'Artista (A-Z)' },
-  { value: 'artist-desc', label: 'Artista (Z-A)' },
-  { value: 'songs-desc', label: 'Más canciones' },
-  { value: 'duration-desc', label: 'Mayor duración' },
-  { value: 'added-desc', label: 'Agregados recientemente' },
-];
+// NOTA (i18n): las opciones se crean dentro del componente para que sus
+// etiquetas cambien con el idioma sin recargar la pantalla.
 
 /** Pantalla "Álbumes": artistas y álbumes derivados de la biblioteca. */
 export default function AlbumsScreen() {
   const theme = useTheme();
+  const { tr, t } = useTranslation();
+  const { mode } = useViewMode('albums');
   const scrollIndicator = useScrollIndicator();
   const { width } = useWindowDimensions();
   const albums = useLibraryStore((state) => state.albums);
@@ -60,9 +69,19 @@ export default function AlbumsScreen() {
   // El filtrado corre sobre el texto "asentado" (ver `useDebouncedValue`).
   const debouncedQuery = useDebouncedValue(query);
 
-  const contentWidth =
-    Math.min(width, MaxContentWidth) - Spacing.xl * 2 - ScrollbarGutter;
-  const cardWidth = (contentWidth - Spacing.lg) / 2;
+  // Una sola fuente de verdad para columnas, ancho de celda y paddings.
+  // El residuo del redondeo se reparte a ambos lados para centrar la rejilla.
+  const grid = getGridMetrics(mode, width);
+
+  const sortOptions: readonly Option<AlbumSortKey>[] = [
+    { value: 'title-asc', label: tr('Título (A-Z)') },
+    { value: 'title-desc', label: tr('Título (Z-A)') },
+    { value: 'artist-asc', label: tr('Artista (A-Z)') },
+    { value: 'artist-desc', label: tr('Artista (Z-A)') },
+    { value: 'songs-desc', label: tr('Más canciones') },
+    { value: 'duration-desc', label: tr('Mayor duración') },
+    { value: 'added-desc', label: tr('Agregados recientemente') },
+  ];
 
   const visibleAlbums = useMemo(() => {
     const term = debouncedQuery.trim().toLowerCase();
@@ -95,21 +114,23 @@ export default function AlbumsScreen() {
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Buscar álbumes o artistas"
+        placeholder={tr('Buscar álbumes o artistas')}
         placeholderTextColor={theme.textSecondary}
         style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
       />
+      {/* Selector al mismo nivel que la búsqueda/filtro de la pestaña. */}
+      <ViewModePicker tab="albums" />
     </View>
   );
 
   if (!hasPermission) {
     return (
-      <ScreenShell title="Álbumes" scroll={false}>
+      <ScreenShell title={tr('Álbumes')} scroll={false}>
         <EmptyState
           icon="albums-outline"
-          title="Sin acceso a tu música"
-          message="Concede permiso de audio para ver tus álbumes."
-          actionLabel="Conceder permiso"
+          title={tr('Sin acceso a tu música')}
+          message={tr('Concede permiso de audio para ver tus álbumes.')}
+          actionLabel={tr('Conceder permiso')}
           onAction={() => void requestAccess()}
         />
       </ScreenShell>
@@ -119,8 +140,8 @@ export default function AlbumsScreen() {
   return (
     <>
       <ScreenShell
-        title="Álbumes"
-        subtitle={`${albums.length} álbumes · ${artists.length} artistas`}
+        title={tr('Álbumes')}
+        subtitle={t('albumsArtists', { albums: albums.length, artists: artists.length })}
         scroll={false}
         action={
           <View style={styles.actions}>
@@ -128,9 +149,9 @@ export default function AlbumsScreen() {
               onPress={() => setSortVisible(true)}
               style={[styles.sortButton, { backgroundColor: theme.backgroundElement }]}
               accessibilityRole="button"
-              accessibilityLabel="Ordenar álbumes">
+              accessibilityLabel={tr('Ordenar álbumes')}>
               <Ionicons name="swap-vertical" size={16} color={theme.text} />
-              <ThemedText type="small">Ordenar</ThemedText>
+              <ThemedText type="small">{tr('Ordenar álbumes')}</ThemedText>
             </Pressable>
             <RefreshButton />
           </View>
@@ -141,80 +162,114 @@ export default function AlbumsScreen() {
         ) : albums.length === 0 ? (
           <EmptyState
             icon="albums-outline"
-            title="Sin álbumes"
-            message="Las canciones de tu dispositivo se agruparán por carpeta de álbum."
+            title={tr('Sin álbumes')}
+            message={tr('Las canciones de tu dispositivo se agruparán por carpeta de álbum.')}
           />
         ) : visibleAlbums.length === 0 ? (
-          <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
+          <EmptyState title={tr('Sin resultados')} message={tr('No hay álbumes que coincidan.')} />
         ) : (
-          <FlatList
-            data={visibleAlbums}
-            keyExtractor={keyExtractor}
-            numColumns={2}
-            columnWrapperStyle={{ columnGap: Spacing.lg }}
-            key={`${cardWidth}`}
-            renderItem={({ item }) => (
-              <AlbumCard album={item} width={cardWidth} onPress={() => handleAlbumPress(item.id)} />
-            )}
-            ListHeaderComponent={
-              visibleArtists.length > 0 ? (
-                <View style={styles.albumsHeader}>
-                  <SectionHeader title="Artistas" />
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.artistRow}>
-                    {visibleArtists.map((artist) => (
-                      <Pressable
-                        key={artist.id}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/artist/[name]',
-                            params: { name: encodeURIComponent(artist.name) },
-                          })
-                        }
-                        style={styles.artist}>
-                        <Artwork size={68} radius={Radius.pill} />
-                        <ThemedText type="smallBold" numberOfLines={1} style={styles.artistName}>
-                          {artist.name}
-                        </ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                          {artist.songCount} canciones
-                        </ThemedText>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
-                  <SectionHeader title="Álbumes" />
-                </View>
-              ) : (
-                <SectionHeader title="Álbumes" />
-              )
-            }
-            ListEmptyComponent={
-              <EmptyState title="Sin resultados" message="No hay álbumes que coincidan." />
-            }
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-            {...scrollIndicator}
-            style={styles.flex}
-            contentContainerStyle={styles.gridContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={isScanning}
-                onRefresh={() => void refresh()}
-                tintColor={theme.accent}
-                colors={[theme.accent]}
-              />
-            }
-          />
+          <View style={styles.listFrame}>
+            <FlatList
+              data={visibleAlbums}
+              keyExtractor={keyExtractor}
+              numColumns={grid.isGrid ? grid.columns : 1}
+              columnWrapperStyle={
+                grid.isGrid
+                  ? { columnGap: grid.gap, justifyContent: 'center' }
+                  : undefined
+              }
+              key={`${mode}-${grid.tileWidth}`}
+              renderItem={({ item }) => {
+                if (!grid.isGrid) {
+                  return <AlbumRow album={item} onPress={() => handleAlbumPress(item.id)} />;
+                }
+                if (grid.variant === 'icon') {
+                  return (
+                    <MediaTile
+                      width={grid.tileWidth}
+                      variant="icon"
+                      artworkUri={item.artwork}
+                      title={item.title}
+                      onPress={() => handleAlbumPress(item.id)}
+                    />
+                  );
+                }
+                return (
+                  <AlbumCard
+                    album={item}
+                    width={grid.tileWidth}
+                    onPress={() => handleAlbumPress(item.id)}
+                  />
+                );
+              }}
+              ListHeaderComponent={
+                visibleArtists.length > 0 ? (
+                  <View style={styles.albumsHeader}>
+                    <SectionHeader title={tr('Artistas')} />
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.artistRow}>
+                      {visibleArtists.map((artist) => (
+                        <Pressable
+                          key={artist.id}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/artist/[name]',
+                              params: { name: encodeURIComponent(artist.name) },
+                            })
+                          }
+                          style={styles.artist}>
+                          <Artwork size={68} radius={Radius.pill} />
+                          <ThemedText type="smallBold" numberOfLines={1} style={styles.artistName}>
+                            {artist.name}
+                          </ThemedText>
+                          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                            {t('songsCount', { count: artist.songCount })}
+                          </ThemedText>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                    <SectionHeader title={tr('Álbumes')} />
+                  </View>
+                ) : (
+                  <SectionHeader title={tr('Álbumes')} />
+                )
+              }
+              ListEmptyComponent={
+                <EmptyState title={tr('Sin resultados')} message={tr('No hay álbumes que coincidan.')} />
+              }
+              initialNumToRender={10}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+              {...scrollIndicator.scrollProps}
+              style={styles.flex}
+              contentContainerStyle={[
+                styles.gridContent,
+                {
+                  paddingLeft: grid.paddingLeft,
+                  paddingRight: grid.paddingRight,
+                  ...(grid.isGrid ? { gap: grid.gap } : null),
+                },
+              ]}
+              refreshControl={
+                <RefreshControl
+                  refreshing={isScanning}
+                  onRefresh={() => void refresh()}
+                  tintColor={theme.accent}
+                  colors={[theme.accent]}
+                />
+              }
+            />
+            <EdgeScrollIndicator {...scrollIndicator.indicatorProps} />
+          </View>
         )}
       </ScreenShell>
 
       <OptionSheet
         visible={sortVisible}
-        title="Ordenar álbumes"
-        options={SORT_OPTIONS}
+        title={tr('Ordenar álbumes')}
+        options={sortOptions}
         value={sortKey}
         onSelect={setSortKey}
         onClose={() => setSortVisible(false)}
@@ -225,10 +280,14 @@ export default function AlbumsScreen() {
 
 const styles = StyleSheet.create({
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
     paddingBottom: Spacing.sm,
     paddingRight: ScrollbarGutter,
   },
   search: {
+    flex: 1,
     height: 44,
     borderRadius: Radius.medium,
     paddingHorizontal: Spacing.lg,
@@ -264,12 +323,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Spacing.xs,
   },
+  listFrame: {
+    flex: 1,
+    position: 'relative',
+    // El marco llega al borde real para que el indicador propio quede pegado a él.
+    marginHorizontal: ScrollbarEdgeMargin,
+  },
+
   flex: {
     flex: 1,
   },
   gridContent: {
     rowGap: Spacing.xl,
     paddingBottom: BottomTabInset + MiniPlayerInset,
-    paddingRight: ScrollbarGutter,
+    // Los paddings horizontales vienen de `getGridMetrics` y son simétricos.
   },
 });

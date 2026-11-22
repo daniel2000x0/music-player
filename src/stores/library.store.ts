@@ -14,6 +14,8 @@ import {
 } from '@/domain/library/selection';
 import type { ScanProgress } from '@/domain/library/scan-progress';
 import { scanReportHasChanges, type ScanReport } from '@/domain/library/scan-report';
+import { tr } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
 import { migrateLegacyLibrary } from '@/services/legacy-migration.service';
 import { logError } from '@/services/error-log.service';
 import {
@@ -211,14 +213,18 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         }
       } catch (error) {
         logError('library-store', 'hydrate', error);
+        const language = getCurrentLanguage();
         notifyFailure(
           'library.load-failed',
-          'No se pudo cargar la biblioteca',
-          'La copia local no está disponible. Reintenta en unos segundos.',
+          tr(language, 'No se pudo cargar la biblioteca'),
+          tr(language, 'La copia local no está disponible. Reintenta en unos segundos.'),
           () => void get().refresh()
         );
         set({
-          error: error instanceof Error ? error.message : 'No se pudo cargar la biblioteca',
+          error:
+            error instanceof Error
+              ? error.message
+              : tr(language, 'No se pudo cargar la biblioteca'),
           hydrated: true,
           isLoading: false,
         });
@@ -289,11 +295,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       return report;
     } catch (error) {
       logError('library-store', 'backfillArtwork', error);
+      const language = getCurrentLanguage();
       const message =
-        error instanceof Error ? error.message : 'No se pudieron buscar las carátulas';
+        error instanceof Error
+          ? error.message
+          : tr(language, 'No se pudieron buscar las carátulas');
       notifyFailure(
         'library.artwork-failed',
-        'No se pudieron buscar las carátulas',
+        tr(language, 'No se pudieron buscar las carátulas'),
         message
       );
       set({ error: message });
@@ -315,12 +324,15 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       if (granted) {
         const report = await get().scanOnce();
         if (!report) {
-          const message =
-            'No se pudo leer la mediateca del dispositivo. Inténtalo de nuevo.';
+          const language = getCurrentLanguage();
+          const message = tr(
+            language,
+            'No se pudo leer la mediateca del dispositivo. Inténtalo de nuevo.'
+          );
           set({ error: message });
           notifyFailure(
             'library.scan-failed',
-            'No se pudo escanear tu música',
+            tr(language, 'No se pudo escanear tu música'),
             message,
             () => void get().refresh()
           );
@@ -333,11 +345,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       set({ ...local, isLoading: false });
     } catch (error) {
       logError('library-store', 'refresh', error);
+      const language = getCurrentLanguage();
       const message =
-        error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca';
+        error instanceof Error
+          ? error.message
+          : tr(language, 'No se pudo actualizar la biblioteca');
       notifyFailure(
         'library.scan-failed',
-        'No se pudo escanear tu música',
+        tr(language, 'No se pudo escanear tu música'),
         message,
         () => void get().refresh()
       );
@@ -389,11 +404,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       }
     } catch (error) {
       logError('library-store', 'sync', error);
+      const language = getCurrentLanguage();
       const message =
-        error instanceof Error ? error.message : 'No se pudo actualizar la biblioteca';
+        error instanceof Error
+          ? error.message
+          : tr(language, 'No se pudo actualizar la biblioteca');
       notifyFailure(
         'library.sync-failed',
-        'No se pudo sincronizar tu biblioteca',
+        tr(language, 'No se pudo sincronizar tu biblioteca'),
         message,
         () => void get().refresh()
       );
@@ -415,10 +433,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       clearNotice('library.permission-denied');
       await get().refresh();
     } else {
+      const language = getCurrentLanguage();
       notifyFailure(
         'library.permission-denied',
-        'Permiso de audio denegado',
-        'Revisa los permisos de la app en los ajustes del sistema para ver tu música.'
+        tr(language, 'Permiso de audio denegado'),
+        tr(
+          language,
+          'Revisa los permisos de la app en los ajustes del sistema para ver tu música.'
+        )
       );
       set({ isLoading: false });
     }

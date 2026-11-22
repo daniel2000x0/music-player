@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 
 import type { DeleteChoice } from '@/components/song-delete-sheet';
 import type { SongMetadataPatch } from '@/components/song-edit-modal';
+import { useTranslation } from '@/hooks/use-translation';
 import { useLibraryStore } from '@/stores/library.store';
 import { useNoticeStore } from '@/stores/notice.store';
 import type { Song } from '@/types/song';
@@ -41,6 +42,7 @@ export type SongLibraryActions = {
  * playlist) compartan el mismo comportamiento y los mismos avisos.
  */
 export function useSongLibraryActions(): SongLibraryActions {
+  const { tr, t } = useTranslation();
   const updateSongMetadata = useLibraryStore((state) => state.updateSongMetadata);
   const removeSongs = useLibraryStore((state) => state.removeSongs);
   const deleteSongsFromDevice = useLibraryStore((state) => state.deleteSongsFromDevice);
@@ -75,9 +77,9 @@ export function useSongLibraryActions(): SongLibraryActions {
     }
     setDeleteTarget({
       songs: list,
-      title: title ?? (list.length === 1 ? list[0].title : `${list.length} pistas`),
+      title: title ?? (list.length === 1 ? list[0].title : t('tracksCount', { count: list.length })),
     });
-  }, []);
+  }, [t]);
 
   const cancelDelete = useCallback(() => setDeleteTarget(null), []);
 
@@ -99,12 +101,12 @@ export function useSongLibraryActions(): SongLibraryActions {
         pushNotice({
           code: 'library.delete-device-failed',
           severity: 'warning',
-          title: 'No se borraron los archivos',
+          title: tr('No se borraron los archivos'),
           message: result.error,
         });
       }
     },
-    [deleteTarget, removeSongs, deleteSongsFromDevice, pushNotice]
+    [deleteTarget, removeSongs, deleteSongsFromDevice, pushNotice, tr]
   );
 
   return {

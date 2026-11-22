@@ -169,6 +169,9 @@ export async function extractMp4Tags(
     album: null,
     albumArtist: null,
     track: null,
+    bitDepth: null,
+    sampleRate: null,
+    bitrate: null,
   };
   let found = false;
 
@@ -207,7 +210,7 @@ export async function extractMp4Tags(
       return;
     }
     const text = cleanText(decodeUtf8(payload, 0, payload.length));
-    if (text) {
+    if (text && key !== 'bitDepth' && key !== 'sampleRate' && key !== 'bitrate') {
       tags[key] = text;
       found = true;
     }

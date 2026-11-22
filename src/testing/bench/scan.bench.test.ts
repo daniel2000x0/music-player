@@ -72,6 +72,10 @@ function buildScanned(size: number): ScannedSong[] {
       track: song.track,
       folder: song.folder,
       duration: song.duration,
+      fileFormat: 'mp3',
+      bitDepth: null,
+      sampleRate: null,
+      bitrate: null,
       artwork: song.artwork,
       modificationTime: 1_000 + index,
     };
@@ -110,9 +114,21 @@ function buildMetadataInputs(scanned: ScannedSong[]): MetadataInput[] {
         album: track.album,
         albumArtist: track.artist,
         track: track.track,
+        bitDepth: null,
+        sampleRate: null,
+        bitrate: null,
       };
     } else if (index % 3 === 1) {
-      tags = { title: null, artist: null, album: null, albumArtist: null, track: null };
+      tags = {
+        title: null,
+        artist: null,
+        album: null,
+        albumArtist: null,
+        track: null,
+        bitDepth: null,
+        sampleRate: null,
+        bitrate: null,
+      };
     }
     return {
       filename: `${String(index % 9)}-${track.title}.mp3`,

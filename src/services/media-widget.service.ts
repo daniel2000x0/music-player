@@ -3,6 +3,7 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
 import { Platform } from 'react-native';
 import type { Widget } from 'expo-widgets';
 
+import { DEFAULT_LANGUAGE, t, tr, type AppLanguage } from '@/i18n';
 import { resolveArtworkUri } from '@/services/artwork.service';
 import { logError } from '@/services/error-log.service';
 import {
@@ -98,9 +99,9 @@ type WidgetRequest = {
  * `expo-audio` reporta la posición cada 500 ms; publicar cada tick obligaría a
  * Glance a recomponer el widget dos veces por segundo sin ganar precisión (el
  * reloj solo muestra segundos). Solo se publica cuando cambia la pista/estado/
- * duración/capacidades, cuando cambia el tema, cuando hay un salto (seek) o
- * cuando la posición avanzó al menos este intervalo, de modo que el reloj del
- * widget avanza segundo a segundo.
+ * duración/capacidades, cuando cambia el tema o el idioma, cuando hay un salto
+ * (seek) o cuando la posición avanzó al menos este intervalo, de modo que el
+ * reloj del widget avanza segundo a segundo.
  */
 type WidgetState = {
   songId: number | null;
@@ -116,6 +117,8 @@ let pendingRequest: WidgetRequest | null = null;
 let publishedState: WidgetState | null = null;
 /** Tema con el que se escribió el último snapshot; `null` = aún sin publicar. */
 let publishedTheme: string | null = null;
+/** Idioma con el que se escribió el último snapshot (afecta a los textos). */
+let publishedLanguage: AppLanguage | null = null;
 let draining = false;
 let lastSnapshotKey: string | null = null;
 
@@ -124,13 +127,21 @@ function isSkippable(): boolean {
   return usePlayerStore.getState().queue.length > 1;
 }
 
+/**
+ * Idioma vigente para los textos del widget. El fallback cubre el arranque y
+ * los dobles de prueba que aún no hydratan `app_settings`.
+ */
+function currentLanguage(): AppLanguage {
+  return useSettingsStore.getState().language ?? DEFAULT_LANGUAGE;
+}
+
 /** Descripción accesible del contenido (la portada la publica como `contentDescription`). */
-function statusLabelFor(song: Song | null, isPlaying: boolean): string {
+function statusLabelFor(song: Song | null, isPlaying: boolean, language: AppLanguage): string {
   if (!song) {
-    return MEDIA_WIDGET_INITIAL_PROPS.statusLabel;
+    return tr(language, 'Sin reproducción');
   }
-  const state = isPlaying ? 'en reproducción' : 'en pausa';
-  return `${song.title} — ${song.artist}, ${state}`;
+  const state = isPlaying ? tr(language, 'en reproducción') : tr(language, 'en pausa');
+  return t(language, 'widgetStatus', { title: song.title, artist: song.artist, state });
 }
 
 /** Normaliza el estado y redondea los segundos para no generar ruido. */
@@ -148,8 +159,12 @@ function shouldPublish(next: WidgetState): boolean {
   if (!publishedState) {
     return true;
   }
-  // El tema no viaja en el estado normalizado; si cambió, hay que reescribir.
+  // El tema y el idioma no viajan en el estado normalizado; si cambió cualquiera,
+  // hay que reescribir el snapshot aunque la reproducción esté en pausa.
   if (useSettingsStore.getState().theme !== publishedTheme) {
+    return true;
+  }
+  if (currentLanguage() !== publishedLanguage) {
     return true;
   }
   if (next.songId !== publishedState.songId || next.isPlaying !== publishedState.isPlaying) {
@@ -237,7 +252,9 @@ async function applySnapshot(request: WidgetRequest): Promise<boolean> {
     return false;
   }
 
-  const theme = resolveWidgetTheme(useSettingsStore.getState().theme);
+  const activeTheme = useSettingsStore.getState().theme;
+  const language = currentLanguage();
+  const theme = resolveWidgetTheme(activeTheme);
   const props: MediaWidgetProps = request.song
     ? {
         title: request.song.title,
@@ -250,12 +267,16 @@ async function applySnapshot(request: WidgetRequest): Promise<boolean> {
         theme,
         canGoPrevious: request.canGoPrevious,
         canGoNext: request.canGoNext,
-        statusLabel: statusLabelFor(request.song, request.isPlaying),
+        statusLabel: statusLabelFor(request.song, request.isPlaying, language),
       }
     : {
-        // Estado vacío: conserva los textos por defecto pero adopta el tema
-        // activo (el widget también debe respetar claro/oscuro sin pista).
+        // Estado vacío: adopta el tema y el idioma activos. Los valores
+        // originales del contrato siguen siendo el fallback nativo anterior a
+        // la primera publicación (no se puede traducir desde el JS del widget).
         ...MEDIA_WIDGET_INITIAL_PROPS,
+        title: tr(language, 'Sin reproducción'),
+        artist: tr(language, 'Abre la app y elige música'),
+        statusLabel: tr(language, 'Sin reproducción'),
         theme,
       };
 
@@ -265,7 +286,8 @@ async function applySnapshot(request: WidgetRequest): Promise<boolean> {
     loaded.widget.updateSnapshot(props);
   }
   publishedState = toWidgetState(request);
-  publishedTheme = useSettingsStore.getState().theme;
+  publishedTheme = activeTheme;
+  publishedLanguage = language;
   pruneArtwork(loaded.directory, artwork);
   return true;
 }

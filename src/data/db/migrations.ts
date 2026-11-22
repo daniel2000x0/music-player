@@ -8,7 +8,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Nunca se borran datos del usuario en una migración.
  */
 
-export const DATABASE_VERSION = 8;
+export const DATABASE_VERSION = 10;
 
 const V1 = `
 CREATE TABLE IF NOT EXISTS artists (
@@ -217,6 +217,32 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
    */
   if (!(await columnExists('songs', 'metadata_manual'))) {
     await db.runAsync('ALTER TABLE songs ADD COLUMN metadata_manual INTEGER NOT NULL DEFAULT 0');
+  }
+  /**
+   * V9: formato de archivo para la etiqueta de calidad.
+   *
+   * LÓGICA: se guarda la extensión normalizada (`flac`, `mp3`, `m4a`...). Es
+   * información derivada de la URI/nombre de archivo, así que `NULL` en filas
+   * antiguas se rellena en el siguiente escaneo o con un backfill barato.
+   */
+  if (!(await columnExists('songs', 'file_format'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN file_format TEXT');
+  }
+  /**
+   * V10: metadatos técnicos de audio para la etiqueta de calidad.
+   *
+   * LÓGICA: `bit_depth`, `sample_rate` y `bitrate` permiten mostrar formatos
+   * como "FLAC 16/44.1 kHz · 1411 kbps". Son opcionales; si no se conocen quedan
+   * en NULL y la UI degrada con gracia.
+   */
+  if (!(await columnExists('songs', 'bit_depth'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN bit_depth INTEGER');
+  }
+  if (!(await columnExists('songs', 'sample_rate'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN sample_rate INTEGER');
+  }
+  if (!(await columnExists('songs', 'bitrate'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN bitrate INTEGER');
   }
   await db.execAsync('CREATE INDEX IF NOT EXISTS idx_songs_audiobook ON songs(is_audiobook)');
   await db.execAsync(

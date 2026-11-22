@@ -47,6 +47,10 @@ const SONG_COLUMNS = [
   'modification_time',
   'artwork_checked_at',
   'metadata_manual',
+  'file_format',
+  'bit_depth',
+  'sample_rate',
+  'bitrate',
 ];
 
 beforeEach(() => {
@@ -79,6 +83,10 @@ describe('migrateDatabase: base nueva', () => {
     expect(mockRunLog).toContain(
       'ALTER TABLE songs ADD COLUMN metadata_manual INTEGER NOT NULL DEFAULT 0'
     );
+    expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN file_format TEXT');
+    expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN bit_depth INTEGER');
+    expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN sample_rate INTEGER');
+    expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN bitrate INTEGER');
   });
 
   it('crea la tabla de pistas quitadas de la biblioteca (V8)', async () => {
@@ -104,7 +112,7 @@ describe('migrateDatabase: base nueva', () => {
   it('deja PRAGMA user_version en la versión actual', async () => {
     await migrateDatabase(db);
 
-    expect(DATABASE_VERSION).toBe(8);
+    expect(DATABASE_VERSION).toBe(10);
     expect(mockExecLog).toContain(`PRAGMA user_version = ${DATABASE_VERSION}`);
   });
 });

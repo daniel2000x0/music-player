@@ -4,6 +4,7 @@ import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type TextPromptModalProps = {
   visible: boolean;
@@ -27,11 +28,16 @@ function TextPromptContent({
   title,
   placeholder,
   initialValue = '',
-  confirmLabel = 'Guardar',
+  confirmLabel,
   onConfirm,
   onClose,
 }: Omit<TextPromptModalProps, 'visible'>) {
   const theme = useTheme();
+
+  const { tr } = useTranslation();
+  // El valor por defecto se resuelve aquí, dentro del componente, para poder
+  // usar el hook y seguir el idioma activo.
+  const label = confirmLabel ?? tr('Guardar');
   const [value, setValue] = useState(initialValue);
 
   const confirm = () => {
@@ -66,7 +72,7 @@ function TextPromptContent({
           <View style={styles.actions}>
             <Pressable onPress={onClose} style={styles.button} accessibilityRole="button">
               <ThemedText type="smallBold" themeColor="textSecondary">
-                Cancelar
+                {tr('Cancelar')}
               </ThemedText>
             </Pressable>
             <Pressable
@@ -74,7 +80,7 @@ function TextPromptContent({
               accessibilityRole="button"
               style={[styles.button, styles.confirm, { backgroundColor: theme.accent }]}>
               <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-                {confirmLabel}
+                {label}
               </ThemedText>
             </Pressable>
           </View>

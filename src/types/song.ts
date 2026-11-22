@@ -22,6 +22,14 @@ export type Song = {
   folder: string | null;
   /** Duración en segundos. */
   duration: number;
+  /** Extensión/formato normalizado (`flac`, `mp3`...); `null` si no se conoce. */
+  fileFormat: string | null;
+  /** Profundidad de bits (ej. 16, 24); `null` si no se conoce. */
+  bitDepth: number | null;
+  /** Frecuencia de muestreo en Hz (ej. 44100); `null` si no se conoce. */
+  sampleRate: number | null;
+  /** Bitrate aproximado en kbps; `null` si no se conoce. */
+  bitrate: number | null;
   artwork: string | null;
   /** Fecha de incorporación a la biblioteca (ms). */
   addedAt: number;
@@ -64,6 +72,14 @@ export type ScannedSong = {
   folder: string | null;
   duration: number;
   artwork: string | null;
+  /** Extensión/formato normalizado, derivado de la URI/nombre de archivo. */
+  fileFormat: string | null;
+  /** Profundidad de bits; `null` si no se conoce. */
+  bitDepth: number | null;
+  /** Frecuencia de muestreo en Hz; `null` si no se conoce. */
+  sampleRate: number | null;
+  /** Bitrate aproximado en kbps; `null` si no se conoce. */
+  bitrate: number | null;
   /** Fecha de modificación del asset (ms); `null` si el proveedor no la da. */
   modificationTime: number | null;
 };

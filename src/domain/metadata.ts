@@ -9,13 +9,19 @@
  * - decidir qué valor gana cuando hay tag, nombre de archivo o carpeta.
  */
 
-/** Etiquetas de texto leídas de un archivo de audio. */
+/** Etiquetas de texto y técnicas leídas de un archivo de audio. */
 export type AudioTags = {
   title: string | null;
   artist: string | null;
   album: string | null;
   albumArtist: string | null;
   track: number | null;
+  /** Profundidad de bits (16, 24...) si el contenedor la expone. */
+  bitDepth: number | null;
+  /** Frecuencia de muestreo en Hz (44100, 48000...) si el contenedor la expone. */
+  sampleRate: number | null;
+  /** Bitrate aproximado en kbps si se puede derivar. */
+  bitrate: number | null;
 };
 
 /** Autor/artista que se muestra cuando el archivo no trae etiqueta. */

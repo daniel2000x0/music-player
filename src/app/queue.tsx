@@ -4,14 +4,23 @@ import { memo, useCallback } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { Artwork } from '@/components/artwork';
+import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
 import { ScreenShell } from '@/components/screen-shell';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, MiniPlayerInset, Radius, ScrollbarGutter, Spacing } from '@/constants/theme';
+import {
+  BottomTabInset,
+  MiniPlayerInset,
+  Radius,
+  ScrollbarEdgeMargin,
+  ScrollbarGutter,
+  Spacing,
+} from '@/constants/theme';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
+import { useTranslation } from '@/hooks/use-translation';
 
 /** Canción con su índice en la cola embebido (viaja con el item para `memo`). */
 type QueueItem = Song & { queueIndex: number };
@@ -39,6 +48,7 @@ const QueueRow = memo(function QueueRow({
   onRemove: (index: number) => void;
 }) {
   const theme = useTheme();
+  const { tr, t } = useTranslation();
   return (
     <View
       style={[
@@ -51,7 +61,10 @@ const QueueRow = memo(function QueueRow({
         onPress={() => onPlay(song.queueIndex)}
         style={styles.main}
         accessibilityRole="button"
-        accessibilityLabel={`Reproducir ${song.title}, de ${song.artist}`}>
+        accessibilityLabel={t('playSong', {
+          title: song.title,
+          artist: song.artist,
+        })}>
         <Artwork uri={song.artwork} size={44} />
         <View style={styles.info}>
           <ThemedText
@@ -73,7 +86,7 @@ const QueueRow = memo(function QueueRow({
         style={[styles.control, !canMoveUp && styles.disabled]}
         accessibilityRole="button"
         accessibilityState={{ disabled: !canMoveUp }}
-        accessibilityLabel="Subir">
+        accessibilityLabel={tr('Subir')}>
         <Ionicons name="chevron-up" size={20} color={theme.textSecondary} />
       </Pressable>
       <Pressable
@@ -83,7 +96,7 @@ const QueueRow = memo(function QueueRow({
         style={[styles.control, !canMoveDown && styles.disabled]}
         accessibilityRole="button"
         accessibilityState={{ disabled: !canMoveDown }}
-        accessibilityLabel="Bajar">
+        accessibilityLabel={tr('Bajar')}>
         <Ionicons name="chevron-down" size={20} color={theme.textSecondary} />
       </Pressable>
       <Pressable
@@ -91,7 +104,7 @@ const QueueRow = memo(function QueueRow({
         onPress={() => onRemove(song.queueIndex)}
         style={styles.control}
         accessibilityRole="button"
-        accessibilityLabel={`Quitar ${song.title} de la cola`}>
+        accessibilityLabel={t('removeFromQueue', { title: song.title })}>
         <Ionicons name="close" size={20} color={theme.textSecondary} />
       </Pressable>
     </View>
@@ -101,6 +114,8 @@ const QueueRow = memo(function QueueRow({
 /** Cola de reproducción: reordena, elimina y salta a cualquier pista. */
 export default function QueueScreen() {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
   const queue = usePlayerStore((state) => state.queue);
   const currentId = usePlayerStore((state) => state.currentSong?.id);
   const playQueueIndex = usePlayerStore((state) => state.playQueueIndex);
@@ -110,9 +125,9 @@ export default function QueueScreen() {
   const scrollIndicator = useScrollIndicator();
 
   const confirmClear = () => {
-    Alert.alert('Vaciar cola', 'Se quitarán las canciones pendientes. La actual seguirá sonando.', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Vaciar', style: 'destructive', onPress: clearQueue },
+    Alert.alert(tr('Vaciar cola'), tr('Se quitarán las canciones pendientes. La actual seguirá sonando.'), [
+      { text: tr('Cancelar'), style: 'cancel' },
+      { text: tr('Vaciar'), style: 'destructive', onPress: clearQueue },
     ]);
   };
 
@@ -131,15 +146,15 @@ export default function QueueScreen() {
 
   return (
     <ScreenShell
-      title="Cola de reproducción"
-      subtitle={`${queue.length} canciones`}
+      title={tr('Cola de reproducción')}
+      subtitle={t('songsCount', { count: queue.length })}
       scroll={false}
       leading={
         <Pressable
           onPress={() => router.back()}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Volver">
+          accessibilityLabel={tr('Volver')}>
           <Ionicons name="chevron-back" size={26} color={theme.text} />
         </Pressable>
       }
@@ -149,7 +164,7 @@ export default function QueueScreen() {
             onPress={confirmClear}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Vaciar cola">
+            accessibilityLabel={tr('Vaciar cola')}>
             <Ionicons name="trash-outline" size={22} color={theme.danger} />
           </Pressable>
         ) : null
@@ -157,38 +172,41 @@ export default function QueueScreen() {
       {queue.length === 0 ? (
         <EmptyState
           icon="list-outline"
-          title="Cola vacía"
-          message="Reproduce una canción para llenar la cola."
+          title={tr('Cola vacía')}
+          message={tr('Reproduce una canción para llenar la cola.')}
         />
       ) : (
-        <FlatList
-          data={items}
-          keyExtractor={keyExtractor}
-          renderItem={({ item }) => (
-            <QueueRow
-              song={item}
-              isCurrent={item.id === currentId}
-              canMoveUp={item.queueIndex > 0}
-              canMoveDown={item.queueIndex < lastIndex}
-              onPlay={handlePlay}
-              onMoveUp={handleMoveUp}
-              onMoveDown={handleMoveDown}
-              onRemove={handleRemove}
-            />
-          )}
-          getItemLayout={(_, index) => ({
-            length: ROW_HEIGHT,
-            offset: ROW_HEIGHT * index,
-            index,
-          })}
-          initialNumToRender={12}
-          maxToRenderPerBatch={12}
-          windowSize={5}
-          keyboardShouldPersistTaps="handled"
-          {...scrollIndicator}
-          style={styles.flex}
-          contentContainerStyle={styles.listContent}
-        />
+        <View style={styles.listFrame}>
+          <FlatList
+            data={items}
+            keyExtractor={keyExtractor}
+            renderItem={({ item }) => (
+              <QueueRow
+                song={item}
+                isCurrent={item.id === currentId}
+                canMoveUp={item.queueIndex > 0}
+                canMoveDown={item.queueIndex < lastIndex}
+                onPlay={handlePlay}
+                onMoveUp={handleMoveUp}
+                onMoveDown={handleMoveDown}
+                onRemove={handleRemove}
+              />
+            )}
+            getItemLayout={(_, index) => ({
+              length: ROW_HEIGHT,
+              offset: ROW_HEIGHT * index,
+              index,
+            })}
+            initialNumToRender={12}
+            maxToRenderPerBatch={12}
+            windowSize={5}
+            keyboardShouldPersistTaps="handled"
+            {...scrollIndicator.scrollProps}
+            style={styles.flex}
+            contentContainerStyle={styles.listContent}
+          />
+          <EdgeScrollIndicator {...scrollIndicator.indicatorProps} />
+        </View>
       )}
     </ScreenShell>
   );
@@ -218,11 +236,21 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.3,
   },
+  listFrame: {
+    flex: 1,
+    position: 'relative',
+    // El marco llega al borde real para que el indicador propio quede pegado a él.
+    marginHorizontal: ScrollbarEdgeMargin,
+  },
+
   flex: {
     flex: 1,
   },
   listContent: {
     paddingBottom: BottomTabInset + MiniPlayerInset,
+    // Reinserta las filas respecto al área segura...
+    paddingLeft: Spacing.xl,
+    // ...y deja el carril del indicador nativo de scroll.
     paddingRight: ScrollbarGutter,
   },
 });

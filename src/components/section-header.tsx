@@ -25,7 +25,7 @@ export function SectionHeader({ title, actionLabel, onActionPress }: SectionHead
 
   return (
     <View style={styles.container}>
-      <ThemedText type="subtitle" numberOfLines={1} style={styles.title}>
+      <ThemedText type="default" numberOfLines={1} style={styles.title}>
         {title}
       </ThemedText>
       {actionLabel && onActionPress ? (
@@ -56,11 +56,14 @@ const styles = StyleSheet.create({
   title: {
     flexShrink: 1,
     minWidth: 0,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: '700',
   },
   action: {
     flexShrink: 0,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   spacer: {
     height: 1,
