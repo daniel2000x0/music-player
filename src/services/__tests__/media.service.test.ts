@@ -289,6 +289,10 @@ describe('readDeviceTrack (hidratación de una pista)', () => {
       title: 'capitulo-01',
       folder: 'Book',
       duration: 600,
+      fileFormat: 'mp3',
+      bitDepth: null,
+      sampleRate: null,
+      bitrate: null,
       artwork: null,
       modificationTime: 1_700_000_000_000,
     });

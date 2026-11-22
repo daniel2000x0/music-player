@@ -220,6 +220,9 @@ describe('extractFlacTags', () => {
       album: 'Arrullos',
       albumArtist: 'Varios',
       track: 3,
+      bitDepth: null,
+      sampleRate: null,
+      bitrate: null,
     });
   });
 

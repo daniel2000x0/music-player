@@ -82,6 +82,10 @@ function scanned(
     track: null,
     folder: null,
     duration: 120,
+    fileFormat: 'mp3',
+    bitDepth: null,
+    sampleRate: null,
+    bitrate: null,
     artwork: null,
     modificationTime: 1_000,
   };

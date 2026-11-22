@@ -7,6 +7,7 @@ import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { Song } from '@/types/song';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type PlaylistPickerProps = {
   visible: boolean;
@@ -20,6 +21,8 @@ export type PlaylistPickerProps = {
  */
 export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
   const playlists = useLibraryStore((state) => state.playlists);
   const addToPlaylist = useLibraryStore((state) => state.addToPlaylist);
   const createPlaylist = useLibraryStore((state) => state.createPlaylist);
@@ -53,9 +56,9 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
           onPress={(event) => event.stopPropagation()}>
           <View style={styles.header}>
             <ThemedText type="smallBold" style={styles.headerTitle}>
-              Agregar a playlist
+              {tr('Agregar a playlist')}
             </ThemedText>
-            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar">
+            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel={tr('Cerrar')}>
               <Ionicons name="close" size={22} color={theme.textSecondary} />
             </Pressable>
           </View>
@@ -63,7 +66,7 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
           <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
             {playlists.length === 0 ? (
               <ThemedText type="small" themeColor="textSecondary">
-                Aún no tienes playlists. Crea una abajo.
+                {tr('Aún no tienes playlists. Crea una abajo.')}
               </ThemedText>
             ) : (
               playlists.map((playlist) => {
@@ -74,7 +77,8 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
                     onPress={() => handleAdd(playlist.id)}
                     accessibilityRole="button"
                     accessibilityState={{ selected: contains }}
-                    accessibilityLabel={`Agregar a ${playlist.name}${contains ? ', ya incluida' : ''}`}
+                    accessibilityLabel={t('addToPlaylist', { name: playlist.name })}
+                    accessibilityHint={contains ? tr('ya incluida') : undefined}
                     style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
                     <Ionicons name="list" size={20} color={theme.textSecondary} />
                     <ThemedText type="smallBold" numberOfLines={1} style={styles.itemLabel}>
@@ -91,7 +95,7 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Nueva playlist"
+              placeholder={tr('Nueva playlist')}
               placeholderTextColor={theme.textSecondary}
               onSubmitEditing={handleCreate}
               returnKeyType="done"
@@ -103,7 +107,7 @@ export function PlaylistPicker({ visible, song, onClose }: PlaylistPickerProps) 
             <Pressable
               onPress={handleCreate}
               accessibilityRole="button"
-              accessibilityLabel="Crear playlist y agregar la canción"
+              accessibilityLabel={tr('Crear playlist y agregar la canción')}
               style={({ pressed }) => [
                 styles.createButton,
                 { backgroundColor: theme.accent },

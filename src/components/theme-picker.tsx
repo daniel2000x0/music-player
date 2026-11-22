@@ -4,6 +4,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { THEME_CATALOG } from '@/constants/theme-catalog';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 import type { ThemeMode } from '@/types/settings';
 
 export type ThemePickerProps = {
@@ -20,6 +21,7 @@ export type ThemePickerProps = {
  */
 export function ThemePicker({ value, onChange }: ThemePickerProps) {
   const theme = useTheme();
+  const { tr } = useTranslation();
 
   return (
     <View style={styles.grid} accessibilityRole="radiogroup">
@@ -37,7 +39,7 @@ export function ThemePicker({ value, onChange }: ThemePickerProps) {
               },
             ]}
             accessibilityRole="radio"
-            accessibilityLabel={item.label}
+            accessibilityLabel={tr(item.label)}
             accessibilityState={{ selected: active }}>
             <View style={[styles.iconWrap, { backgroundColor: `${item.swatch}22` }]}>
               <Image source={item.icon} style={styles.icon} resizeMode="contain" />
@@ -46,7 +48,7 @@ export function ThemePicker({ value, onChange }: ThemePickerProps) {
               type="small"
               numberOfLines={1}
               style={[styles.label, active ? { color: theme.accent } : undefined]}>
-              {item.label}
+              {tr(item.label)}
             </ThemedText>
           </Pressable>
         );

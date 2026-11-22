@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type Option<T extends string> = {
   value: T;
@@ -32,6 +33,8 @@ export function OptionSheet<T extends string>({
 }: OptionSheetProps<T>) {
   const theme = useTheme();
 
+  const { tr } = useTranslation();
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -42,7 +45,7 @@ export function OptionSheet<T extends string>({
             <ThemedText type="smallBold" style={styles.headerTitle}>
               {title}
             </ThemedText>
-            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar">
+            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel={tr('Cerrar')}>
               <Ionicons name="close" size={22} color={theme.textSecondary} />
             </Pressable>
           </View>

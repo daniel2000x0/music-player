@@ -103,6 +103,9 @@ describe('extractMp4Tags', () => {
       album: 'El Hobbit (Audiolibro)',
       albumArtist: 'Tolkien',
       track: 3,
+      bitDepth: null,
+      sampleRate: null,
+      bitrate: null,
     });
   });
 

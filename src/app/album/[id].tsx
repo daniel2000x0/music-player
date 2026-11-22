@@ -23,46 +23,52 @@ import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
 import { formatDuration, formatSongCount } from '@/utils/format';
+import { useTranslation } from '@/hooks/use-translation';
 
 type AlbumAction = 'rename' | 'delete';
 type SongAction = 'playlist' | 'edit' | 'delete';
 
-const ALBUM_ACTIONS: readonly Option<AlbumAction>[] = [
-  {
-    value: 'rename',
-    label: 'Renombrar álbum',
-    description: 'Cambia el nombre en todas sus pistas.',
-  },
-  {
-    value: 'delete',
-    label: 'Eliminar álbum',
-    description: 'Quita o borra todas sus pistas a la vez.',
-    destructive: true,
-  },
-];
-
-const SONG_ACTIONS: readonly Option<SongAction>[] = [
-  {
-    value: 'playlist',
-    label: 'Agregar a playlist',
-    description: 'Incluye esta canción en una playlist existente o nueva.',
-  },
-  {
-    value: 'edit',
-    label: 'Editar información',
-    description: 'Corrige el título, el artista o el álbum solo en esta app.',
-  },
-  {
-    value: 'delete',
-    label: 'Eliminar',
-    description: 'Quítala de la biblioteca o bórrala del dispositivo.',
-    destructive: true,
-  },
-];
+// NOTA (i18n): las opciones se construyen dentro del componente para que sus
+// etiquetas sigan el idioma activo (los `const` de módulo no pueden usar hooks).
 
 /** Detalle de álbum: portada, metadatos y lista de canciones. */
 export default function AlbumDetailScreen() {
   const theme = useTheme();
+
+  const { tr } = useTranslation();
+
+  const albumActions: readonly Option<AlbumAction>[] = [
+    {
+      value: 'rename',
+      label: tr('Renombrar álbum'),
+      description: tr('Cambia el nombre en todas sus pistas.'),
+    },
+    {
+      value: 'delete',
+      label: tr('Eliminar álbum'),
+      description: tr('Quita o borra todas sus pistas a la vez.'),
+      destructive: true,
+    },
+  ];
+
+  const songActions: readonly Option<SongAction>[] = [
+    {
+      value: 'playlist',
+      label: tr('Agregar a playlist'),
+      description: tr('Incluye esta canción en una playlist existente o nueva.'),
+    },
+    {
+      value: 'edit',
+      label: tr('Editar información'),
+      description: tr('Corrige el título, el artista o el álbum solo en esta app.'),
+    },
+    {
+      value: 'delete',
+      label: tr('Eliminar'),
+      description: tr('Quítala de la biblioteca o bórrala del dispositivo.'),
+      destructive: true,
+    },
+  ];
   const params = useLocalSearchParams<{ id?: string }>();
   const albumId = Number(params.id);
   const album = useLibraryStore((state) => state.albums.find((item) => item.id === albumId));
@@ -118,10 +124,10 @@ export default function AlbumDetailScreen() {
       if (action === 'rename') {
         setRenameVisible(true);
       } else {
-        requestDelete(songs, album?.title ?? 'Álbum');
+        requestDelete(songs, album?.title ?? tr('Álbum'));
       }
     },
-    [songs, album?.title, requestDelete]
+    [songs, album?.title, requestDelete, tr]
   );
 
   // Al renombrar puede ocurrir una fusión con un álbum ya existente: en ese
@@ -168,15 +174,15 @@ export default function AlbumDetailScreen() {
       onPress={() => router.back()}
       hitSlop={8}
       accessibilityRole="button"
-      accessibilityLabel="Volver">
+      accessibilityLabel={tr('Volver')}>
       <Ionicons name="chevron-back" size={26} color={theme.text} />
     </Pressable>
   );
 
   if (!album) {
     return (
-      <ScreenShell title="Álbum" leading={back}>
-        <EmptyState title="Álbum no encontrado" message="Puede que ya no esté en tu biblioteca." />
+      <ScreenShell title={tr('Álbum')} leading={back}>
+        <EmptyState title={tr('Álbum no encontrado')} message={tr('Puede que ya no esté en tu biblioteca.')} />
       </ScreenShell>
     );
   }
@@ -202,13 +208,13 @@ export default function AlbumDetailScreen() {
               hitSlop={8}
               style={styles.headerAction}
               accessibilityRole="button"
-              accessibilityLabel="Opciones del álbum">
+              accessibilityLabel={tr('Opciones del álbum')}>
               <Ionicons name="ellipsis-horizontal" size={22} color={theme.text} />
             </Pressable>
           )
         }>
         {songs.length === 0 ? (
-          <EmptyState title="Sin canciones" message="Este álbum no tiene pistas disponibles." />
+          <EmptyState title={tr('Sin canciones')} message={tr('Este álbum no tiene pistas disponibles.')} />
         ) : (
           <SongList
             songs={songs}
@@ -242,14 +248,14 @@ export default function AlbumDetailScreen() {
       <OptionSheet
         visible={albumMenuVisible}
         title={album.title}
-        options={ALBUM_ACTIONS}
+        options={albumActions}
         onSelect={handleAlbumAction}
         onClose={() => setAlbumMenuVisible(false)}
       />
       <OptionSheet
         visible={menuSong !== null}
-        title={menuSong?.title ?? 'Opciones de canción'}
-        options={SONG_ACTIONS}
+        title={menuSong?.title ?? tr('Opciones de canción')}
+        options={songActions}
         onSelect={handleSongAction}
         onClose={() => setMenuSong(null)}
       />
@@ -260,10 +266,10 @@ export default function AlbumDetailScreen() {
       />
       <TextPromptModal
         visible={renameVisible}
-        title="Renombrar álbum"
-        placeholder="Nombre del álbum"
+        title={tr('Renombrar álbum')}
+        placeholder={tr('Nombre del álbum')}
         initialValue={album.title}
-        confirmLabel="Renombrar"
+        confirmLabel={tr('Renombrar')}
         onConfirm={handleRenameAlbum}
         onClose={() => setRenameVisible(false)}
       />
@@ -279,7 +285,7 @@ export default function AlbumDetailScreen() {
       />
       <SongDeleteSheet
         visible={deleteTarget !== null}
-        title={deleteTarget?.title ?? 'Eliminar'}
+        title={deleteTarget?.title ?? tr('Eliminar')}
         onSelect={handleConfirmDelete}
         onClose={cancelDelete}
       />

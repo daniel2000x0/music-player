@@ -40,6 +40,8 @@ import {
   saveSessionNow,
   saveSessionSoon,
 } from '@/services/audio/session-persistence';
+import { t, tr } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
 import { logError } from '@/services/error-log.service';
 import { useLibraryStore } from '@/stores/library.store';
 import { useNoticeStore } from '@/stores/notice.store';
@@ -644,14 +646,16 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
           });
           setPlaybackProgress(position, currentSong.duration);
           if (removed > 0) {
+            // Los avisos se crean fuera de React: se traducen con el espejo de idioma.
+            const language = getCurrentLanguage();
             useNoticeStore.getState().push({
               code: 'player.session-restored',
               severity: 'info',
-              title: 'Sesión restaurada',
+              title: tr(language, 'Sesión restaurada'),
               message:
                 removed === 1
-                  ? 'Una pista de la última cola ya no está disponible.'
-                  : `${removed} pistas de la última cola ya no están disponibles.`,
+                  ? tr(language, 'Una pista de la última cola ya no está disponible.')
+                  : t(language, 'restoredTracksMissing', { count: removed }),
             });
           }
         } catch (error) {

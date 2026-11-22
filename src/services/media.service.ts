@@ -9,9 +9,12 @@ import {
 
 import type { DeviceTrack } from '@/domain/library/scan-diff';
 import { resolveSongMetadata } from '@/domain/metadata';
+import { tr } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
 import { logError, logWarning } from '@/services/error-log.service';
 import { readAudioTags } from '@/services/tag.service';
 import type { ScannedSong } from '@/types/song';
+import { normalizeAudioFormat } from '@/utils/format';
 
 /**
  * Servicio de acceso al almacenamiento de audio del dispositivo.
@@ -216,8 +219,10 @@ export async function deleteDeviceAssets(
     logError('media-service', 'asset.delete', error);
     return {
       deleted: 0,
-      error:
-        'El sistema no confirmó el borrado. Puede que hayas cancelado el diálogo o que tu versión de Android exija un permiso que la app no solicita.',
+      error: tr(
+        getCurrentLanguage(),
+        'El sistema no confirmó el borrado. Puede que hayas cancelado el diálogo o que tu versión de Android exija un permiso que la app no solicita.'
+      ),
     };
   }
 }
@@ -234,7 +239,8 @@ export async function readDeviceTrack(track: DeviceTrack): Promise<ScannedSong |
     const info = await new Asset(track.mediaId).getInfo();
     const filename = info.filename ?? '';
     const folder = folderFromUri(info.uri);
-    const tags = await readAudioTags(info.uri);
+    const durationSeconds = info.duration ? info.duration / 1000 : 0;
+    const tags = await readAudioTags(info.uri, durationSeconds);
     const metadata = resolveSongMetadata({ filename, folder, tags });
 
     return {
@@ -245,7 +251,12 @@ export async function readDeviceTrack(track: DeviceTrack): Promise<ScannedSong |
       album: metadata.album,
       track: metadata.track,
       folder,
-      duration: info.duration ? info.duration / 1000 : 0,
+      duration: durationSeconds,
+      // El formato es informativo: se toma de la extensión real y se normaliza.
+      fileFormat: normalizeAudioFormat(info.filename ?? info.uri),
+      bitDepth: tags?.bitDepth ?? null,
+      sampleRate: tags?.sampleRate ?? null,
+      bitrate: tags?.bitrate ?? null,
       artwork: null,
       modificationTime: track.modificationTime,
     };

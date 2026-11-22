@@ -8,46 +8,41 @@ import {
   StyleSheet,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { AlphabetChips } from '@/components/alphabet-chips';
 import { Artwork } from '@/components/artwork';
 import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
+import { MediaTile } from '@/components/media-tile';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
 import { ScreenShell } from '@/components/screen-shell';
 import { SkeletonList } from '@/components/skeleton';
 import { ThemedText } from '@/components/themed-text';
+import { ViewModePicker } from '@/components/view-mode-picker';
 import {
   BottomTabInset,
   MiniPlayerInset,
   Radius,
   ScrollbarEdgeMargin,
-  ScrollbarGutter,
   Spacing,
 } from '@/constants/theme';
 import { collectAudiobooks, type Audiobook } from '@/domain/library/audiobooks';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useScrollIndicator } from '@/hooks/use-scroll-indicator';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
+import { useViewMode } from '@/hooks/use-view-mode';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
-import { collectInitials, normalizeLetter } from '@/utils/alphabet';
+import { collectInitials, initialKey } from '@/utils/alphabet';
 import { formatDuration } from '@/utils/format';
+import { getGridMetrics } from '@/utils/grid-layout';
 
-function pluralizeChapters(count: number): string {
-  return count === 1 ? '1 capítulo' : `${count} capítulos`;
-}
-
-const BOOK_ACTIONS: readonly Option<'remove'>[] = [
-  {
-    value: 'remove',
-    label: 'Remover de audiolibros',
-    description: 'Sus capítulos vuelven a aparecer en la pestaña Canciones.',
-    destructive: true,
-  },
-];
+// NOTA (i18n): los textos con conteo usan la plantilla `chapters`, que
+// aplica el plural correcto en cada idioma mediante Intl.PluralRules.
 
 /** Altura fija de una fila de audiolibro (artwork 56 + padding 8×2). */
 const ROW_HEIGHT = 72;
@@ -62,12 +57,13 @@ const BookRow = memo(function BookRow({
   onOptions: (book: Audiobook) => void;
 }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={() => book.albumId !== null && router.push(`/album/${book.albumId}`)}
       style={({ pressed }) => [styles.book, pressed && styles.pressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Abrir audiolibro ${book.title}, de ${book.author}`}>
+      accessibilityLabel={t('openAudiobook', { title: book.title, author: book.author })}>
       <Artwork uri={book.chapters[0]?.artwork ?? null} size={56} radius={Radius.small} />
 
       <View style={styles.bookInfo}>
@@ -78,7 +74,7 @@ const BookRow = memo(function BookRow({
           {book.author}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          {pluralizeChapters(book.chapters.length)} · {formatDuration(book.totalDuration)}
+          {t('chapters', { count: book.chapters.length })} · {formatDuration(book.totalDuration)}
         </ThemedText>
       </View>
 
@@ -87,7 +83,7 @@ const BookRow = memo(function BookRow({
         onPress={() => onOptions(book)}
         style={styles.action}
         accessibilityRole="button"
-        accessibilityLabel={`Opciones de ${book.title}`}>
+        accessibilityLabel={t('optionsFor', { title: book.title })}>
         <Ionicons name="ellipsis-horizontal" size={20} color={theme.textSecondary} />
       </Pressable>
 
@@ -96,7 +92,7 @@ const BookRow = memo(function BookRow({
         onPress={() => onPlay(book)}
         style={[styles.playButton, { backgroundColor: theme.accent }]}
         accessibilityRole="button"
-        accessibilityLabel={`Reproducir ${book.title}`}>
+        accessibilityLabel={t('playTitle', { title: book.title })}>
         <Ionicons name="play" size={18} color={theme.accentText} />
       </Pressable>
     </Pressable>
@@ -106,6 +102,9 @@ const BookRow = memo(function BookRow({
 /** Pantalla "Audiolibros": contenido marcado como audiolibro, agrupado por carpeta. */
 export default function AudiobooksScreen() {
   const theme = useTheme();
+  const { tr, t } = useTranslation();
+  const { mode } = useViewMode('audiobooks');
+  const { width } = useWindowDimensions();
   const scrollIndicator = useScrollIndicator();
   const songs = useLibraryStore((state) => state.songs);
   const albums = useLibraryStore((state) => state.albums);
@@ -122,6 +121,19 @@ export default function AudiobooksScreen() {
   const [optionsBook, setOptionsBook] = useState<Audiobook | null>(null);
 
   const books = useMemo(() => collectAudiobooks(songs, albums), [songs, albums]);
+
+  // Geometría compartida con el resto de pestañas: paddings simétricos y
+  // reparto del píxel suelto para que la rejilla no se desplace a un lado.
+  const grid = getGridMetrics(mode, width);
+
+  const bookActions: readonly Option<'remove'>[] = [
+    {
+      value: 'remove',
+      label: tr('Remover de audiolibros'),
+      description: tr('Sus capítulos vuelven a aparecer en la pestaña Canciones.'),
+      destructive: true,
+    },
+  ];
   // El filtrado corre sobre el texto "asentado" (ver `useDebouncedValue`).
   const debouncedQuery = useDebouncedValue(query);
 
@@ -159,7 +171,7 @@ export default function AudiobooksScreen() {
   const scrollToLetter = useCallback(
     (letter: string) => {
       const index = visibleBooks.findIndex(
-        (book) => normalizeLetter(book.title) === letter
+        (book) => initialKey(book.title) === letter
       );
 
       if (index !== -1) {
@@ -175,26 +187,32 @@ export default function AudiobooksScreen() {
 
   const header = (
     <View style={styles.header}>
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Buscar audiolibros"
-        placeholderTextColor={theme.textSecondary}
-        returnKeyType="search"
-        style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
-      />
-      <AlphabetChips letters={availableLetters} onSelect={scrollToLetter} itemNoun="audiolibros" />
+      <View style={styles.toolbar}>
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder={tr('Buscar audiolibros')}
+          placeholderTextColor={theme.textSecondary}
+          returnKeyType="search"
+          style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
+        />
+        <ViewModePicker tab="audiobooks" />
+      </View>
+      {/* El índice alfabético solo aplica a la vista de lista. */}
+      {mode === 'list' ? (
+        <AlphabetChips letters={availableLetters} onSelect={scrollToLetter} itemNoun={tr('audiolibros')} />
+      ) : null}
     </View>
   );
 
   if (!hasPermission) {
     return (
-      <ScreenShell title="Audiolibros" scroll={false}>
+      <ScreenShell title={tr('Audiolibros')} scroll={false}>
         <EmptyState
           icon="book-outline"
-          title="Sin acceso a tu música"
-          message="Concede permiso de audio para detectar audiolibros."
-          actionLabel="Conceder permiso"
+          title={tr('Sin acceso a tu música')}
+          message={tr('Concede permiso de audio para detectar audiolibros.')}
+          actionLabel={tr('Conceder permiso')}
           onAction={() => void requestAccess()}
         />
       </ScreenShell>
@@ -204,8 +222,8 @@ export default function AudiobooksScreen() {
   return (
     <>
       <ScreenShell
-        title="Audiolibros"
-        subtitle={`${books.length} títulos`}
+        title={tr('Audiolibros')}
+        subtitle={t('bookTitles', { count: books.length })}
         scroll={false}
         action={<RefreshButton />}
         header={header}>
@@ -214,48 +232,76 @@ export default function AudiobooksScreen() {
       ) : error && songs.length === 0 ? (
         <EmptyState
           icon="alert-circle-outline"
-          title="No se pudo leer tu música"
+          title={tr('No se pudo leer tu música')}
           message={error}
-          actionLabel="Reintentar"
+          actionLabel={tr('Reintentar')}
           onAction={() => void refresh()}
         />
       ) : songs.length === 0 ? (
         <EmptyState
           icon="musical-notes-outline"
-          title="Tu biblioteca está vacía"
-          message="Agrega archivos de audio al dispositivo y vuelve a escanear para detectar audiolibros."
-          actionLabel="Escanear de nuevo"
+          title={tr('Tu biblioteca está vacía')}
+          message={tr('Agrega archivos de audio al dispositivo y vuelve a escanear para detectar audiolibros.')}
+          actionLabel={tr('Escanear de nuevo')}
           onAction={() => void refresh()}
         />
       ) : books.length === 0 ? (
         <EmptyState
           icon="book-outline"
-          title="Sin audiolibros"
-          message="Marca canciones desde su menú de opciones o deja que el escaneo detecte contenido largo."
+          title={tr('Sin audiolibros')}
+          message={tr('Marca canciones desde su menú de opciones o deja que el escaneo detecte contenido largo.')}
         />
       ) : visibleBooks.length === 0 ? (
-        <EmptyState title="Sin resultados" message="No hay audiolibros que coincidan." />
+        <EmptyState title={tr('Sin resultados')} message={tr('No hay audiolibros que coincidan.')} />
       ) : (
         <View style={styles.listFrame}>
           <FlatList
             ref={listRef}
             data={visibleBooks}
             keyExtractor={keyExtractor}
-            renderItem={({ item }) => (
-              <BookRow book={item} onPlay={handlePlay} onOptions={setOptionsBook} />
-            )}
-            getItemLayout={(_, index) => ({
-              length: ROW_HEIGHT,
-              offset: ROW_HEIGHT * index,
-              index,
-            })}
+            numColumns={grid.isGrid ? grid.columns : undefined}
+            columnWrapperStyle={
+              grid.isGrid
+                ? { columnGap: grid.gap, justifyContent: 'center' }
+                : undefined
+            }
+            key={mode}
+            renderItem={({ item }) =>
+              mode === 'list' ? (
+                <BookRow book={item} onPlay={handlePlay} onOptions={setOptionsBook} />
+              ) : (
+                <MediaTile
+                  width={grid.tileWidth}
+                  variant={grid.variant}
+                  artworkUri={item.chapters[0]?.artwork ?? null}
+                  title={item.title}
+                  subtitle={`${item.author} · ${t('chapters', { count: item.chapters.length })}`}
+                  accessibilityLabel={t('openAudiobook', { title: item.title, author: item.author })}
+                  onPress={() => (item.albumId !== null ? router.push(`/album/${item.albumId}`) : undefined)}
+                  onLongPress={() => setOptionsBook(item)}
+                />
+              )
+            }
+            getItemLayout={
+              mode === 'list'
+                ? (_, index) => ({
+                    length: ROW_HEIGHT,
+                    offset: ROW_HEIGHT * index,
+                    index,
+                  })
+                : undefined
+            }
             initialNumToRender={12}
             maxToRenderPerBatch={12}
             windowSize={5}
             keyboardShouldPersistTaps="handled"
             {...scrollIndicator.scrollProps}
             style={styles.flex}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingLeft: grid.paddingLeft, paddingRight: grid.paddingRight },
+              grid.isGrid && { gap: grid.gap, rowGap: Spacing.xl },
+            ]}
             refreshControl={
               <RefreshControl
                 refreshing={isScanning}
@@ -272,8 +318,8 @@ export default function AudiobooksScreen() {
 
     <OptionSheet
       visible={optionsBook !== null}
-      title={optionsBook?.title ?? 'Opciones de audiolibro'}
-      options={BOOK_ACTIONS}
+      title={optionsBook?.title ?? tr('Opciones de audiolibro')}
+      options={bookActions}
       onSelect={() => {
         if (optionsBook) {
           void setAudiobook(
@@ -293,7 +339,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingBottom: Spacing.sm,
   },
+  toolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
   search: {
+    flex: 1,
     height: 44,
     borderRadius: Radius.medium,
     paddingHorizontal: Spacing.lg,
@@ -336,9 +388,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: BottomTabInset + MiniPlayerInset,
-    // Reinserta las filas respecto al área segura...
-    paddingLeft: Spacing.xl,
-    // ...y deja el carril del indicador nativo de scroll.
-    paddingRight: ScrollbarGutter,
+    // Los paddings horizontales los fija `getGridMetrics` en cada render.
   },
 });

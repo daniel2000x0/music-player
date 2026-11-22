@@ -13,6 +13,10 @@ type SongRow = {
   track_number: number | null;
   folder_name: string | null;
   duration: number;
+  file_format: string | null;
+  bit_depth: number | null;
+  sample_rate: number | null;
+  bitrate: number | null;
   artwork_uri: string | null;
   added_at: number;
   is_available: number;
@@ -25,7 +29,7 @@ const SELECT_SONGS = `
   SELECT s.id, s.media_id, s.uri, s.title,
          ar.name AS artist, al.title AS album,
          s.track_number, s.folder_name,
-         s.duration, s.artwork_uri, s.added_at,
+         s.duration, s.file_format, s.bit_depth, s.sample_rate, s.bitrate, s.artwork_uri, s.added_at,
          s.is_available, s.is_audiobook, s.play_count, s.last_played_at
   FROM songs s
   JOIN artists ar ON ar.id = s.artist_id
@@ -52,6 +56,10 @@ function mapSong(row: SongRow): Song {
     track: row.track_number,
     folder: row.folder_name,
     duration: row.duration,
+    fileFormat: row.file_format,
+    bitDepth: row.bit_depth,
+    sampleRate: row.sample_rate,
+    bitrate: row.bitrate,
     artwork: row.artwork_uri,
     addedAt: row.added_at,
     isAvailable: row.is_available === 1,
@@ -234,10 +242,12 @@ export const songRepository = {
         rows.push({ item, artistId, albumId });
       }
 
-      // 50 filas × 13 parámetros = 650, por debajo del límite de SQLite.
+      // 50 filas × 17 parámetros = 850, por debajo del límite de SQLite.
       const CHUNK_SIZE = 50;
       for (const chunk of chunksOf(rows, CHUNK_SIZE)) {
-        const placeholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)').join(',');
+        const placeholders = chunk
+          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+          .join(',');
         const params = chunk.flatMap(({ item, artistId, albumId }) => [
           item.mediaId,
           item.uri,
@@ -247,6 +257,10 @@ export const songRepository = {
           item.track,
           item.folder,
           item.duration,
+          item.fileFormat,
+          item.bitDepth,
+          item.sampleRate,
+          item.bitrate,
           item.artwork,
           now,
           now,
@@ -256,7 +270,7 @@ export const songRepository = {
         await db.runAsync(
           `INSERT INTO songs
             (media_id, uri, title, artist_id, album_id, track_number, folder_name,
-             duration, artwork_uri, added_at, last_seen_at, modification_time,
+             duration, file_format, bit_depth, sample_rate, bitrate, artwork_uri, added_at, last_seen_at, modification_time,
              artwork_checked_at, is_available)
            VALUES ${placeholders}
            ON CONFLICT(media_id) DO UPDATE SET
@@ -267,6 +281,10 @@ export const songRepository = {
              track_number = excluded.track_number,
              folder_name = excluded.folder_name,
              duration = excluded.duration,
+             file_format = COALESCE(excluded.file_format, file_format),
+             bit_depth = COALESCE(excluded.bit_depth, bit_depth),
+             sample_rate = COALESCE(excluded.sample_rate, sample_rate),
+             bitrate = COALESCE(excluded.bitrate, bitrate),
              artwork_uri = COALESCE(excluded.artwork_uri, artwork_uri),
              last_seen_at = excluded.last_seen_at,
              modification_time = excluded.modification_time,
@@ -306,6 +324,40 @@ export const songRepository = {
    * anteriores a la migración V7. Así el barrido automático corre una sola vez
    * por pista y no penaliza los arranques siguientes.
    */
+  /**
+   * Rellena `file_format` en pistas antiguas a partir de su URI.
+   *
+   * LÓGICA: el formato es derivado y barato de calcular; solo toca filas que
+   * aún no lo tienen. Se usa tras el escaneo para que una migración v9 muestre
+   * la etiqueta sin esperar a que el archivo cambie.
+   */
+  async backfillFileFormats(
+    resolve: (uri: string) => string | null
+  ): Promise<number> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{ id: number; uri: string }>(
+      'SELECT id, uri FROM songs WHERE file_format IS NULL'
+    );
+    if (rows.length === 0) {
+      return 0;
+    }
+
+    let updated = 0;
+    await db.withTransactionAsync(async () => {
+      for (const chunk of chunksOf(rows, ID_CHUNK_SIZE)) {
+        for (const row of chunk) {
+          const format = resolve(row.uri);
+          if (!format) {
+            continue;
+          }
+          await db.runAsync('UPDATE songs SET file_format = ? WHERE id = ?', format, row.id);
+          updated += 1;
+        }
+      }
+    });
+    return updated;
+  },
+
   async getArtworkCandidates(force = false): Promise<ArtworkCandidate[]> {
     const db = await getDatabase();
     const pending = force

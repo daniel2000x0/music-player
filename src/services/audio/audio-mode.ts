@@ -1,6 +1,8 @@
 import { requestNotificationPermissionsAsync, setAudioModeAsync } from 'expo-audio';
 import { Linking, Platform } from 'react-native';
 
+import { tr } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
 import { AUDIO_CONFIG } from '@/services/audio/config';
 import { getCapabilities, setPermissionSnapshot } from '@/services/capabilities';
 import { logError } from '@/services/error-log.service';
@@ -95,13 +97,14 @@ export function promptNotificationPermission(): void {
     return;
   }
   notificationPromptShown = true;
+  const language = getCurrentLanguage();
   useNoticeStore.getState().push({
     code: AUDIO_CONFIG.notificationNoticeCode,
     severity: 'info',
-    title: 'Controles en la pantalla de bloqueo',
+    title: tr(language, 'Controles en la pantalla de bloqueo'),
     message:
-      'Permite las notificaciones para controlar la reproducción desde la pantalla de bloqueo y la barra de notificaciones.',
-    action: { label: 'Permitir', onPress: () => void grantNotificationPermission() },
+      tr(language, 'Permite las notificaciones para controlar la reproducción desde la pantalla de bloqueo y la barra de notificaciones.'),
+    action: { label: tr(language, 'Permitir'), onPress: () => void grantNotificationPermission() },
   });
 }
 
@@ -112,12 +115,13 @@ async function grantNotificationPermission(): Promise<void> {
     useNoticeStore.getState().dismiss(AUDIO_CONFIG.notificationNoticeCode);
     return;
   }
+  const language = getCurrentLanguage();
   useNoticeStore.getState().push({
     code: AUDIO_CONFIG.notificationNoticeCode,
     severity: 'warning',
-    title: 'Notificaciones desactivadas',
+    title: tr(language, 'Notificaciones desactivadas'),
     message:
-      'Sin notificaciones, los controles del sistema no aparecerán. Actívalas en los ajustes del sistema.',
-    action: { label: 'Abrir ajustes', onPress: () => void Linking.openSettings() },
+      tr(language, 'Sin notificaciones, los controles del sistema no aparecerán. Actívalas en los ajustes del sistema.'),
+    action: { label: tr(language, 'Abrir ajustes'), onPress: () => void Linking.openSettings() },
   });
 }

@@ -19,6 +19,7 @@ import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import type { AutoPlaylistKey } from '@/types/playlist';
 import type { Song } from '@/types/song';
+import { useTranslation } from '@/hooks/use-translation';
 
 const isAutoKey = (value: string | undefined): value is AutoPlaylistKey =>
   AUTO_PLAYLISTS.some((item) => item.key === value);
@@ -26,6 +27,8 @@ const isAutoKey = (value: string | undefined): value is AutoPlaylistKey =>
 /** Detalle de una playlist automática (favoritos, recientes, etc.). */
 export default function AutoPlaylistScreen() {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
   const params = useLocalSearchParams<{ key?: string }>();
   const key = isAutoKey(params.key) ? params.key : 'mostPlayed';
   const definition = getAutoPlaylistDefinition(key);
@@ -47,15 +50,15 @@ export default function AutoPlaylistScreen() {
   return (
     <>
       <ScreenShell
-        title={definition.name}
-        subtitle={definition.description}
+        title={tr(definition.name)}
+        subtitle={tr(definition.description)}
         scroll={false}
         leading={
           <Pressable
             onPress={() => router.back()}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Volver">
+            accessibilityLabel={tr('Volver')}>
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }
@@ -65,7 +68,7 @@ export default function AutoPlaylistScreen() {
               onPress={() => play(list[0], list)}
               style={[styles.playButton, { backgroundColor: theme.accent }]}
               accessibilityRole="button"
-              accessibilityLabel={`Reproducir ${definition.name}`}>
+              accessibilityLabel={t('playTitle', { title: tr(definition.name) })}>
               <Ionicons name="play" size={18} color={theme.accentText} />
             </Pressable>
           ) : null
@@ -73,8 +76,8 @@ export default function AutoPlaylistScreen() {
         {list.length === 0 ? (
           <EmptyState
             icon="musical-notes-outline"
-            title="Sin canciones"
-            message="Esta lista se llenará a medida que uses la aplicación."
+            title={tr('Sin canciones')}
+            message={tr('Esta lista se llenará a medida que uses la aplicación.')}
           />
         ) : (
           <SongList

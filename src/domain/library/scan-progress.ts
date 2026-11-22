@@ -5,9 +5,14 @@
  * segundos en bibliotecas grandes. El store publica un `ScanProgress`
  * inmutable tras cada lote; la UI solo formatea estos datos, sin repetir
  * reglas de negocio ni cálculos.
+ *
+ * NOTA (i18n): los textos salen del catálogo usando el idioma activo. El
+ * parámetro es opcional para no romper las pruebas existentes que llaman a
+ * la función sin argumento (en ese caso se usa español, el idioma fuente).
  */
 
 import type { ScanMode } from '@/domain/library/scan-diff';
+import { DEFAULT_LANGUAGE, t, type AppLanguage } from '@/i18n';
 
 export type ScanPhase =
   | 'enumerate'
@@ -46,25 +51,40 @@ export function describeScanPercent(progress: ScanProgress | null): string {
 }
 
 /** Texto descriptivo de la fase con conteo, para el banner de la biblioteca. */
-export function describeScanProgress(progress: ScanProgress): string {
+export function describeScanProgress(
+  progress: ScanProgress,
+  language: AppLanguage = DEFAULT_LANGUAGE
+): string {
   switch (progress.phase) {
     case 'enumerate':
       return progress.total > 0
-        ? `Encontradas ${progress.total} pistas en el dispositivo`
-        : 'Buscando archivos en el dispositivo…';
+        ? t(language, 'scanFoundTracks', { count: progress.total })
+        : t(language, 'scanSearchingFiles');
     case 'diff':
-      return 'Comparando con tu biblioteca…';
+      return t(language, 'scanComparing');
     case 'hydrate':
-      return `Leyendo metadatos (${progress.processed} de ${progress.total})…`;
+      return t(language, 'scanReadingMetadata', {
+        processed: progress.processed,
+        total: progress.total,
+      });
     case 'persist':
-      return `Guardando cambios (${progress.processed} de ${progress.total})…`;
+      return t(language, 'scanSaving', {
+        processed: progress.processed,
+        total: progress.total,
+      });
     case 'prune':
       return progress.total > 0
-        ? `Marcando pistas ausentes (${progress.processed} de ${progress.total})…`
-        : 'Marcando pistas ausentes…';
+        ? t(language, 'scanMarkingMissingWithTotal', {
+            processed: progress.processed,
+            total: progress.total,
+          })
+        : t(language, 'scanMarkingMissing');
     case 'backfill':
-      return `Buscando carátulas (${progress.processed} de ${progress.total})…`;
+      return t(language, 'searchingArtwork', {
+        processed: progress.processed,
+        total: progress.total,
+      });
     case 'done':
-      return 'Biblioteca actualizada';
+      return t(language, 'scanDone');
   }
 }

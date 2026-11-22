@@ -6,6 +6,7 @@ import { Spacing } from '@/constants/theme';
 import { describeScanPercent } from '@/domain/library/scan-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
+import { useTranslation } from '@/hooks/use-translation';
 
 /**
  * Botón de actualizar biblioteca.
@@ -17,17 +18,19 @@ import { useLibraryStore } from '@/stores/library.store';
  */
 export function RefreshButton() {
   const theme = useTheme();
+
+  const { tr } = useTranslation();
   const isScanning = useLibraryStore((state) => state.isScanning);
   const scanProgress = useLibraryStore((state) => state.scanProgress);
   const refresh = useLibraryStore((state) => state.refresh);
 
   return (
     <Pressable
-      hitSlop={8}
+      hitSlop={10}
       disabled={isScanning}
       onPress={() => void refresh()}
       accessibilityRole="button"
-      accessibilityLabel="Actualizar biblioteca"
+      accessibilityLabel={tr('Actualizar biblioteca')}
       accessibilityState={{ busy: isScanning }}>
       {isScanning ? (
         <View style={styles.progress}>

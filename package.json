@@ -37,12 +37,14 @@
     "@types/react": "~19.3.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
+    "husky": "^9.1.7",
     "jest": "~30.5.2",
     "jest-expo": "~58.0.15",
     "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start",
+    "start:go": "expo start --go",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",

@@ -24,6 +24,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import type { Song } from '@/types/song';
 import { formatSongCount } from '@/utils/format';
+import { useTranslation } from '@/hooks/use-translation';
 
 /**
  * Pantalla de inicio: resumen de la biblioteca, accesos rápidos, historial,
@@ -31,6 +32,8 @@ import { formatSongCount } from '@/utils/format';
  */
 export default function HomeScreen() {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
   const { width } = useWindowDimensions();
   const songs = useLibraryStore((state) => state.songs);
   const albums = useLibraryStore((state) => state.albums);
@@ -83,7 +86,7 @@ export default function HomeScreen() {
     () => [
       {
         key: 'favorites',
-        label: 'Favoritos',
+        label: tr('Favoritos'),
         icon: 'heart',
         count: favoriteIds.length,
         accent: 'accent',
@@ -91,7 +94,7 @@ export default function HomeScreen() {
       },
       {
         key: 'mostPlayed',
-        label: 'Más escuchadas',
+        label: tr('Más escuchadas'),
         icon: 'flame',
         count: mostPlayed.length,
         accent: 'textSecondary',
@@ -99,14 +102,14 @@ export default function HomeScreen() {
       },
       {
         key: 'recent',
-        label: 'Recientes',
+        label: tr('Recientes'),
         icon: 'time',
         count: recentIds.length,
         accent: 'textSecondary',
         onPress: () => router.push('/songs'),
       },
     ],
-    [favoriteIds.length, mostPlayed.length, recentIds.length]
+    [favoriteIds.length, mostPlayed.length, recentIds.length, tr]
   );
 
   const openPicker = (song: Song | null) => {
@@ -116,7 +119,7 @@ export default function HomeScreen() {
 
   if (isLoading) {
     return (
-      <ScreenShell title="Mi Música" scroll={false}>
+      <ScreenShell title={tr('Mi Música')} scroll={false}>
         <SkeletonList rows={6} />
       </ScreenShell>
     );
@@ -124,12 +127,12 @@ export default function HomeScreen() {
 
   if (!hasPermission) {
     return (
-      <ScreenShell title="Mi Música" scroll={false}>
+      <ScreenShell title={tr('Mi Música')} scroll={false}>
         <EmptyState
           icon="folder-open-outline"
-          title="Sin acceso a tu música"
-          message="Concede permiso de audio para escanear las canciones de tu dispositivo."
-          actionLabel="Conceder permiso"
+          title={tr('Sin acceso a tu música')}
+          message={tr('Concede permiso de audio para escanear las canciones de tu dispositivo.')}
+          actionLabel={tr('Conceder permiso')}
           onAction={() => void requestAccess()}
         />
       </ScreenShell>
@@ -139,8 +142,11 @@ export default function HomeScreen() {
   return (
     <>
       <ScreenShell
-        title="Mi Música"
-        subtitle={`${formatSongCount(musicSongs.length)} · ${artists.length} artistas`}
+        title={tr('Mi Música')}
+        subtitle={t('songsArtists', {
+          songs: formatSongCount(musicSongs.length),
+          artists: artists.length,
+        })}
         action={<RefreshButton />}
         refreshControl={
           <RefreshControl
@@ -157,9 +163,9 @@ export default function HomeScreen() {
 
         <View style={styles.statsRow}>
           {[
-            { label: 'Canciones', value: musicSongs.length },
-            { label: 'Álbumes', value: albums.length },
-            { label: 'Playlists', value: playlists.length },
+            { label: tr('Canciones'), value: musicSongs.length },
+            { label: tr('Álbumes'), value: albums.length },
+            { label: tr('Playlists'), value: playlists.length },
           ].map((stat) => (
             <View key={stat.label} style={[styles.stat, { backgroundColor: theme.backgroundElement }]}>
               <ThemedText type="subtitle" style={styles.statValue}>
@@ -177,8 +183,8 @@ export default function HomeScreen() {
         {recentSongs.length > 0 ? (
           <View>
             <SectionHeader
-              title="Reproducidas recientemente"
-              actionLabel="Ver todo"
+              title={tr('Reproducidas recientemente')}
+              actionLabel={tr('Ver todo')}
               onActionPress={() => router.push('/songs')}
             />
             <InlineSongList songs={recentSongs} onMore={openPicker} />
@@ -188,8 +194,8 @@ export default function HomeScreen() {
         {mostPlayed.length > 0 ? (
           <View>
             <SectionHeader
-              title="Más escuchadas"
-              actionLabel="Ver todo"
+              title={tr('Más escuchadas')}
+              actionLabel={tr('Ver todo')}
               onActionPress={() => router.push({ pathname: '/songs', params: { view: 'played' } })}
             />
             <InlineSongList songs={mostPlayed} onMore={openPicker} />
@@ -198,12 +204,12 @@ export default function HomeScreen() {
 
         <View>
           <SectionHeader
-            title="Álbumes recientes"
-            actionLabel="Ver todo"
+            title={tr('Álbumes recientes')}
+            actionLabel={tr('Ver todo')}
             onActionPress={() => router.push('/albums')}
           />
           {topAlbums.length === 0 ? (
-            <EmptyState title="Sin álbumes" message="Tus canciones aparecerán agrupadas aquí." />
+            <EmptyState title={tr('Sin álbumes')} message={tr('Tus canciones aparecerán agrupadas aquí.')} />
           ) : (
             <View style={styles.grid}>
               {topAlbums.map((album) => (
@@ -222,16 +228,16 @@ export default function HomeScreen() {
 
         <View>
           <SectionHeader
-            title="Tus playlists"
-            actionLabel="Ver todo"
+            title={tr('Tus playlists')}
+            actionLabel={tr('Ver todo')}
             onActionPress={() => router.push('/playlists')}
           />
           {topPlaylists.length === 0 ? (
             <EmptyState
               icon="list-outline"
-              title="Sin playlists"
-              message="Crea una playlist y agrega tus canciones favoritas."
-              actionLabel="Crear playlist"
+              title={tr('Sin playlists')}
+              message={tr('Crea una playlist y agrega tus canciones favoritas.')}
+              actionLabel={tr('Crear playlist')}
               onAction={() => openPicker(null)}
             />
           ) : (

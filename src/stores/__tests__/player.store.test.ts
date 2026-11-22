@@ -35,7 +35,7 @@ jest.mock('@/data/repositories/playback-session.repository', () => ({
 
 jest.mock('@/data/repositories/settings.repository', () => ({
   settingsRepository: {
-    get: jest.fn(async () => ({ theme: 'dark', volume: 1 })),
+    get: jest.fn(async () => ({ theme: 'dark', volume: 1, language: 'es', viewModes: {} })),
     setTheme: jest.fn(async () => undefined),
     setVolume: jest.fn(async () => undefined),
   },
@@ -918,6 +918,8 @@ describe('player.store: hydrateSession', () => {
     jest.mocked(modules.settingsRepo.settingsRepository.get).mockResolvedValueOnce({
       theme: 'dark',
       volume: 0.3,
+      language: 'es',
+      viewModes: {},
     });
 
     await player().getState().hydrateSession();

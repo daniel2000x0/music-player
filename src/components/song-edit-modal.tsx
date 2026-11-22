@@ -4,6 +4,7 @@ import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 
 /** Campos editables de una pista (corrección local, no reescribe el archivo). */
 export type SongMetadataPatch = {
@@ -33,6 +34,8 @@ function SongEditContent({
   onClose,
 }: Omit<SongEditModalProps, 'visible'>) {
   const theme = useTheme();
+
+  const { tr } = useTranslation();
   const [title, setTitle] = useState(initialValues.title);
   const [artist, setArtist] = useState(initialValues.artist);
   const [album, setAlbum] = useState(initialValues.album);
@@ -60,7 +63,7 @@ function SongEditContent({
           style={[styles.card, { backgroundColor: theme.backgroundElement }]}
           onPress={(event) => event.stopPropagation()}>
           <ThemedText type="smallBold" style={styles.title}>
-            Editar información
+            {tr('Editar información')}
           </ThemedText>
 
           <ThemedText type="small" themeColor="textSecondary">
@@ -68,11 +71,11 @@ function SongEditContent({
             actual.
           </ThemedText>
 
-          <Field label="Título">
+          <Field label={tr('Título')}>
             <TextInput
               value={title}
               onChangeText={setTitle}
-              placeholder="Título"
+              placeholder={tr('Título')}
               placeholderTextColor={theme.textSecondary}
               autoFocus
               returnKeyType="next"
@@ -80,22 +83,22 @@ function SongEditContent({
             />
           </Field>
 
-          <Field label="Artista">
+          <Field label={tr('Artista')}>
             <TextInput
               value={artist}
               onChangeText={setArtist}
-              placeholder="Artista"
+              placeholder={tr('Artista')}
               placeholderTextColor={theme.textSecondary}
               returnKeyType="next"
               style={inputStyle}
             />
           </Field>
 
-          <Field label="Álbum">
+          <Field label={tr('Álbum')}>
             <TextInput
               value={album}
               onChangeText={setAlbum}
-              placeholder="Álbum"
+              placeholder={tr('Álbum')}
               placeholderTextColor={theme.textSecondary}
               returnKeyType="done"
               onSubmitEditing={confirm}
@@ -106,7 +109,7 @@ function SongEditContent({
           <View style={styles.actions}>
             <Pressable onPress={onClose} style={styles.button} accessibilityRole="button">
               <ThemedText type="smallBold" themeColor="textSecondary">
-                Cancelar
+                {tr('Cancelar')}
               </ThemedText>
             </Pressable>
             <Pressable
@@ -120,7 +123,7 @@ function SongEditContent({
                 { backgroundColor: theme.accent, opacity: canSave ? 1 : 0.5 },
               ]}>
               <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-                Guardar
+                {tr('Guardar')}
               </ThemedText>
             </Pressable>
           </View>

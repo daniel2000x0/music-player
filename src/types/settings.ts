@@ -1,3 +1,6 @@
+import { DEFAULT_LANGUAGE, type AppLanguage } from '@/i18n';
+import { DEFAULT_VIEW_MODES, type ViewMode, type ViewModeTab } from '@/types/view-mode';
+
 /**
  * Identificadores de tema persistidos en SQLite.
  *
@@ -30,9 +33,15 @@ export type AppSettings = {
   theme: ThemeMode;
   /** Volumen del reproductor (0–1). `M-02`. */
   volume: number;
+  /** Idioma de toda la interfaz (ES/EN). Persistido en el mismo JSON. */
+  language: AppLanguage;
+  /** Estilo de lista elegido por pestaña. Solo claves de `VIEW_MODE_TABS`. */
+  viewModes: Partial<Record<ViewModeTab, ViewMode>>;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'dark',
   volume: 1,
+  language: DEFAULT_LANGUAGE,
+  viewModes: DEFAULT_VIEW_MODES,
 };

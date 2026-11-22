@@ -14,6 +14,7 @@ import { SongEditModal } from '@/components/song-edit-modal';
 import { SortSheet, type SortField } from '@/components/sort-sheet';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
+import { ViewModePicker } from '@/components/view-mode-picker';
 import { Radius, Spacing } from '@/constants/theme';
 import { filterSongs } from '@/domain/library/filters';
 import { describeScanProgress } from '@/domain/library/scan-progress';
@@ -23,53 +24,18 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import { useSongLibraryActions } from '@/hooks/use-song-library-actions';
 import { useSongSelection } from '@/hooks/use-song-selection';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
+import { useViewMode } from '@/hooks/use-view-mode';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import type { SongSortKey, SongView } from '@/types/filters';
 import type { Song } from '@/types/song';
 
-const VIEWS: readonly Option<SongView>[] = [
-  { value: 'all', label: 'Todas' },
-  { value: 'favorites', label: 'Favoritos' },
-  { value: 'played', label: 'Escuchadas' },
-  { value: 'unplayed', label: 'Sin reproducir' },
-];
-
 type SongAction = 'playlist' | 'audiobook' | 'edit' | 'delete';
 
-const SONG_ACTIONS: readonly Option<SongAction>[] = [
-  {
-    value: 'playlist',
-    label: 'Agregar a playlist',
-    description: 'Incluye esta canción en una playlist existente o nueva.',
-  },
-  {
-    value: 'audiobook',
-    label: 'Agregar como audiolibro',
-    description: 'Se oculta de Canciones y aparece en la pestaña Audiolibros.',
-  },
-  {
-    value: 'edit',
-    label: 'Editar información',
-    description: 'Corrige el título, el artista o el álbum solo en esta app.',
-  },
-  {
-    value: 'delete',
-    label: 'Eliminar',
-    description: 'Quítala de la biblioteca o bórrala del dispositivo.',
-    destructive: true,
-  },
-];
-
-const SORT_FIELDS: readonly SortField<SongSortKey>[] = [
-  { value: 'title-asc', label: 'Título' },
-  { value: 'artist-asc', label: 'Artista' },
-  { value: 'album-asc', label: 'Álbum' },
-  { value: 'duration-asc', label: 'Duración' },
-  { value: 'added-desc', label: 'Agregadas' },
-  { value: 'plays-desc', label: 'Reproducciones' },
-  { value: 'lastPlayed-desc', label: 'Última reproducción' },
-];
+// NOTA (i18n): estas opciones antes eran constantes de módulo. Ahora se
+// construyen dentro del componente para que sus etiquetas sigan al idioma
+// activo sin necesidad de reiniciar la pantalla.
 
 const isSongView = (value: string | undefined): value is SongView =>
   value === 'all' || value === 'favorites' || value === 'played' || value === 'unplayed';
@@ -77,6 +43,8 @@ const isSongView = (value: string | undefined): value is SongView =>
 /** Pantalla "Canciones": búsqueda, filtros, orden y reproducción. */
 export default function SongsScreen() {
   const theme = useTheme();
+  const { tr, t, language } = useTranslation();
+  const { mode } = useViewMode('songs');
   const params = useLocalSearchParams<{ view?: string }>();
   const songs = useLibraryStore((state) => state.songs);
   const favoriteIds = useLibraryStore((state) => state.favoriteIds);
@@ -110,6 +78,47 @@ export default function SongsScreen() {
     confirmDelete,
     cancelDelete,
   } = useSongLibraryActions();
+
+  const views: readonly Option<SongView>[] = [
+    { value: 'all', label: tr('Todas') },
+    { value: 'favorites', label: tr('Favoritos') },
+    { value: 'played', label: tr('Escuchadas') },
+    { value: 'unplayed', label: tr('Sin reproducir') },
+  ];
+
+  const songActions: readonly Option<SongAction>[] = [
+    {
+      value: 'playlist',
+      label: tr('Agregar a playlist'),
+      description: tr('Incluye esta canción en una playlist existente o nueva.'),
+    },
+    {
+      value: 'audiobook',
+      label: tr('Agregar como audiolibro'),
+      description: tr('Se oculta de Canciones y aparece en la pestaña Audiolibros.'),
+    },
+    {
+      value: 'edit',
+      label: tr('Editar información'),
+      description: tr('Corrige el título, el artista o el álbum solo en esta app.'),
+    },
+    {
+      value: 'delete',
+      label: tr('Eliminar'),
+      description: tr('Quítala de la biblioteca o bórrala del dispositivo.'),
+      destructive: true,
+    },
+  ];
+
+  const sortFields: readonly SortField<SongSortKey>[] = [
+    { value: 'title-asc', label: tr('Título') },
+    { value: 'artist-asc', label: tr('Artista') },
+    { value: 'album-asc', label: tr('Álbum') },
+    { value: 'duration-asc', label: tr('Duración') },
+    { value: 'added-desc', label: tr('Agregadas') },
+    { value: 'plays-desc', label: tr('Reproducciones') },
+    { value: 'lastPlayed-desc', label: tr('Última reproducción') },
+  ];
 
   const view: SongView = isSongView(params.view) ? params.view : 'all';
   const setView = useCallback(
@@ -165,7 +174,7 @@ export default function SongsScreen() {
       <TextInput
         value={query}
         onChangeText={setQuery}
-        placeholder="Buscar por título, artista o álbum"
+        placeholder={tr('Buscar por título, artista o álbum')}
         placeholderTextColor={theme.textSecondary}
         returnKeyType="search"
         style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
@@ -175,23 +184,25 @@ export default function SongsScreen() {
           onPress={() => setViewVisible(true)}
           style={[styles.menuButton, { backgroundColor: theme.backgroundElement }]}
           accessibilityRole="button"
-          accessibilityLabel="Filtrar canciones por vista"
-          accessibilityHint="Abre las opciones Todas, Favoritos, Escuchadas y Sin reproducir">
+          accessibilityLabel={tr('Filtrar canciones por vista')}
+          accessibilityHint={tr('Abre las opciones Todas, Favoritos, Escuchadas y Sin reproducir')}>
           <Ionicons name="list-outline" size={16} color={theme.text} />
           <ThemedText type="small" numberOfLines={1} style={styles.menuButtonLabel}>
-            {VIEWS.find((option) => option.value === view)?.label ?? 'Todas'}
+            {views.find((option) => option.value === view)?.label ?? tr('Todas')}
           </ThemedText>
           <Ionicons name="chevron-down" size={14} color={theme.textSecondary} />
         </Pressable>
+
+        <ViewModePicker tab="songs" />
 
         <Pressable
           onPress={() => setSortVisible(true)}
           style={[styles.menuButton, { backgroundColor: theme.backgroundElement }]}
           accessibilityRole="button"
-          accessibilityLabel="Ordenar canciones">
+          accessibilityLabel={tr('Ordenar canciones')}>
           <Ionicons name="swap-vertical" size={16} color={theme.text} />
           <ThemedText type="small" numberOfLines={1} style={styles.menuButtonLabel}>
-            {SORT_FIELDS.find((field) => sortFieldOf(field.value) === sortFieldOf(sortKey))?.label}
+            {sortFields.find((field) => sortFieldOf(field.value) === sortFieldOf(sortKey))?.label}
           </ThemedText>
           <Ionicons
             name={sortDirectionOf(sortKey) === 'asc' ? 'arrow-up' : 'arrow-down'}
@@ -205,12 +216,12 @@ export default function SongsScreen() {
 
   if (!hasPermission) {
     return (
-      <ScreenShell title="Canciones" scroll={false}>
+      <ScreenShell title={tr('Canciones')} scroll={false}>
         <EmptyState
           icon="folder-open-outline"
-          title="Sin acceso a tu música"
-          message="Concede permiso de audio para ver tus canciones."
-          actionLabel="Conceder permiso"
+          title={tr('Sin acceso a tu música')}
+          message={tr('Concede permiso de audio para ver tus canciones.')}
+          actionLabel={tr('Conceder permiso')}
           onAction={() => void requestAccess()}
         />
       </ScreenShell>
@@ -220,8 +231,8 @@ export default function SongsScreen() {
   return (
     <>
       <ScreenShell
-        title="Canciones"
-        subtitle={`${songs.length} en tu biblioteca`}
+        title={tr('Canciones')}
+        subtitle={t('songsInLibrary', { count: songs.length })}
         scroll={false}
         action={
           isActive ? (
@@ -236,10 +247,10 @@ export default function SongsScreen() {
               onPress={() => play(visibleSongs[0], visibleSongs)}
               style={[styles.playAll, { backgroundColor: theme.accent }]}
               accessibilityRole="button"
-              accessibilityLabel="Reproducir todo">
+              accessibilityLabel={tr('Reproducir todo')}>
               <Ionicons name="play" size={16} color={theme.accentText} />
               <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-                Reproducir
+                {tr('Reproducir todo')}
               </ThemedText>
             </Pressable>
           ) : null
@@ -251,7 +262,7 @@ export default function SongsScreen() {
           <View style={[styles.scanBanner, { backgroundColor: theme.backgroundElement }]}>
             <ActivityIndicator size="small" color={theme.accent} />
             <ThemedText type="small" themeColor="textSecondary" style={styles.scanText}>
-              {describeScanProgress(scanProgress)}
+              {describeScanProgress(scanProgress, language)}
             </ThemedText>
           </View>
         ) : null}
@@ -260,29 +271,29 @@ export default function SongsScreen() {
         ) : error && songs.length === 0 ? (
           <EmptyState
             icon="alert-circle-outline"
-            title="No se pudo leer tu música"
+            title={tr('No se pudo leer tu música')}
             message={error}
-            actionLabel="Reintentar"
+            actionLabel={tr('Reintentar')}
             onAction={() => void refresh()}
           />
         ) : songs.length === 0 ? (
           <EmptyState
             icon="musical-notes-outline"
-            title="Tu biblioteca está vacía"
-            message="No se encontraron archivos de audio en este dispositivo. Copia música y vuelve a escanear."
-            actionLabel="Escanear de nuevo"
+            title={tr('Tu biblioteca está vacía')}
+            message={tr('No se encontraron archivos de audio en este dispositivo. Copia música y vuelve a escanear.')}
+            actionLabel={tr('Escanear de nuevo')}
             onAction={() => void refresh()}
           />
         ) : visibleSongs.length === 0 ? (
           <EmptyState
             icon="search-outline"
-            title="Sin resultados"
+            title={tr('Sin resultados')}
             message={
               query.trim()
-                ? `Nada coincide con «${query.trim()}» en este filtro.`
-                : 'No hay canciones en este filtro.'
+                ? t('noMatchQuery', { query: query.trim() })
+                : tr('No hay canciones en este filtro.')
             }
-            actionLabel="Limpiar filtros"
+            actionLabel={tr('Limpiar filtros')}
             onAction={() => {
               setQuery('');
               setView('all');
@@ -291,6 +302,7 @@ export default function SongsScreen() {
         ) : (
           <SongList
             songs={visibleSongs}
+            mode={mode}
             onMore={handleMore}
             refreshing={isScanning}
             onRefresh={() => void refresh()}
@@ -304,8 +316,8 @@ export default function SongsScreen() {
 
       <OptionSheet
         visible={menuVisible}
-        title={menuSong?.title ?? 'Opciones de canción'}
-        options={SONG_ACTIONS}
+        title={menuSong?.title ?? tr('Opciones de canción')}
+        options={songActions}
         onSelect={(action) => {
           if (!menuSong) {
             return;
@@ -325,16 +337,16 @@ export default function SongsScreen() {
       />
       <OptionSheet
         visible={viewVisible}
-        title="Mostrar canciones"
-        options={VIEWS}
+        title={tr('Mostrar canciones')}
+        options={views}
         value={view}
         onSelect={setView}
         onClose={() => setViewVisible(false)}
       />
       <SortSheet
         visible={sortVisible}
-        title="Ordenar canciones"
-        fields={SORT_FIELDS}
+        title={tr('Ordenar canciones')}
+        fields={sortFields}
         value={sortKey}
         onSelect={setSortKey}
         onClose={() => setSortVisible(false)}
@@ -356,7 +368,7 @@ export default function SongsScreen() {
       />
       <SongDeleteSheet
         visible={deleteTarget !== null}
-        title={deleteTarget?.title ?? 'Eliminar'}
+        title={deleteTarget?.title ?? tr('Eliminar')}
         onSelect={handleConfirmDelete}
         onClose={cancelDelete}
       />

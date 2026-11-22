@@ -1,5 +1,8 @@
 import type { ImageSourcePropType } from 'react-native';
 
+// Las etiquetas pasan por `tr(...)` en el selector: tiparlas como LiteralKey
+// obliga a que cada tema añadido tenga traducción antes de compilar.
+import type { LiteralKey } from '@/i18n';
 import type { ThemeMode } from '@/types/settings';
 
 /**
@@ -12,7 +15,7 @@ import type { ThemeMode } from '@/types/settings';
  */
 export type ThemeCatalogItem = {
   id: ThemeMode;
-  label: string;
+  label: LiteralKey;
   icon: ImageSourcePropType;
   appIcon: string | null;
   swatch: string;

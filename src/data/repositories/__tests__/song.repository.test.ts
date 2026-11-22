@@ -57,6 +57,10 @@ function scanned(mediaId: string, modificationTime: number | null = 10): Scanned
     track: 1,
     folder: 'Music',
     duration: 180,
+    fileFormat: 'mp3',
+    bitDepth: null,
+    sampleRate: null,
+    bitrate: null,
     artwork: null,
     modificationTime,
   };
@@ -73,6 +77,10 @@ function songRow(id: number): Row {
     track_number: null,
     folder_name: null,
     duration: 100,
+    file_format: 'mp3',
+    bit_depth: 16,
+    sample_rate: 44100,
+    bitrate: 1411,
     artwork_uri: null,
     added_at: 1,
     is_available: 1,
@@ -109,11 +117,15 @@ describe('songRepository.upsertBatch', () => {
     expect(mockDb.withTransactionAsync).toHaveBeenCalledTimes(1);
     const inserts = mockRunLog.filter((entry) => entry.sql.includes('INSERT INTO songs'));
     expect(inserts).toHaveLength(3);
-    expect(inserts.map((entry) => entry.params.length)).toEqual([650, 650, 260]);
+    expect(inserts.map((entry) => entry.params.length)).toEqual([850, 850, 340]);
+    expect(inserts[0].sql).toContain('file_format');
+    expect(inserts[0].sql).toContain('bit_depth');
+    expect(inserts[0].sql).toContain('sample_rate');
+    expect(inserts[0].sql).toContain('bitrate');
     expect(inserts[0].sql).toContain('modification_time');
     expect(inserts[0].sql).toContain('artwork_checked_at');
     // El valor guardado es el de la mediateca, no un contador del bucle.
-    expect(inserts[0].params[11]).toBe(1);
+    expect(inserts[0].params[15]).toBe(1);
   });
 
   it('nunca resetea la disponibilidad de toda la tabla', async () => {

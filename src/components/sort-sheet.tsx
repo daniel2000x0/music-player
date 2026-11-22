@@ -5,6 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Radius, Scrim, Spacing } from '@/constants/theme';
 import { sortDirectionOf, sortFieldOf, toggleSortDirection } from '@/domain/library/sorting';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type SortField<K extends string> = {
   value: K;
@@ -30,6 +31,8 @@ export function SortSheet<K extends string>({
   onClose,
 }: SortSheetProps<K>) {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
   const activeField = sortFieldOf(value);
 
   return (
@@ -42,7 +45,7 @@ export function SortSheet<K extends string>({
             <ThemedText type="smallBold" style={styles.headerTitle}>
               {title}
             </ThemedText>
-            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel="Cerrar">
+            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel={tr('Cerrar')}>
               <Ionicons name="close" size={22} color={theme.textSecondary} />
             </Pressable>
           </View>
@@ -65,8 +68,13 @@ export function SortSheet<K extends string>({
                   style={({ pressed }) => [styles.item, pressed && styles.pressed]}
                   accessibilityRole="button"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={`${field.label}, ${direction === 'asc' ? 'ascendente' : 'descendente'}`}
-                  accessibilityHint={selected ? 'Toca de nuevo para alternar el sentido.' : undefined}>
+                  accessibilityLabel={t('sortAccessibility', {
+                    field: field.label,
+                    direction: direction === 'asc' ? tr('ascendente') : tr('descendente'),
+                  })}
+                  accessibilityHint={
+                    selected ? tr('Toca de nuevo para alternar el sentido.') : undefined
+                  }>
                   <View style={styles.itemText}>
                     <ThemedText
                       type="smallBold"

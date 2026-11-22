@@ -10,9 +10,11 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Image } from 'expo-image';
 import { ArtworkReveal } from '@/components/artwork-reveal';
+import { AudioQualityBadge } from '@/components/audio-quality-badge';
 import { EmptyState } from '@/components/empty-state';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { SeekBar } from '@/components/seek-bar';
@@ -26,6 +28,8 @@ import { useLibraryStore } from '@/stores/library.store';
 import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
 import { formatDuration } from '@/utils/format';
+import { playerArtworkSize, playerContentGap } from '@/utils/player-layout';
+import { useTranslation } from '@/hooks/use-translation';
 
 /**
  * Bloque de progreso (barra + tiempos). Suscribe posición y duración al
@@ -63,11 +67,22 @@ function PlayerProgress({
  */
 export default function PlayerScreen() {
   const theme = useTheme();
-  const { width } = useWindowDimensions();
+
+  const { tr, t } = useTranslation();
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const currentSong = usePlayerStore((state) => state.currentSong);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const isBuffering = usePlayerStore((state) => state.isBuffering);
   const repeatMode = usePlayerStore((state) => state.repeatMode);
+  // Los valores de repeatMode son internos ('none'|'all'|'single'); la etiqueta
+  // accesible se traduce para que el modo elegido se entienda en cualquier idioma.
+  const repeatLabel =
+    repeatMode === 'none'
+      ? tr('sin repetición')
+      : repeatMode === 'single'
+        ? tr('una pista')
+        : tr('toda la cola');
   const shuffle = usePlayerStore((state) => state.shuffle);
   const toggle = usePlayerStore((state) => state.toggle);
   const next = usePlayerStore((state) => state.next);
@@ -99,19 +114,20 @@ export default function PlayerScreen() {
     return () => animation.stop();
   }, [enter]);
 
-  const artworkSize = Math.min(width - Spacing.xl * 2, MaxContentWidth - Spacing.xl * 2, 360);
+  const artworkSize = playerArtworkSize(width, height);
+  const contentGap = playerContentGap(height);
 
   if (!currentSong) {
     return (
       <ThemedView style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <Pressable hitSlop={8} onPress={() => router.back()} style={styles.closeButton}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+          <Pressable hitSlop={10} onPress={() => router.back()} style={styles.headerButton}>
             <Ionicons name="chevron-down" size={28} color={theme.text} />
           </Pressable>
           <EmptyState
             icon="musical-notes-outline"
-            title="Nada en reproducción"
-            message="Elige una canción de la biblioteca para empezar."
+            title={tr('Nada en reproducción')}
+            message={tr('Elige una canción de la biblioteca para empezar.')}
           />
         </SafeAreaView>
       </ThemedView>
@@ -123,215 +139,222 @@ export default function PlayerScreen() {
   // Motivo del aviso de controles del sistema (`C-01`). Se distingue el caso
   // del permiso denegado porque SÍ tiene arreglo: abrir los ajustes del sistema.
   const lockScreenWarning = !capabilities['playback.lockScreen']
-    ? 'Este entorno no admite controles del sistema. La reproducción puede detenerse en segundo plano.'
+    ? tr('Este entorno no admite controles del sistema. La reproducción puede detenerse en segundo plano.')
     : !capabilities['playback.notifications']
-      ? 'Las notificaciones están desactivadas: los controles de reproducción no aparecerán en la pantalla de bloqueo.'
-      : 'Los controles del sistema no están disponibles. La reproducción puede detenerse en segundo plano.';
+      ? tr('Las notificaciones están desactivadas: los controles de reproducción no aparecerán en la pantalla de bloqueo.')
+      : tr('Los controles del sistema no están disponibles. La reproducción puede detenerse en segundo plano.');
   const canOpenNotificationSettings = !capabilities['playback.notifications'];
 
   return (
     <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
           <Pressable
-            hitSlop={8}
+            hitSlop={10}
             onPress={() => router.back()}
+            style={styles.headerButton}
             accessibilityRole="button"
-            accessibilityLabel="Cerrar">
+            accessibilityLabel={tr('Cerrar')}>
             <Ionicons name="chevron-down" size={28} color={theme.text} />
           </Pressable>
           <ThemedText type="small" themeColor="textSecondary">
             Reproduciendo
           </ThemedText>
           <Pressable
-            hitSlop={8}
+            hitSlop={10}
             onPress={() => router.push('/queue')}
+            style={styles.headerButton}
             accessibilityRole="button"
-            accessibilityLabel="Cola de reproducción">
+            accessibilityLabel={tr('Cola de reproducción')}>
             <Ionicons name="list" size={24} color={theme.text} />
           </Pressable>
         </View>
 
-        {!capabilities['playback.lockScreen'] ||
-        sessionState === 'degraded' ||
-        lockScreen.status === 'degraded' ? (
-          <View
-            style={[
-              styles.lockNotice,
-              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}
-            accessibilityRole="alert"
-            accessibilityLiveRegion="polite">
-            <Ionicons name="warning-outline" size={16} color={theme.danger} />
-            <View style={styles.lockNoticeBody}>
-              <ThemedText type="small" themeColor="textSecondary">
-                {lockScreenWarning}
-              </ThemedText>
-              {canOpenNotificationSettings ? (
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => void Linking.openSettings()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Abrir ajustes del sistema">
-                  <ThemedText type="smallBold" style={{ color: theme.accent }}>
-                    Abrir ajustes
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
-
         <Animated.ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              gap: contentGap,
+              paddingBottom: Math.max(insets.bottom, Spacing.xl),
+            },
+          ]}
+          showsVerticalScrollIndicator
           style={{
             opacity: enter,
             transform: [
               { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
             ],
           }}>
-          <ArtworkReveal uri={currentSong.artwork} size={artworkSize} radius={Radius.large} />
+          {!capabilities['playback.lockScreen'] ||
+          sessionState === 'degraded' ||
+          lockScreen.status === 'degraded' ? (
+            <View
+              style={[
+                styles.lockNotice,
+                { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+              ]}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite">
+              <Ionicons name="warning-outline" size={16} color={theme.danger} />
+              <View style={styles.lockNoticeBody}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {lockScreenWarning}
+                </ThemedText>
+                {canOpenNotificationSettings ? (
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => void Linking.openSettings()}
+                    accessibilityRole="button"
+                    accessibilityLabel={tr('Abrir ajustes del sistema')}>
+                    <ThemedText type="smallBold" style={{ color: theme.accent }}>
+                      {tr('Abrir ajustes')}
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+          ) : null}
 
-          <View style={styles.meta}>
+          <View style={[styles.artworkHero, { width: artworkSize, height: artworkSize }]}>
+            {currentSong.artwork ? (
+              <Image
+                source={{ uri: currentSong.artwork }}
+                style={styles.artworkBackdrop}
+                contentFit="cover"
+                blurRadius={28}
+                recyclingKey={`${currentSong.artwork}-bg`}
+              />
+            ) : null}
+            <View style={[styles.artworkBackdropTint, { backgroundColor: theme.background }]} />
+            <ArtworkReveal uri={currentSong.artwork} size={artworkSize} radius={Radius.large} elevated />
+          </View>
+
+          <View
+            style={[
+              styles.metaSurface,
+              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}>
             <ThemedText type="subtitle" numberOfLines={2} style={styles.songTitle}>
               {currentSong.title}
             </ThemedText>
-            <ThemedText type="default" themeColor="textSecondary" numberOfLines={1}>
+            <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.artistLine}>
               {currentSong.artist} · {currentSong.album}
             </ThemedText>
+            {/* Formato informativo: FLAC verde, resto neutro. */}
+            <View style={styles.qualityRow}>
+              <AudioQualityBadge
+                format={currentSong.fileFormat}
+                bitDepth={currentSong.bitDepth}
+                sampleRate={currentSong.sampleRate}
+                bitrate={currentSong.bitrate}
+              />
+            </View>
           </View>
 
           <PlayerProgress onSeek={seek} trackKey={currentSong.id} />
 
-          <View style={styles.controls}>
-            <Pressable
-              hitSlop={8}
-              onPress={toggleShuffle}
-              style={styles.controlWithState}
-              accessibilityRole="button"
-              accessibilityLabel="Aleatorio"
-              accessibilityState={{ selected: shuffle }}>
-              <Ionicons
-                name="shuffle"
-                size={24}
-                color={shuffle ? theme.accent : theme.textSecondary}
-              />
-              <View
-                style={[
-                  styles.activeDot,
-                  { backgroundColor: shuffle ? theme.accent : 'transparent' },
-                ]}
-              />
-            </Pressable>
-
-            <Pressable
-              hitSlop={8}
-              onPress={previous}
-              accessibilityRole="button"
-              accessibilityLabel="Anterior">
-              <Ionicons name="play-skip-back" size={34} color={theme.text} />
-            </Pressable>
-
-            <Pressable
-              onPress={toggle}
-              style={[styles.playButton, { backgroundColor: theme.accent }]}
-              accessibilityRole="button"
-              accessibilityLabel="Reproducir o pausar">
-              {isBuffering ? (
-                <ActivityIndicator color={theme.accentText} />
-              ) : (
+          <View
+            style={[
+              styles.controlsSurface,
+              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
+            ]}>
+            {/* Fila 1: modos de reproducción */}
+            <View style={styles.modeRow}>
+              <Pressable
+                hitSlop={8}
+                onPress={toggleShuffle}
+                style={styles.modeButton}
+                accessibilityRole="button"
+                accessibilityLabel={tr('Aleatorio')}
+                accessibilityState={{ selected: shuffle }}>
                 <Ionicons
-                  name={isPlaying ? 'pause' : 'play'}
-                  size={34}
-                  color={theme.accentText}
-                  style={styles.playIcon}
+                  name="shuffle"
+                  size={22}
+                  color={shuffle ? theme.accent : theme.textSecondary}
                 />
-              )}
-            </Pressable>
+                <ThemedText type="small" themeColor={shuffle ? 'accent' : 'textSecondary'}>
+                  {tr('Aleatorio')}
+                </ThemedText>
+              </Pressable>
 
-            <Pressable
-              hitSlop={8}
-              onPress={next}
-              accessibilityRole="button"
-              accessibilityLabel="Siguiente">
-              <Ionicons name="play-skip-forward" size={34} color={theme.text} />
-            </Pressable>
+              <Pressable
+                hitSlop={8}
+                onPress={cycleRepeat}
+                style={styles.modeButton}
+                accessibilityRole="button"
+                accessibilityLabel={t('repeatMode', { mode: repeatLabel })}
+                accessibilityState={{ selected: repeatMode !== 'none' }}>
+                <View>
+                  <Ionicons
+                    name={repeatMode === 'none' ? 'repeat-outline' : 'repeat'}
+                    size={22}
+                    color={repeatMode === 'none' ? theme.textSecondary : theme.accent}
+                  />
+                  {repeatMode === 'single' ? (
+                    <View style={[styles.repeatBadge, { backgroundColor: theme.accent }]}>
+                      <ThemedText style={[styles.repeatBadgeText, { color: theme.accentText }]}>1</ThemedText>
+                    </View>
+                  ) : null}
+                </View>
+                <ThemedText type="small" themeColor={repeatMode !== 'none' ? 'accent' : 'textSecondary'}>
+                  {repeatLabel}
+                </ThemedText>
+              </Pressable>
+            </View>
 
-            <Pressable
-              hitSlop={8}
-              onPress={cycleRepeat}
-              style={styles.controlWithState}
-              accessibilityRole="button"
-              accessibilityLabel={`Repetir: ${repeatMode}`}
-              accessibilityState={{ selected: repeatMode !== 'none' }}>
-              <View>
+            {/* Fila 2: controles principales */}
+            <View style={styles.controls}>
+              <Pressable
+                hitSlop={8}
+                onPress={() => void toggleFavorite(currentSong.id)}
+                style={styles.secondaryControl}
+                accessibilityRole="button"
+                accessibilityLabel={tr('Favorito')}
+                accessibilityState={{ selected: favorite }}>
                 <Ionicons
-                  name={repeatMode === 'none' ? 'repeat-outline' : 'repeat'}
-                  size={24}
-                  color={repeatMode === 'none' ? theme.textSecondary : theme.accent}
+                  name={favorite ? 'heart' : 'heart-outline'}
+                  size={26}
+                  color={favorite ? theme.accent : theme.textSecondary}
                 />
-                {repeatMode === 'single' ? (
-                  <View style={[styles.repeatBadge, { backgroundColor: theme.accent }]}>
-                    <ThemedText style={[styles.repeatBadgeText, { color: theme.accentText }]}>
-                      1
-                    </ThemedText>
-                  </View>
-                ) : null}
-              </View>
-              <View
-                style={[
-                  styles.activeDot,
-                  { backgroundColor: repeatMode !== 'none' ? theme.accent : 'transparent' },
-                ]}
-              />
-            </Pressable>
+              </Pressable>
+
+              <Pressable hitSlop={8} onPress={previous} style={styles.secondaryControl} accessibilityRole="button" accessibilityLabel={tr('Anterior')}>
+                <Ionicons name="play-skip-back" size={32} color={theme.text} />
+              </Pressable>
+
+              <Pressable
+                onPress={toggle}
+                style={[styles.playButton, { backgroundColor: theme.accent }]}
+                accessibilityRole="button"
+                accessibilityLabel={tr('Reproducir o pausar')}>
+                {isBuffering ? (
+                  <ActivityIndicator color={theme.accentText} />
+                ) : (
+                  <Ionicons
+                    name={isPlaying ? 'pause' : 'play'}
+                    size={34}
+                    color={theme.accentText}
+                    style={styles.playIcon}
+                  />
+                )}
+              </Pressable>
+
+              <Pressable hitSlop={8} onPress={next} style={styles.secondaryControl} accessibilityRole="button" accessibilityLabel={tr('Siguiente')}>
+                <Ionicons name="play-skip-forward" size={32} color={theme.text} />
+              </Pressable>
+
+              <Pressable
+                hitSlop={8}
+                onPress={() => setPickerVisible(true)}
+                style={styles.secondaryControl}
+                accessibilityRole="button"
+                accessibilityLabel={tr('Agregar a playlist')}>
+                <Ionicons name="add-circle-outline" size={26} color={theme.textSecondary} />
+              </Pressable>
+            </View>
           </View>
 
           <VolumeControl volume={volume} onChange={setVolume} />
-
-          <View style={styles.actions}>
-            <Pressable
-              hitSlop={8}
-              onPress={() => void toggleFavorite(currentSong.id)}
-              style={styles.actionItem}
-              accessibilityRole="button"
-              accessibilityLabel="Favorito"
-              accessibilityState={{ selected: favorite }}>
-              <Ionicons
-                name={favorite ? 'heart' : 'heart-outline'}
-                size={26}
-                color={favorite ? theme.accent : theme.textSecondary}
-              />
-              <ThemedText type="small" themeColor="textSecondary">
-                Favorito
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              hitSlop={8}
-              onPress={() => setPickerVisible(true)}
-              style={styles.actionItem}
-              accessibilityRole="button"
-              accessibilityLabel="Agregar a playlist">
-              <Ionicons name="add-circle-outline" size={26} color={theme.textSecondary} />
-              <ThemedText type="small" themeColor="textSecondary">
-                Playlist
-              </ThemedText>
-            </Pressable>
-
-            <Pressable
-              hitSlop={8}
-              onPress={() => router.push('/queue')}
-              style={styles.actionItem}
-              accessibilityRole="button"
-              accessibilityLabel="Cola de reproducción">
-              <Ionicons name="list-outline" size={26} color={theme.textSecondary} />
-              <ThemedText type="small" themeColor="textSecondary">
-                Cola
-              </ThemedText>
-            </Pressable>
-          </View>
         </Animated.ScrollView>
       </SafeAreaView>
 
@@ -362,15 +385,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  headerButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollContent: {
     alignItems: 'center',
     paddingTop: Spacing.lg,
-    paddingBottom: Spacing.xxl,
-    gap: Spacing.xl,
   },
   lockNotice: {
+    alignSelf: 'stretch',
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.sm,
@@ -388,10 +416,58 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingHorizontal: Spacing.lg,
   },
+  metaSurface: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.large,
+    borderWidth: 1,
+  },
+  controlsSurface: {
+    alignSelf: 'stretch',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.large,
+    borderWidth: 1,
+  },
+  secondaryControl: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  artworkHero: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  artworkBackdrop: {
+    position: 'absolute',
+    width: '124%',
+    height: '124%',
+    borderRadius: Radius.large,
+    opacity: 0.35,
+  },
+  artworkBackdropTint: {
+    ...StyleSheet.absoluteFill,
+    opacity: 0.2,
+    borderRadius: Radius.large,
+  },
+  qualityRow: {
+    marginTop: 2,
+    alignItems: 'center',
+  },
   songTitle: {
-    fontSize: 24,
-    lineHeight: 30,
+    fontSize: 26,
+    lineHeight: 32,
     textAlign: 'center',
+  },
+  artistLine: {
+    textAlign: 'center',
+    opacity: 0.92,
   },
   progressBlock: {
     alignSelf: 'stretch',
@@ -401,21 +477,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xs,
   },
+  modeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xl,
+    alignSelf: 'stretch',
+  },
+  modeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: 2,
+    paddingHorizontal: Spacing.xs,
+    minHeight: 36,
+  },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     alignSelf: 'stretch',
-    paddingHorizontal: Spacing.lg,
-  },
-  controlWithState: {
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  activeDot: {
-    width: Spacing.xs,
-    height: Spacing.xs,
-    borderRadius: Radius.pill,
   },
   playButton: {
     width: 72,
@@ -442,13 +523,5 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     fontWeight: '700',
   },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing.xxl,
-    marginTop: Spacing.sm,
-  },
-  actionItem: {
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
+  // Acciones principales integradas en la fila de controles para evitar ruido.
 });

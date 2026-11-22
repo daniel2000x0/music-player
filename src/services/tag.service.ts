@@ -6,6 +6,14 @@ import { extractId3Tags, parseId3TagSize } from '@/domain/artwork/id3';
 import { extractMp4Tags } from '@/domain/artwork/mp4';
 import type { AudioTags } from '@/domain/metadata';
 
+function estimateBitrateKbps(sizeBytes: number, durationSeconds: number | null | undefined): number | null {
+  if (!Number.isFinite(durationSeconds) || !durationSeconds || durationSeconds <= 0) {
+    return null;
+  }
+  const kbps = Math.round((sizeBytes * 8) / durationSeconds / 1000);
+  return kbps > 0 ? kbps : null;
+}
+
 /**
  * Lectura de etiquetas de texto desde el archivo de audio.
  *
@@ -35,8 +43,11 @@ function shouldAttempt(uri: string): boolean {
   return TAG_EXTENSIONS.has(fileExtension(uri)) || uri.startsWith('content://');
 }
 
-/** Lee las etiquetas de texto de un archivo; `null` si no hay o no se puede. */
-export async function readAudioTags(uri: string): Promise<AudioTags | null> {
+/** Lee las etiquetas de texto y técnicas de un archivo; `null` si no hay datos. */
+export async function readAudioTags(
+  uri: string,
+  durationSeconds?: number | null
+): Promise<AudioTags | null> {
   if (!shouldAttempt(uri)) {
     return null;
   }
@@ -59,39 +70,40 @@ export async function readAudioTags(uri: string): Promise<AudioTags | null> {
       return null;
     }
 
+    let tags: AudioTags | null = null;
+
     // "ID3" → MP3 con tag ID3v2.
     if (ascii(header, 0, 3) === 'ID3') {
       const tagSize = parseId3TagSize(header);
-      if (tagSize === null) {
-        return null;
+      if (tagSize !== null) {
+        const total = Math.min(10 + tagSize, ID3_TAG_MAX_BYTES);
+        handle.offset = 0;
+        const tag = await handle.readBytes(total);
+        tags = tag ? extractId3Tags(tag) : null;
       }
-      const total = Math.min(10 + tagSize, ID3_TAG_MAX_BYTES);
-      handle.offset = 0;
-      const tag = await handle.readBytes(total);
-      return tag ? extractId3Tags(tag) : null;
-    }
-
-    // Átomo "ftyp" en [4..8] → contenedor MP4/M4A/M4B.
-    if (ascii(header, 4, 4) === 'ftyp') {
+    } else if (ascii(header, 4, 4) === 'ftyp') {
+      // Átomo "ftyp" en [4..8] → contenedor MP4/M4A/M4B.
       const instance = handle;
       const reader = async (offset: number, length: number) => {
         instance.offset = offset;
         return await instance.readBytes(length);
       };
-      return await extractMp4Tags(reader, size);
-    }
-
-    // Firma "fLaC" → contenedor FLAC.
-    if (ascii(header, 0, 4) === 'fLaC') {
+      tags = await extractMp4Tags(reader, size);
+    } else if (ascii(header, 0, 4) === 'fLaC') {
+      // Firma "fLaC" → contenedor FLAC.
       const instance = handle;
       const reader = async (offset: number, length: number) => {
         instance.offset = offset;
         return await instance.readBytes(length);
       };
-      return await extractFlacTags(reader, size);
+      tags = await extractFlacTags(reader, size);
     }
 
-    return null;
+    const bitrate = estimateBitrateKbps(size, durationSeconds);
+    if (!tags) {
+      return bitrate ? { title: null, artist: null, album: null, albumArtist: null, track: null, bitDepth: null, sampleRate: null, bitrate } : null;
+    }
+    return { ...tags, bitrate: tags.bitrate ?? bitrate };
   } catch {
     return null;
   } finally {

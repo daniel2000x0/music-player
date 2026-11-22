@@ -3,6 +3,8 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
+import { isLetterKey } from '@/utils/alphabet';
 
 export type AlphabetChipsProps = {
   /** Letras disponibles, en orden alfabético. */
@@ -27,6 +29,9 @@ export function AlphabetChips({
   activeLetter,
 }: AlphabetChipsProps) {
   const theme = useTheme();
+  // NOTA (i18n): el sustantivo ya llega traducido desde la pantalla; aquí solo
+  // se traduce la estructura de la frase con las plantillas del catálogo.
+  const { t } = useTranslation();
 
   if (letters.length === 0) {
     return null;
@@ -41,6 +46,9 @@ export function AlphabetChips({
         contentContainerStyle={styles.content}>
         {letters.map((letter) => {
           const active = letter === activeLetter;
+          const label = isLetterKey(letter)
+            ? t('goToLetter', { noun: itemNoun, letter })
+            : t('goToLetters', { noun: itemNoun });
 
           return (
             <Pressable
@@ -56,7 +64,7 @@ export function AlphabetChips({
               ]}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
-              accessibilityLabel={`Ir a ${itemNoun} con la letra ${letter}`}>
+              accessibilityLabel={label}>
               <ThemedText
                 type="smallBold"
                 style={[

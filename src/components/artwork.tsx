@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { Radius } from '@/constants/theme';
+import { Elevation, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ArtworkProps = {
@@ -12,6 +12,9 @@ export type ArtworkProps = {
   size?: number;
   /** Radio de esquina explícito (por defecto se deriva del tamaño). */
   radius?: number;
+  /** Aplica sombra suave para jerarquía visual (útil en reproductor/hero). */
+  elevated?: boolean;
+  style?: StyleProp<ViewStyle>;
 };
 
 /**
@@ -27,21 +30,24 @@ export type ArtworkProps = {
  * - Con `uri` usa `expo-image` (cachea y recorta).
  * - Sin `uri` usa una `View` con fondo `backgroundSelected`.
  */
-export function Artwork({ uri, size = 56, radius }: ArtworkProps) {
+export function Artwork({ uri, size = 56, radius, elevated = false, style }: ArtworkProps) {
   const theme = useTheme();
   const cornerRadius = radius ?? (size >= 120 ? Radius.large : Radius.medium);
+  const elevationStyle = elevated ? Elevation.floating : undefined;
 
   if (uri) {
     return (
-      <Image
-        source={{ uri }}
-        // Clave de reciclaje: al reusarse la celda de una FlatList con otra
-        // portada, expo-image descarta la imagen anterior de inmediato.
-        recyclingKey={uri}
-        style={{ width: size, height: size, borderRadius: cornerRadius }}
-        contentFit="cover"
-        transition={150}
-      />
+      <View style={[elevationStyle, style]}>
+        <Image
+          source={{ uri }}
+          // Clave de reciclaje: al reusarse la celda de una FlatList con otra
+          // portada, expo-image descarta la imagen anterior de inmediato.
+          recyclingKey={uri}
+          style={{ width: size, height: size, borderRadius: cornerRadius }}
+          contentFit="cover"
+          transition={150}
+        />
+      </View>
     );
   }
 
@@ -49,12 +55,14 @@ export function Artwork({ uri, size = 56, radius }: ArtworkProps) {
     <View
       style={[
         styles.fallback,
+        elevationStyle,
         {
           width: size,
           height: size,
           borderRadius: cornerRadius,
           backgroundColor: theme.backgroundSelected,
         },
+        style,
       ]}>
       <Ionicons name="musical-notes" size={size * 0.38} color={theme.textSecondary} />
     </View>

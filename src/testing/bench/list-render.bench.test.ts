@@ -17,7 +17,7 @@ import { resolveSongsByIds } from '@/domain/library/selection';
 import { sortSongs } from '@/domain/library/sorting';
 import { makeSong } from '@/testing/fixtures';
 import type { Song } from '@/types/song';
-import { collectInitials, normalizeLetter } from '@/utils/alphabet';
+import { collectInitials, initialKey } from '@/utils/alphabet';
 import { formatDuration } from '@/utils/format';
 
 const ITERATIONS = 20;
@@ -72,7 +72,7 @@ function toRow(song: Song, favoriteIds: ReadonlySet<number>): SongRow {
     subtitle: song.artist,
     duration: formatDuration(song.duration),
     artwork: song.artwork,
-    initial: normalizeLetter(song.title),
+    initial: initialKey(song.title),
     isFavorite: favoriteIds.has(song.id),
   };
 }

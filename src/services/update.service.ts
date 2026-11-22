@@ -1,5 +1,8 @@
 import * as Updates from 'expo-updates';
 
+import { tr } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
+
 export type UpdateCheckStatus = 'available' | 'not-available' | 'disabled';
 
 /** Consulta si EAS tiene una actualización OTA para esta versión. */
@@ -17,14 +20,16 @@ export async function checkForAppUpdate(): Promise<UpdateCheckStatus> {
 export async function downloadAppUpdate(): Promise<void> {
   if (__DEV__ || !Updates.isEnabled) {
     throw new Error(
-      'Las actualizaciones OTA no están disponibles en este entorno.'
+      tr(getCurrentLanguage(), 'Las actualizaciones OTA no están disponibles en este entorno.')
     );
   }
 
   const result = await Updates.fetchUpdateAsync();
 
   if (!result.isNew) {
-    throw new Error('No se pudo descargar una nueva actualización.');
+    throw new Error(
+      tr(getCurrentLanguage(), 'No se pudo descargar una nueva actualización.')
+    );
   }
 }
 

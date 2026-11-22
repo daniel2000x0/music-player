@@ -5,8 +5,9 @@ import { Artwork } from '@/components/artwork';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 import type { Album } from '@/types/song';
-import { formatSongCount } from '@/utils/format';
+import { displayMetadata, formatSongCount } from '@/utils/format';
 
 export type AlbumCardProps = {
   album: Album;
@@ -23,13 +24,14 @@ export type AlbumCardProps = {
  */
 export function AlbumCard({ album, width, onPress }: AlbumCardProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [{ width }, pressed && styles.pressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Reproducir álbum ${album.title}`}>
+      accessibilityLabel={t('playAlbum', { title: displayMetadata(album.title) })}>
       <View>
         <Artwork uri={album.artwork} size={width} radius={Radius.medium} />
         <View style={[styles.playBadge, { backgroundColor: theme.accent }]}>
@@ -38,10 +40,10 @@ export function AlbumCard({ album, width, onPress }: AlbumCardProps) {
       </View>
 
       <ThemedText type="smallBold" numberOfLines={1} style={styles.title}>
-        {album.title}
+        {displayMetadata(album.title)}
       </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-        {album.artist} · {formatSongCount(album.songCount)}
+      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.meta}>
+        {displayMetadata(album.artist)} · {formatSongCount(album.songCount)}
       </ThemedText>
     </Pressable>
   );
@@ -49,21 +51,24 @@ export function AlbumCard({ album, width, onPress }: AlbumCardProps) {
 
 const styles = StyleSheet.create({
   pressed: {
-    opacity: 0.7,
+    opacity: 0.82,
   },
   playBadge: {
     position: 'absolute',
     right: Spacing.sm,
     bottom: Spacing.sm,
-    width: 36,
-    height: 36,
+    width: 34,
+    height: 34,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     // Ajuste óptico: el triángulo de "play" se ve mejor un poco a la derecha.
-    paddingLeft: Spacing.xs,
+    paddingLeft: 2,
   },
   title: {
     marginTop: Spacing.sm,
+  },
+  meta: {
+    marginTop: 2,
   },
 });

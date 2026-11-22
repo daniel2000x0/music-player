@@ -90,8 +90,9 @@ export function VolumeControl({ volume, onChange }: VolumeControlProps) {
   return (
     <View style={styles.row}>
       <Pressable
-        hitSlop={8}
+        hitSlop={10}
         onPress={() => onChange(muted ? UNMUTE_VOLUME : 0)}
+        style={styles.iconButton}
         accessibilityRole="button"
         accessibilityLabel={muted ? 'Activar sonido' : 'Silenciar'}>
         <Ionicons
@@ -137,6 +138,12 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     alignSelf: 'stretch',
     paddingHorizontal: Spacing.lg,
+  },
+  iconButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   hitArea: {
     flex: 1,

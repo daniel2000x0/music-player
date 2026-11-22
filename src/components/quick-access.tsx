@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 type AccentKey = 'accent' | 'textSecondary';
@@ -41,7 +41,8 @@ export function QuickAccess({ items }: QuickAccessProps) {
             onPress={item.onPress}
             style={({ pressed }) => [
               styles.card,
-              { backgroundColor: theme.backgroundElement },
+              Elevation.card,
+              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
               pressed && styles.pressed,
             ]}>
             <View style={[styles.iconWrap, { backgroundColor: theme.backgroundSelected }]}>
@@ -68,11 +69,13 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     borderRadius: Radius.medium,
-    padding: Spacing.lg,
-    gap: Spacing.sm,
+    padding: Spacing.md,
+    gap: Spacing.xs,
+    borderWidth: 1,
+    minHeight: 96,
   },
   pressed: {
-    opacity: 0.7,
+    opacity: 0.82,
   },
   iconWrap: {
     width: 40,

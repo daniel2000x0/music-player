@@ -58,6 +58,10 @@ function scanned(track: DeviceTrack): ScannedSong {
     track: null,
     folder: 'music',
     duration: 120,
+    fileFormat: 'mp3',
+    bitDepth: null,
+    sampleRate: null,
+    bitrate: null,
     artwork: null,
     modificationTime: track.modificationTime,
   };

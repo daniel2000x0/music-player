@@ -4,10 +4,11 @@ import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Artwork } from '@/components/artwork';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { Elevation, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type MiniPlayerProps = {
   /** Distancia desde el borde inferior de la pantalla (alto del tab bar). */
@@ -39,6 +40,8 @@ function MiniPlayerProgress() {
  */
 export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
   const currentSong = usePlayerStore((state) => state.currentSong);
   const isPlaying = usePlayerStore((state) => state.isPlaying);
   const toggle = usePlayerStore((state) => state.toggle);
@@ -52,11 +55,15 @@ export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
     <Pressable
       onPress={() => router.push('/player')}
       accessibilityRole="button"
-      accessibilityLabel={`Abrir reproductor: ${currentSong.title}, de ${currentSong.artist}`}
-      accessibilityHint="Abre la pantalla completa del reproductor."
+      accessibilityLabel={t('playSong', {
+        title: currentSong.title,
+        artist: currentSong.artist,
+      })}
+      accessibilityHint={tr('Abre la pantalla completa del reproductor.')}
       style={[
         styles.container,
-        { backgroundColor: theme.backgroundElement, bottom: bottomOffset },
+        Elevation.floating,
+        { backgroundColor: theme.backgroundElement, bottom: bottomOffset, borderColor: theme.border },
         style,
       ]}>
       <MiniPlayerProgress />
@@ -73,11 +80,11 @@ export function MiniPlayer({ bottomOffset = 0, style }: MiniPlayerProps) {
           </ThemedText>
         </View>
 
-        <Pressable hitSlop={8} onPress={toggle} style={styles.control} accessibilityRole="button" accessibilityLabel="Reproducir o pausar">
+        <Pressable hitSlop={10} onPress={toggle} style={styles.control} accessibilityRole="button" accessibilityLabel={tr('Reproducir o pausar')}>
           <Ionicons name={isPlaying ? 'pause' : 'play'} size={26} color={theme.text} />
         </Pressable>
 
-        <Pressable hitSlop={8} onPress={next} style={styles.control} accessibilityRole="button" accessibilityLabel="Siguiente">
+        <Pressable hitSlop={10} onPress={next} style={styles.control} accessibilityRole="button" accessibilityLabel={tr('Siguiente')}>
           <Ionicons name="play-skip-forward" size={24} color={theme.text} />
         </Pressable>
       </View>
@@ -92,6 +99,7 @@ const styles = StyleSheet.create({
     right: Spacing.sm,
     borderRadius: Radius.large,
     overflow: 'hidden',
+    borderWidth: 1,
   },
   progressTrack: {
     height: 2,
@@ -112,6 +120,9 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   control: {
-    padding: Spacing.xs,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

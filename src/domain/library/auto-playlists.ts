@@ -1,10 +1,13 @@
+// Los textos son claves del diccionario: las pantallas los pasan por `tr`
+// para que el cambio de idioma se refleje sin recargar la biblioteca.
+import type { LiteralKey } from '@/i18n';
 import type { AutoPlaylistKey } from '@/types/playlist';
 import type { Song } from '@/types/song';
 
 export type AutoPlaylistDefinition = {
   key: AutoPlaylistKey;
-  name: string;
-  description: string;
+  name: LiteralKey;
+  description: LiteralKey;
   icon: 'flame' | 'heart' | 'time' | 'add-circle' | 'shuffle' | 'radio-button-off';
 };
 

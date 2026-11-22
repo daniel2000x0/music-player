@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, StyleSheet, View, type AccessibilityActionEvent } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 import { formatClock } from '@/utils/format';
 
 export type SeekBarProps = {
@@ -53,6 +54,7 @@ function clampSeconds(value: number, duration: number): number {
  */
 export function SeekBar({ position, duration, onSeek }: SeekBarProps) {
   const theme = useTheme();
+  const { tr, t } = useTranslation();
   const [width, setWidth] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [dragValue, setDragValue] = useState(0);
@@ -147,12 +149,15 @@ export function SeekBar({ position, duration, onSeek }: SeekBarProps) {
       }}
       style={styles.hitArea}
       accessibilityRole="adjustable"
-      accessibilityLabel="Posición de reproducción"
+      accessibilityLabel={tr('Posición de reproducción')}
       accessibilityValue={{
         min: 0,
         max: Math.round(duration),
         now: Math.round(current),
-        text: `${formatClock(current)} de ${formatClock(duration)}`,
+        text: t('positionOfDuration', {
+          current: formatClock(current),
+          duration: formatClock(duration),
+        }),
       }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={handleAccessibilityAction}

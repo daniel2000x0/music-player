@@ -39,6 +39,9 @@ export const Colors = {
     accent: '#12B76A',
     accentText: '#04140A',
     danger: '#E5484D',
+    /** Verde informativo para formatos de alta calidad (FLAC). */
+    success: '#1F7A45',
+    successBg: '#E6F6ED',
     link: '#1B6FD1',
 
     // Indicador de desplazamiento
@@ -55,6 +58,9 @@ export const Colors = {
     accent: '#1ED760',
     accentText: '#04140A',
     danger: '#FF453A',
+    /** Verde informativo para formatos de alta calidad (FLAC). */
+    success: '#34D399',
+    successBg: '#0E2A22',
     link: '#6BA6FF',
 
     // Indicador de desplazamiento
@@ -76,6 +82,8 @@ export type AppPalette = {
   accent: string;
   accentText: string;
   danger: string;
+  success: string;
+  successBg: string;
   link: string;
   scrollbarIndicator: string;
   /** Solo temas con fondo de pantalla propio; veladura sobre la imagen. */
@@ -231,6 +239,46 @@ export const Radius = {
   medium: 12,
   large: 20,
   pill: 999,
+} as const;
+
+/**
+ * Niveles de elevación/sombra reutilizables.
+ *
+ * LÓGICA: pocos niveles, aplicados con intención. Se usan en elementos que
+ * flotan o necesitan jerarquía (mini-player, carátula hero, cards destacadas),
+ * no en cada fila de lista. En Android se usa `elevation`; en iOS sombra.
+ */
+export const Elevation = {
+  card: Platform.select({
+    ios: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    android: { elevation: 2 },
+    default: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.08,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+  }),
+  floating: Platform.select({
+    ios: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+    },
+    android: { elevation: 6 },
+    default: {
+      shadowColor: Shadow,
+      shadowOpacity: 0.16,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 8 },
+    },
+  }),
 } as const;
 
 /**

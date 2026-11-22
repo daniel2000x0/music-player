@@ -22,31 +22,37 @@ import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
 import { formatSongCount } from '@/utils/format';
+import { useTranslation } from '@/hooks/use-translation';
 
 type SongAction = 'playlist' | 'edit' | 'delete';
 
-const SONG_ACTIONS: readonly Option<SongAction>[] = [
-  {
-    value: 'playlist',
-    label: 'Agregar a playlist',
-    description: 'Incluye esta canción en una playlist existente o nueva.',
-  },
-  {
-    value: 'edit',
-    label: 'Editar información',
-    description: 'Corrige el título, el artista o el álbum solo en esta app.',
-  },
-  {
-    value: 'delete',
-    label: 'Eliminar',
-    description: 'Quítala de la biblioteca o bórrala del dispositivo.',
-    destructive: true,
-  },
-];
+// NOTA (i18n): las opciones se construyen dentro del componente para que sus
+// etiquetas sigan el idioma activo (los `const` de módulo no pueden usar hooks).
 
 /** Detalle de artista con sus canciones y álbumes. */
 export default function ArtistDetailScreen() {
   const theme = useTheme();
+
+  const { tr, t } = useTranslation();
+
+  const songActions: readonly Option<SongAction>[] = [
+    {
+      value: 'playlist',
+      label: tr('Agregar a playlist'),
+      description: tr('Incluye esta canción en una playlist existente o nueva.'),
+    },
+    {
+      value: 'edit',
+      label: tr('Editar información'),
+      description: tr('Corrige el título, el artista o el álbum solo en esta app.'),
+    },
+    {
+      value: 'delete',
+      label: tr('Eliminar'),
+      description: tr('Quítala de la biblioteca o bórrala del dispositivo.'),
+      destructive: true,
+    },
+  ];
   const params = useLocalSearchParams<{ name?: string }>();
   const name = useMemo(() => {
     const raw = params.name ?? '';
@@ -127,17 +133,17 @@ export default function ArtistDetailScreen() {
   if (!artist || songs.length === 0) {
     return (
       <ScreenShell
-        title="Artista"
+        title={tr('Artista')}
         leading={
           <Pressable
             onPress={() => router.back()}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Volver">
+            accessibilityLabel={tr('Volver')}>
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }>
-        <EmptyState title="Artista no encontrado" message="Puede que ya no esté en tu biblioteca." />
+        <EmptyState title={tr('Artista no encontrado')} message={tr('Puede que ya no esté en tu biblioteca.')} />
       </ScreenShell>
     );
   }
@@ -146,14 +152,17 @@ export default function ArtistDetailScreen() {
     <>
       <ScreenShell
         title={artist.name}
-        subtitle={`${formatSongCount(artist.songCount)} · ${artist.albumCount} álbumes`}
+        subtitle={t('artistSummary', {
+          songs: formatSongCount(artist.songCount),
+          albums: artist.albumCount,
+        })}
         scroll={false}
         leading={
           <Pressable
             onPress={() => router.back()}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Volver">
+            accessibilityLabel={tr('Volver')}>
             <Ionicons name="chevron-back" size={26} color={theme.text} />
           </Pressable>
         }
@@ -183,7 +192,7 @@ export default function ArtistDetailScreen() {
                   style={[styles.playButton, { backgroundColor: theme.accent }]}>
                   <Ionicons name="play" size={18} color={theme.accentText} />
                   <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-                    Reproducir todo
+                    {tr('Reproducir todo')}
                   </ThemedText>
                 </Pressable>
               </View>
@@ -212,8 +221,8 @@ export default function ArtistDetailScreen() {
 
       <OptionSheet
         visible={menuSong !== null}
-        title={menuSong?.title ?? 'Opciones de canción'}
-        options={SONG_ACTIONS}
+        title={menuSong?.title ?? tr('Opciones de canción')}
+        options={songActions}
         onSelect={handleSongAction}
         onClose={() => setMenuSong(null)}
       />
@@ -234,7 +243,7 @@ export default function ArtistDetailScreen() {
       />
       <SongDeleteSheet
         visible={deleteTarget !== null}
-        title={deleteTarget?.title ?? 'Eliminar'}
+        title={deleteTarget?.title ?? tr('Eliminar')}
         onSelect={handleConfirmDelete}
         onClose={cancelDelete}
       />

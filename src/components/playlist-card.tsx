@@ -4,8 +4,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 import type { Playlist } from '@/types/playlist';
-import { formatSongCount } from '@/utils/format';
+import { displayMetadata, formatSongCount } from '@/utils/format';
 
 export type PlaylistCardProps = {
   playlist: Playlist;
@@ -23,20 +24,27 @@ export type PlaylistCardProps = {
  */
 export function PlaylistCard({ playlist, songCount, onPress, onMore }: PlaylistCardProps) {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`Abrir playlist ${playlist.name}, ${formatSongCount(songCount)}`}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+      accessibilityLabel={t('openPlaylist', {
+        name: displayMetadata(playlist.name),
+        count: formatSongCount(songCount),
+      })}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && styles.pressed,
+      ]}>
       <View style={[styles.thumb, { backgroundColor: theme.backgroundSelected }]}>
         <Ionicons name="list" size={24} color={theme.accent} />
       </View>
 
       <View style={styles.info}>
         <ThemedText type="smallBold" numberOfLines={1}>
-          {playlist.name}
+          {displayMetadata(playlist.name)}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {formatSongCount(songCount)}
@@ -49,7 +57,7 @@ export function PlaylistCard({ playlist, songCount, onPress, onMore }: PlaylistC
           onPress={onMore}
           style={styles.action}
           accessibilityRole="button"
-          accessibilityLabel={`Opciones de ${playlist.name}`}>
+          accessibilityLabel={t('optionsFor', { title: displayMetadata(playlist.name) })}>
           <Ionicons name="ellipsis-horizontal" size={20} color={theme.textSecondary} />
         </Pressable>
       ) : null}
@@ -62,10 +70,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.sm,
-    gap: Spacing.lg,
+    paddingHorizontal: Spacing.xs,
+    gap: Spacing.md,
+    borderRadius: Radius.medium,
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.72,
+    backgroundColor: 'rgba(127,127,127,0.08)',
   },
   thumb: {
     width: 52,

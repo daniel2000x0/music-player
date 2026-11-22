@@ -3,12 +3,14 @@ import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Artwork } from '@/components/artwork';
+import { AudioQualityBadge } from '@/components/audio-quality-badge';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
-import { formatDuration } from '@/utils/format';
+import { displayMetadata, formatDuration } from '@/utils/format';
+import { useTranslation } from '@/hooks/use-translation';
 
 export type SongRowProps = {
   /** Cola de reproducción al pulsar la fila. */
@@ -54,6 +56,9 @@ export const SongRow = memo(function SongRow({
 
   const theme = useTheme();
 
+
+  const { tr, t } = useTranslation();
+
   // Suscripción al estado del reproductor.
   const play = usePlayerStore((state) => state.play);
   const currentId = usePlayerStore(
@@ -98,18 +103,31 @@ export const SongRow = memo(function SongRow({
       accessibilityRole="button"
       accessibilityLabel={
         selectionActive
-          ? `${song.title}, ${song.artist}${selected ? ', seleccionada' : ''}`
-          : `Reproducir ${song.title}, de ${song.artist}`
+          ? t(selected ? 'selectedSong' : 'unselectedSong', {
+              title: song.title,
+              artist: song.artist,
+            })
+          : t('playSong', { title: song.title, artist: song.artist })
       }
       accessibilityHint={
-        selectionActive ? 'Toca para seleccionar o deseleccionar.' : undefined
+        selectionActive ? tr('Toca para seleccionar o deseleccionar.') : undefined
       }
       accessibilityState={selectionActive ? { selected } : undefined}
       style={({ pressed }) => [
         styles.row,
+        isCurrent && !selectionActive && { backgroundColor: theme.backgroundElement },
+        selected && selectionActive && { backgroundColor: theme.backgroundSelected },
         pressed && styles.pressed,
       ]}
     >
+      {/* Indicador de canción actual: refuerza el estado sin depender solo del color del título. */}
+      <View
+        style={[
+          styles.currentIndicator,
+          { backgroundColor: isCurrent && !selectionActive ? theme.accent : 'transparent' },
+        ]}
+      />
+
       {selectionActive ? (
         <Ionicons
           name={selected ? 'checkmark-circle' : 'ellipse-outline'}
@@ -127,7 +145,7 @@ export const SongRow = memo(function SongRow({
           themeColor={isCurrent ? 'accent' : 'text'}
           style={styles.title}
         >
-          {song.title}
+          {displayMetadata(song.title)}
         </ThemedText>
 
         <ThemedText
@@ -135,29 +153,38 @@ export const SongRow = memo(function SongRow({
           numberOfLines={1}
           themeColor="textSecondary"
         >
-          {song.artist}
+          {displayMetadata(song.artist)}
         </ThemedText>
-      </View>
 
-      <ThemedText
-        type="small"
-        themeColor="textSecondary"
-        style={styles.duration}
-      >
-        {formatDuration(song.duration)}
-      </ThemedText>
+        {/* Duración y formato en la misma fila; primero el tiempo, luego la píldora. */}
+        <View style={styles.metaRow}>
+          <ThemedText
+            type="small"
+            themeColor="textSecondary"
+            style={styles.duration}
+          >
+            {formatDuration(song.duration)}
+          </ThemedText>
+          <AudioQualityBadge
+            format={song.fileFormat}
+            bitDepth={song.bitDepth}
+            sampleRate={song.sampleRate}
+            bitrate={song.bitrate}
+          />
+        </View>
+      </View>
 
       {!selectionActive && showFavorite && onToggleFavorite ? (
         <Pressable
-          hitSlop={8}
+          hitSlop={10}
           onPress={handleToggleFavorite}
           style={styles.action}
           accessibilityRole="button"
           accessibilityState={{ selected: isFavorite }}
           accessibilityLabel={
             isFavorite
-              ? 'Quitar de favoritos'
-              : 'Agregar a favoritos'
+              ? tr('Quitar de favoritos')
+              : tr('Agregar a favoritos')
           }
         >
           <Ionicons
@@ -174,11 +201,11 @@ export const SongRow = memo(function SongRow({
 
       {!selectionActive && onMore ? (
         <Pressable
-          hitSlop={8}
+          hitSlop={10}
           onPress={handleMore}
           style={styles.action}
           accessibilityRole="button"
-          accessibilityLabel="Más opciones"
+          accessibilityLabel={tr('Más opciones')}
         >
           <Ionicons
             name="ellipsis-horizontal"
@@ -196,23 +223,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.sm,
-    gap: Spacing.lg,
+    paddingHorizontal: Spacing.sm,
+    gap: Spacing.md,
+    borderRadius: Radius.medium,
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.72,
+  },
+  currentIndicator: {
+    width: 3,
+    alignSelf: 'stretch',
+    borderRadius: Radius.pill,
+    marginVertical: 6,
   },
   info: {
     flex: 1,
-    gap: Spacing.xs,
+    gap: 2,
+    minWidth: 0,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    minHeight: 20,
+    marginTop: 2,
   },
   title: {
     flexShrink: 1,
   },
   duration: {
-    minWidth: 40,
-    textAlign: 'right',
+    minWidth: 36,
+    textAlign: 'left',
+    fontVariant: ['tabular-nums'],
   },
   action: {
-    padding: Spacing.xs,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

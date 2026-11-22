@@ -15,6 +15,9 @@
  * conserva el estado anterior para no romper la reproducción.
  */
 
+import { tr } from '@/i18n';
+import { getCurrentLanguage } from '@/i18n/current-language';
+
 export type SessionState =
   | 'idle'
   | 'preparing'
@@ -112,7 +115,7 @@ export function transitionTo(
 
   current = next;
   if (next === 'failed') {
-    lastError = options.error ?? 'Error de reproducción';
+    lastError = options.error ?? tr(getCurrentLanguage(), 'Error de reproducción');
   } else if (next === 'degraded') {
     // Degradarse no borra el motivo anterior: describe la capacidad ausente.
     lastError = options.error ?? lastError;
