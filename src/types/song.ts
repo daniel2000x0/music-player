@@ -30,6 +30,8 @@ export type Song = {
   sampleRate: number | null;
   /** Bitrate aproximado en kbps; `null` si no se conoce. */
   bitrate: number | null;
+  /** `true` cuando los metadatos del archivo indican letras disponibles. */
+  hasLyrics: boolean;
   artwork: string | null;
   /** Fecha de incorporación a la biblioteca (ms). */
   addedAt: number;
@@ -80,6 +82,8 @@ export type ScannedSong = {
   sampleRate: number | null;
   /** Bitrate aproximado en kbps; `null` si no se conoce. */
   bitrate: number | null;
+  /** `true` cuando los metadatos del archivo indican letras disponibles. */
+  hasLyrics: boolean;
   /** Fecha de modificación del asset (ms); `null` si el proveedor no la da. */
   modificationTime: number | null;
 };

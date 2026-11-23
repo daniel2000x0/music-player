@@ -106,7 +106,8 @@ describe('extractMp4Tags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-    });
+        hasLyrics: false,
+      });
   });
 
   it('decodifica acentos en UTF-8', async () => {
@@ -139,3 +140,8 @@ describe('extractMp4Tags', () => {
     expect(readBytes).toBeLessThan(200);
   });
 });
+
+  it('detecta disponibilidad de letras ?lyr', async () => {
+    const file = mp4File(textAtom('\u00a9lyr', 'Hello'));
+    expect((await extractMp4Tags(readerFor(file), file.length))?.hasLyrics).toBe(true);
+  });

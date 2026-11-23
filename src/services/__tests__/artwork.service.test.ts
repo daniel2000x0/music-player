@@ -86,6 +86,7 @@ function scanned(
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
+    hasLyrics: false,
     artwork: null,
     modificationTime: 1_000,
   };

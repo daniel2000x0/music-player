@@ -170,6 +170,7 @@ export const SongRow = memo(function SongRow({
             bitDepth={song.bitDepth}
             sampleRate={song.sampleRate}
             bitrate={song.bitrate}
+            hasLyrics={song.hasLyrics}
           />
         </View>
       </View>

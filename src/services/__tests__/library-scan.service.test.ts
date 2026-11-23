@@ -62,6 +62,7 @@ function scanned(track: DeviceTrack): ScannedSong {
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
+    hasLyrics: false,
     artwork: null,
     modificationTime: track.modificationTime,
   };

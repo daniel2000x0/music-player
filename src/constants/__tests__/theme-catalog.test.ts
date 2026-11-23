@@ -7,7 +7,7 @@ import { HERO_THEME_IDS, type ThemeMode } from '@/types/settings';
  * por defecto sin que la app lo notifique.
  */
 describe('theme catalog', () => {
-  it('ofrece los dos temas base y las seis familias de héroe', () => {
+  it('ofrece los dos temas base y las familias de héroe', () => {
     expect(THEME_CATALOG.map((item) => item.id)).toEqual([
       'light',
       'dark',
@@ -29,6 +29,7 @@ describe('theme catalog', () => {
       'SpiderMan',
       'Superman',
       'GreenLantern',
+      'HungerGames',
     ]);
     expect(new Set(names).size).toBe(names.length);
   });

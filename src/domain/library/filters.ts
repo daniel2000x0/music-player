@@ -39,6 +39,10 @@ export function filterSongs(
     if (view === 'favorites' && !favoriteIds.has(song.id)) {
       return false;
     }
+    // Filtro "Con letras": usa la disponibilidad detectada desde metadatos.
+    if (view === 'withLyrics' && !song.hasLyrics) {
+      return false;
+    }
     if (view === 'played' && song.playCount <= 0) {
       return false;
     }

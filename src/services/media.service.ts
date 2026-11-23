@@ -257,6 +257,7 @@ export async function readDeviceTrack(track: DeviceTrack): Promise<ScannedSong |
       bitDepth: tags?.bitDepth ?? null,
       sampleRate: tags?.sampleRate ?? null,
       bitrate: tags?.bitrate ?? null,
+      hasLyrics: tags?.hasLyrics ?? false,
       artwork: null,
       modificationTime: track.modificationTime,
     };

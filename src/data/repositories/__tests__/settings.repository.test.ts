@@ -162,6 +162,8 @@ describe('settingsRepository: idioma y vistas', () => {
       theme: 'light',
       volume: 0.3,
       language: 'en',
+      songView: 'all',
+      sortModes: { songs: 'title-asc', albums: 'title-asc', playlists: 'created-desc' },
       // La preferencia antigua se escribe ya normalizada.
       viewModes: { albums: 'smallIcons', songs: 'smallIcons' },
     });

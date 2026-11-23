@@ -40,6 +40,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/hooks/use-translation';
 import { useViewMode } from '@/hooks/use-view-mode';
 import { useLibraryStore } from '@/stores/library.store';
+import { useSettingsStore } from '@/stores/settings.store';
 import type { AlbumSortKey } from '@/types/filters';
 import type { Album } from '@/types/song';
 import { getGridMetrics } from '@/utils/grid-layout';
@@ -63,7 +64,8 @@ export default function AlbumsScreen() {
   const requestAccess = useLibraryStore((state) => state.requestAccess);
 
   const [query, setQuery] = useState('');
-  const [sortKey, setSortKey] = useState<AlbumSortKey>('title-asc');
+  const sortKey = useSettingsStore((state) => state.sortModes.albums);
+  const setSortMode = useSettingsStore((state) => state.setSortMode);
   const [sortVisible, setSortVisible] = useState(false);
 
   // El filtrado corre sobre el texto "asentado" (ver `useDebouncedValue`).
@@ -271,7 +273,7 @@ export default function AlbumsScreen() {
         title={tr('Ordenar álbumes')}
         options={sortOptions}
         value={sortKey}
-        onSelect={setSortKey}
+        onSelect={(value) => void setSortMode('albums', value)}
         onClose={() => setSortVisible(false)}
       />
     </>

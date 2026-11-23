@@ -4,7 +4,7 @@
     "slug": "mi-music-player",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/defaultLogo.jpg",
     "scheme": "mimusicplayer",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -157,6 +157,15 @@
               "foregroundImage": "./assets/images/launcher-icons/greenLantern/android-foreground.png",
               "monochromeImage": "./assets/images/launcher-icons/greenLantern/android-monochrome.png",
               "backgroundColor": "#0D110D"
+            }
+          },
+          {
+            "name": "HungerGames",
+            "ios": "./assets/images/defaultLogo.jpg",
+            "android": {
+              "foregroundImage": "./assets/images/Hungergames/defaultLogo.jpg",
+              "monochromeImage": "./assets/images/Hungergames/defaultLogo.jpg",
+              "backgroundColor": "#FAF9F6"
             }
           }
         ]

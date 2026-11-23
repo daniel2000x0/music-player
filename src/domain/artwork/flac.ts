@@ -326,6 +326,7 @@ export async function extractFlacTags(
     bitDepth: streamInfo.bitDepth,
     sampleRate: streamInfo.sampleRate,
     bitrate: null,
+    hasLyrics: false,
   };
   let found = streamInfo.bitDepth !== null || streamInfo.sampleRate !== null;
 
@@ -366,6 +367,10 @@ export async function extractFlacTags(
     } else if (key === 'TRACKNUMBER' && tags.track === null) {
       tags.track = parseTrackNumber(value);
       found = found || tags.track !== null;
+    } else if ((key === 'LYRICS' || key === 'UNSYNCEDLYRICS' || key === 'UNSYNCED LYRICS') && !tags.hasLyrics) {
+      // Solo marcamos disponibilidad; el texto completo no se persiste.
+      tags.hasLyrics = true;
+      found = true;
     }
   }
 

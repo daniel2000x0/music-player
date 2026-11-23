@@ -77,7 +77,7 @@ describe('Colors', () => {
     expect(Colors.light.text).not.toBe(Colors.dark.text);
   });
 
-  it('expone las seis familias de superhéroe con variante clara y oscura', () => {
+  it('expone las familias de superhéroe con variante clara y oscura', () => {
     const heroes = [
       'ironman',
       'avengers',
@@ -85,6 +85,7 @@ describe('Colors', () => {
       'spiderman',
       'superman',
       'greenLantern',
+      'hungergames',
     ] as const;
 
     for (const hero of heroes) {

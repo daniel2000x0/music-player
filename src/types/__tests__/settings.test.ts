@@ -1,7 +1,7 @@
 import { HERO_THEME_IDS, isHeroTheme, isThemeMode } from '@/types/settings';
 
 describe('identificadores de tema', () => {
-  it('acepta los dos temas base y las seis familias de héroe', () => {
+  it('acepta los dos temas base y las familias de héroe', () => {
     expect(isThemeMode('light')).toBe(true);
     expect(isThemeMode('dark')).toBe(true);
 

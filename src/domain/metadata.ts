@@ -22,6 +22,12 @@ export type AudioTags = {
   sampleRate: number | null;
   /** Bitrate aproximado en kbps si se puede derivar. */
   bitrate: number | null;
+  /**
+   * `true` solo cuando el archivo expone metadatos de letras (USLT/SYLT,
+   * ©lyr, LYRICS/UNSYNCEDLYRICS). Es un indicador de disponibilidad, no el
+   * contenido completo de la letra.
+   */
+  hasLyrics: boolean;
 };
 
 /** Autor/artista que se muestra cuando el archivo no trae etiqueta. */

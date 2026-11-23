@@ -51,6 +51,7 @@ const SONG_COLUMNS = [
   'bit_depth',
   'sample_rate',
   'bitrate',
+  'has_lyrics',
 ];
 
 beforeEach(() => {
@@ -112,7 +113,7 @@ describe('migrateDatabase: base nueva', () => {
   it('deja PRAGMA user_version en la versión actual', async () => {
     await migrateDatabase(db);
 
-    expect(DATABASE_VERSION).toBe(10);
+    expect(DATABASE_VERSION).toBe(11);
     expect(mockExecLog).toContain(`PRAGMA user_version = ${DATABASE_VERSION}`);
   });
 });
@@ -139,14 +140,14 @@ describe('migrateDatabase: esquema ya migrado', () => {
   it('añade solo la columna faltante en una BD de la versión anterior', async () => {
     mockTables.add('songs');
     mockTables.add('error_logs');
-    for (const column of SONG_COLUMNS.filter((name) => name !== 'modification_time')) {
+    for (const column of SONG_COLUMNS.filter((name) => name !== 'has_lyrics')) {
       mockColumns.add(column);
     }
 
     await migrateDatabase(db);
 
     expect(mockRunLog).toEqual([
-      'ALTER TABLE songs ADD COLUMN modification_time INTEGER',
+      'ALTER TABLE songs ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0',
     ]);
   });
 });

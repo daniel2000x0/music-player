@@ -15,6 +15,7 @@ export function makeSong(overrides: Partial<Song> = {}): Song {
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
+    hasLyrics: false,
     artwork: null,
     addedAt: 1_000,
     isAvailable: true,

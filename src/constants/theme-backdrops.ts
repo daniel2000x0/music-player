@@ -17,6 +17,8 @@ const BACKDROPS: Partial<Record<ThemeMode, ImageSource>> = {
   spiderman: require('../../assets/images/background/spiderman.jpg'),
   superman: require('../../assets/images/background/superman.jpg'),
   greenLantern: require('../../assets/images/background/greenlantern.jpg'),
+  // Fondo cinematogr?fico Sunrise on the Reaping (blanco/plata/champ?n).
+  hungergames: require('../../assets/images/background/HungerGames.jpg'),
 };
 
 export function themeBackdrop(theme: ThemeMode): ImageSource | null {

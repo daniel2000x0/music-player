@@ -76,6 +76,7 @@ function buildScanned(size: number): ScannedSong[] {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
+      hasLyrics: false,
       artwork: song.artwork,
       modificationTime: 1_000 + index,
     };
@@ -117,6 +118,7 @@ function buildMetadataInputs(scanned: ScannedSong[]): MetadataInput[] {
         bitDepth: null,
         sampleRate: null,
         bitrate: null,
+        hasLyrics: false,
       };
     } else if (index % 3 === 1) {
       tags = {
@@ -128,6 +130,7 @@ function buildMetadataInputs(scanned: ScannedSong[]): MetadataInput[] {
         bitDepth: null,
         sampleRate: null,
         bitrate: null,
+        hasLyrics: false,
       };
     }
     return {

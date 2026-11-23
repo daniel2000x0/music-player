@@ -24,6 +24,7 @@ const ARTIST_FRAMES = new Set(['TPE1', 'TP1']);
 const ALBUM_FRAMES = new Set(['TALB', 'TAL']);
 const ALBUM_ARTIST_FRAMES = new Set(['TPE2', 'TP2']);
 const TRACK_FRAMES = new Set(['TRCK', 'TRK']);
+const LYRICS_FRAMES = new Set(['USLT', 'SYLT', 'ULT', 'SLT']);
 
 type PictureFrame = {
   pictureType: number;
@@ -204,10 +205,20 @@ export function extractId3Tags(tag: Uint8Array): AudioTags | null {
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
+    hasLyrics: false,
   };
   let found = false;
 
   const valid = forEachFrame(tag, (frame) => {
+    // Detección de letras: solo marcamos disponibilidad, no guardamos contenido.
+    if (LYRICS_FRAMES.has(frame.id)) {
+      if (frame.end > frame.start + 1) {
+        tags.hasLyrics = true;
+        found = true;
+      }
+      return;
+    }
+
     if (
       !TITLE_FRAMES.has(frame.id) &&
       !ARTIST_FRAMES.has(frame.id) &&

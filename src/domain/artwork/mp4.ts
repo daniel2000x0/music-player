@@ -22,12 +22,14 @@ type Atom = AtomRange & {
 };
 
 /** Átomos de texto dentro de `ilst` que se mapean a `AudioTags`. */
-const TEXT_ATOMS: Record<string, Exclude<keyof AudioTags, 'track'>> = {
+const TEXT_ATOMS: Record<string, Exclude<keyof AudioTags, 'track' | 'hasLyrics' | 'bitDepth' | 'sampleRate' | 'bitrate'>> = {
   '\u00a9nam': 'title',
   '\u00a9ART': 'artist',
   '\u00a9alb': 'album',
   aART: 'albumArtist',
 };
+
+const LYRICS_ATOMS = new Set(['\u00a9lyr']);
 
 async function findAtom(
   read: AsyncByteReader,
@@ -172,10 +174,20 @@ export async function extractMp4Tags(
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
+    hasLyrics: false,
   };
   let found = false;
 
   await forEachAtom(read, ilst.payloadStart, ilst.end, async (atom) => {
+    // ©lyr indica letras disponibles; no leemos/guardamos el texto completo.
+    if (LYRICS_ATOMS.has(atom.type)) {
+      const dataAtom = await findAtom(read, atom.payloadStart, atom.end, 'data');
+      if (dataAtom && dataAtom.end > dataAtom.payloadStart + 8) {
+        tags.hasLyrics = true;
+        found = true;
+      }
+      return;
+    }
     if (atom.type === 'trkn') {
       const dataAtom = await findAtom(read, atom.payloadStart, atom.end, 'data');
       if (!dataAtom) {
@@ -210,7 +222,7 @@ export async function extractMp4Tags(
       return;
     }
     const text = cleanText(decodeUtf8(payload, 0, payload.length));
-    if (text && key !== 'bitDepth' && key !== 'sampleRate' && key !== 'bitrate') {
+    if (text) {
       tags[key] = text;
       found = true;
     }

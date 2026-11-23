@@ -20,6 +20,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/hooks/use-translation';
 import { useViewMode } from '@/hooks/use-view-mode';
 import { useLibraryStore } from '@/stores/library.store';
+import { useSettingsStore } from '@/stores/settings.store';
 import type { PlaylistSortKey } from '@/types/filters';
 import type { Playlist } from '@/types/playlist';
 import { displayMetadata } from '@/utils/format';
@@ -49,7 +50,8 @@ export default function PlaylistsScreen() {
   const renamePlaylist = useLibraryStore((state) => state.renamePlaylist);
   const deletePlaylist = useLibraryStore((state) => state.deletePlaylist);
 
-  const [sortKey, setSortKey] = useState<PlaylistSortKey>('created-desc');
+  const sortKey = useSettingsStore((state) => state.sortModes.playlists);
+  const setSortMode = useSettingsStore((state) => state.setSortMode);
   const [sortVisible, setSortVisible] = useState(false);
   const [promptVisible, setPromptVisible] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Playlist | null>(null);
@@ -293,7 +295,7 @@ export default function PlaylistsScreen() {
         title={tr('Ordenar playlists')}
         options={sortOptions}
         value={sortKey}
-        onSelect={setSortKey}
+        onSelect={(value) => void setSortMode('playlists', value)}
         onClose={() => setSortVisible(false)}
       />
       <OptionSheet

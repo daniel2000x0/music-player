@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Image } from 'expo-image';
 import { ArtworkReveal } from '@/components/artwork-reveal';
 import { AudioQualityBadge } from '@/components/audio-quality-badge';
 import { EmptyState } from '@/components/empty-state';
@@ -22,14 +21,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { VolumeControl } from '@/components/volume-control';
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
 import { useCapabilities } from '@/hooks/use-capabilities';
+import { useTheme } from '@/hooks/use-theme';
+import { useTranslation } from '@/hooks/use-translation';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
 import { formatDuration } from '@/utils/format';
 import { playerArtworkSize, playerContentGap } from '@/utils/player-layout';
-import { useTranslation } from '@/hooks/use-translation';
 
 /**
  * Bloque de progreso (barra + tiempos). Suscribe posición y duración al
@@ -116,6 +115,8 @@ export default function PlayerScreen() {
 
   const artworkSize = playerArtworkSize(width, height);
   const contentGap = playerContentGap(height);
+  const compact = height < 740;
+  const ultraCompact = height < 680;
 
   if (!currentSong) {
     return (
@@ -170,34 +171,32 @@ export default function PlayerScreen() {
           </Pressable>
         </View>
 
-        <Animated.ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
+        <Animated.View
+          style={[
+            styles.content,
             {
               gap: contentGap,
-              paddingBottom: Math.max(insets.bottom, Spacing.xl),
+              paddingBottom: Math.max(insets.bottom, Spacing.sm),
+              opacity: enter,
+              transform: [
+                { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+              ],
             },
-          ]}
-          showsVerticalScrollIndicator
-          style={{
-            opacity: enter,
-            transform: [
-              { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
-            ],
-          }}>
+          ]}>
           {!capabilities['playback.lockScreen'] ||
           sessionState === 'degraded' ||
           lockScreen.status === 'degraded' ? (
             <View
               style={[
                 styles.lockNotice,
+                compact && styles.lockNoticeCompact,
                 { backgroundColor: theme.backgroundElement, borderColor: theme.border },
               ]}
               accessibilityRole="alert"
               accessibilityLiveRegion="polite">
               <Ionicons name="warning-outline" size={16} color={theme.danger} />
               <View style={styles.lockNoticeBody}>
-                <ThemedText type="small" themeColor="textSecondary">
+                <ThemedText type="small" themeColor="textSecondary" numberOfLines={compact ? 2 : 3}>
                   {lockScreenWarning}
                 </ThemedText>
                 {canOpenNotificationSettings ? (
@@ -215,50 +214,35 @@ export default function PlayerScreen() {
             </View>
           ) : null}
 
+          {/* Portada protagonista, con tamaño calculado para evitar scroll. */}
           <View style={[styles.artworkHero, { width: artworkSize, height: artworkSize }]}>
-            {currentSong.artwork ? (
-              <Image
-                source={{ uri: currentSong.artwork }}
-                style={styles.artworkBackdrop}
-                contentFit="cover"
-                blurRadius={28}
-                recyclingKey={`${currentSong.artwork}-bg`}
-              />
-            ) : null}
-            <View style={[styles.artworkBackdropTint, { backgroundColor: theme.background }]} />
             <ArtworkReveal uri={currentSong.artwork} size={artworkSize} radius={Radius.large} elevated />
           </View>
 
-          <View
-            style={[
-              styles.metaSurface,
-              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}>
-            <ThemedText type="subtitle" numberOfLines={2} style={styles.songTitle}>
+          <View style={[styles.metaBlock, compact && styles.metaBlockCompact]}>
+            <ThemedText
+              type="subtitle"
+              numberOfLines={ultraCompact ? 1 : 2}
+              style={[styles.songTitle, compact && styles.songTitleCompact]}>
               {currentSong.title}
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.artistLine}>
               {currentSong.artist} · {currentSong.album}
             </ThemedText>
-            {/* Formato informativo: FLAC verde, resto neutro. */}
             <View style={styles.qualityRow}>
               <AudioQualityBadge
                 format={currentSong.fileFormat}
                 bitDepth={currentSong.bitDepth}
                 sampleRate={currentSong.sampleRate}
                 bitrate={currentSong.bitrate}
+                hasLyrics={currentSong.hasLyrics}
               />
             </View>
           </View>
 
           <PlayerProgress onSeek={seek} trackKey={currentSong.id} />
 
-          <View
-            style={[
-              styles.controlsSurface,
-              { backgroundColor: theme.backgroundElement, borderColor: theme.border },
-            ]}>
-            {/* Fila 1: modos de reproducción */}
+          <View style={styles.controlsBlock}>
             <View style={styles.modeRow}>
               <Pressable
                 hitSlop={8}
@@ -267,15 +251,35 @@ export default function PlayerScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={tr('Aleatorio')}
                 accessibilityState={{ selected: shuffle }}>
-                <Ionicons
-                  name="shuffle"
-                  size={22}
-                  color={shuffle ? theme.accent : theme.textSecondary}
-                />
-                <ThemedText type="small" themeColor={shuffle ? 'accent' : 'textSecondary'}>
-                  {tr('Aleatorio')}
-                </ThemedText>
+                <Ionicons name="shuffle" size={22} color={shuffle ? theme.accent : theme.textSecondary} />
               </Pressable>
+
+              <View style={styles.transportRow}>
+                <Pressable hitSlop={8} onPress={previous} style={styles.secondaryControl} accessibilityRole="button" accessibilityLabel={tr('Anterior')}>
+                  <Ionicons name="play-skip-back" size={30} color={theme.text} />
+                </Pressable>
+
+                <Pressable
+                  onPress={toggle}
+                  style={[styles.playButton, compact && styles.playButtonCompact, { backgroundColor: theme.accent }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={tr('Reproducir o pausar')}>
+                  {isBuffering ? (
+                    <ActivityIndicator color={theme.accentText} />
+                  ) : (
+                    <Ionicons
+                      name={isPlaying ? 'pause' : 'play'}
+                      size={compact ? 30 : 34}
+                      color={theme.accentText}
+                      style={!isPlaying ? styles.playIcon : undefined}
+                    />
+                  )}
+                </Pressable>
+
+                <Pressable hitSlop={8} onPress={next} style={styles.secondaryControl} accessibilityRole="button" accessibilityLabel={tr('Siguiente')}>
+                  <Ionicons name="play-skip-forward" size={30} color={theme.text} />
+                </Pressable>
+              </View>
 
               <Pressable
                 hitSlop={8}
@@ -296,14 +300,10 @@ export default function PlayerScreen() {
                     </View>
                   ) : null}
                 </View>
-                <ThemedText type="small" themeColor={repeatMode !== 'none' ? 'accent' : 'textSecondary'}>
-                  {repeatLabel}
-                </ThemedText>
               </Pressable>
             </View>
 
-            {/* Fila 2: controles principales */}
-            <View style={styles.controls}>
+            <View style={styles.actionRow}>
               <Pressable
                 hitSlop={8}
                 onPress={() => void toggleFavorite(currentSong.id)}
@@ -313,34 +313,18 @@ export default function PlayerScreen() {
                 accessibilityState={{ selected: favorite }}>
                 <Ionicons
                   name={favorite ? 'heart' : 'heart-outline'}
-                  size={26}
+                  size={24}
                   color={favorite ? theme.accent : theme.textSecondary}
                 />
               </Pressable>
 
-              <Pressable hitSlop={8} onPress={previous} style={styles.secondaryControl} accessibilityRole="button" accessibilityLabel={tr('Anterior')}>
-                <Ionicons name="play-skip-back" size={32} color={theme.text} />
-              </Pressable>
-
               <Pressable
-                onPress={toggle}
-                style={[styles.playButton, { backgroundColor: theme.accent }]}
+                hitSlop={8}
+                onPress={() => router.push('/queue')}
+                style={styles.secondaryControl}
                 accessibilityRole="button"
-                accessibilityLabel={tr('Reproducir o pausar')}>
-                {isBuffering ? (
-                  <ActivityIndicator color={theme.accentText} />
-                ) : (
-                  <Ionicons
-                    name={isPlaying ? 'pause' : 'play'}
-                    size={34}
-                    color={theme.accentText}
-                    style={styles.playIcon}
-                  />
-                )}
-              </Pressable>
-
-              <Pressable hitSlop={8} onPress={next} style={styles.secondaryControl} accessibilityRole="button" accessibilityLabel={tr('Siguiente')}>
-                <Ionicons name="play-skip-forward" size={32} color={theme.text} />
+                accessibilityLabel={tr('Cola de reproducción')}>
+                <Ionicons name="list" size={24} color={theme.textSecondary} />
               </Pressable>
 
               <Pressable
@@ -349,13 +333,13 @@ export default function PlayerScreen() {
                 style={styles.secondaryControl}
                 accessibilityRole="button"
                 accessibilityLabel={tr('Agregar a playlist')}>
-                <Ionicons name="add-circle-outline" size={26} color={theme.textSecondary} />
+                <Ionicons name="add-circle-outline" size={24} color={theme.textSecondary} />
               </Pressable>
             </View>
           </View>
 
           <VolumeControl volume={volume} onChange={setVolume} />
-        </Animated.ScrollView>
+        </Animated.View>
       </SafeAreaView>
 
       <PlaylistPicker
@@ -393,9 +377,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scrollContent: {
+  content: {
+    flex: 1,
     alignItems: 'center',
-    paddingTop: Spacing.lg,
+    justifyContent: 'space-between',
+    paddingTop: Spacing.sm,
   },
   lockNotice: {
     alignSelf: 'stretch',
@@ -404,66 +390,42 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: Radius.medium,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  lockNoticeCompact: {
+    paddingVertical: 6,
   },
   lockNoticeBody: {
     flex: 1,
-    gap: Spacing.xs,
-  },
-  meta: {
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
-  },
-  metaSurface: {
-    alignSelf: 'stretch',
-    alignItems: 'center',
     gap: 2,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.large,
-    borderWidth: 1,
-  },
-  controlsSurface: {
-    alignSelf: 'stretch',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.sm,
-    borderRadius: Radius.large,
-    borderWidth: 1,
-  },
-  secondaryControl: {
-    minWidth: 44,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   artworkHero: {
     alignSelf: 'center',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  artworkBackdrop: {
-    position: 'absolute',
-    width: '124%',
-    height: '124%',
-    borderRadius: Radius.large,
-    opacity: 0.35,
+  metaBlock: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: Spacing.sm,
   },
-  artworkBackdropTint: {
-    ...StyleSheet.absoluteFill,
-    opacity: 0.2,
-    borderRadius: Radius.large,
+  metaBlockCompact: {
+    gap: 0,
   },
   qualityRow: {
     marginTop: 2,
     alignItems: 'center',
   },
   songTitle: {
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 28,
+    lineHeight: 34,
     textAlign: 'center',
+  },
+  songTitleCompact: {
+    fontSize: 24,
+    lineHeight: 30,
   },
   artistLine: {
     textAlign: 'center',
@@ -477,26 +439,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xs,
   },
-  modeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xl,
+  controlsBlock: {
     alignSelf: 'stretch',
-  },
-  modeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: Spacing.xs,
-    paddingVertical: 2,
-    paddingHorizontal: Spacing.xs,
-    minHeight: 36,
   },
-  controls: {
+  modeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     alignSelf: 'stretch',
+  },
+  transportRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.lg,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xl,
+  },
+  modeButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryControl: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   playButton: {
     width: 72,
@@ -505,13 +480,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  playButtonCompact: {
+    width: 64,
+    height: 64,
+  },
   playIcon: {
-    marginLeft: Spacing.xs,
+    marginLeft: 2,
   },
   repeatBadge: {
     position: 'absolute',
-    right: -4,
-    top: -4,
+    right: -2,
+    top: -2,
     minWidth: 12,
     height: 12,
     borderRadius: 6,
@@ -523,5 +502,4 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     fontWeight: '700',
   },
-  // Acciones principales integradas en la fila de controles para evitar ruido.
 });

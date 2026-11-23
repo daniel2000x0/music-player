@@ -2,10 +2,13 @@ import { getDatabase } from '@/data/db/database';
 import { isAppLanguage, DEFAULT_LANGUAGE, type AppLanguage } from '@/i18n';
 import {
   DEFAULT_SETTINGS,
+  DEFAULT_SORT_MODES,
   isThemeMode,
   type AppSettings,
+  type SortModes,
   type ThemeMode,
 } from '@/types/settings';
+import type { AlbumSortKey, PlaylistSortKey, SongSortKey, SongView } from '@/types/filters';
 import {
   DEFAULT_VIEW_MODES,
   isViewModeTab,
@@ -18,6 +21,45 @@ function toVolume(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, Math.min(1, value))
     : DEFAULT_SETTINGS.volume;
+}
+
+const SONG_VIEWS: readonly SongView[] = ['all', 'favorites', 'withLyrics', 'played', 'unplayed'];
+const SONG_SORT_KEYS: readonly SongSortKey[] = [
+  'title-asc', 'title-desc', 'artist-asc', 'artist-desc', 'album-asc', 'album-desc',
+  'duration-asc', 'duration-desc', 'added-asc', 'added-desc', 'plays-asc', 'plays-desc',
+  'lastPlayed-asc', 'lastPlayed-desc',
+];
+const ALBUM_SORT_KEYS: readonly AlbumSortKey[] = [
+  'title-asc', 'title-desc', 'artist-asc', 'artist-desc', 'added-asc', 'added-desc',
+  'songs-asc', 'songs-desc', 'duration-asc', 'duration-desc',
+];
+const PLAYLIST_SORT_KEYS: readonly PlaylistSortKey[] = [
+  'name-asc', 'name-desc', 'created-asc', 'created-desc', 'songs-asc', 'songs-desc',
+];
+
+function isSongView(value: unknown): value is SongView {
+  return SONG_VIEWS.includes(value as SongView);
+}
+
+function isSongSortKey(value: unknown): value is SongSortKey {
+  return SONG_SORT_KEYS.includes(value as SongSortKey);
+}
+
+function isAlbumSortKey(value: unknown): value is AlbumSortKey {
+  return ALBUM_SORT_KEYS.includes(value as AlbumSortKey);
+}
+
+function isPlaylistSortKey(value: unknown): value is PlaylistSortKey {
+  return PLAYLIST_SORT_KEYS.includes(value as PlaylistSortKey);
+}
+
+function parseSortModes(value: unknown): SortModes {
+  const raw = (value ?? {}) as Partial<Record<keyof SortModes, unknown>>;
+  return {
+    songs: isSongSortKey(raw.songs) ? raw.songs : DEFAULT_SORT_MODES.songs,
+    albums: isAlbumSortKey(raw.albums) ? raw.albums : DEFAULT_SORT_MODES.albums,
+    playlists: isPlaylistSortKey(raw.playlists) ? raw.playlists : DEFAULT_SORT_MODES.playlists,
+  };
 }
 
 /**
@@ -59,6 +101,8 @@ function parseSettings(value: string | null): AppSettings {
       volume: toVolume(parsed.volume),
       language: isAppLanguage(parsed.language) ? parsed.language : DEFAULT_LANGUAGE,
       viewModes,
+      songView: isSongView(parsed.songView) ? parsed.songView : DEFAULT_SETTINGS.songView,
+      sortModes: parseSortModes(parsed.sortModes),
     };
   } catch {
     return DEFAULT_SETTINGS;
@@ -105,6 +149,20 @@ export const settingsRepository = {
     await saveSettings({
       ...current,
       viewModes: { ...current.viewModes, [tab]: mode },
+    });
+  },
+
+  /** Vista/filtro activo de Canciones; persiste para reabrir la app igual. */
+  async setSongView(songView: SongView): Promise<void> {
+    await saveSettings({ ...(await getSettings()), songView });
+  },
+
+  /** Orden por pestaña. Merge parcial para no perder otros órdenes guardados. */
+  async setSortMode<T extends keyof SortModes>(tab: T, sortKey: SortModes[T]): Promise<void> {
+    const current = await getSettings();
+    await saveSettings({
+      ...current,
+      sortModes: { ...current.sortModes, [tab]: sortKey },
     });
   },
 };

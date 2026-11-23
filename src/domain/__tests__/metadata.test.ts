@@ -64,7 +64,8 @@ describe('resolveSongMetadata', () => {
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
-  };
+      hasLyrics: false,
+    };
 
   it('prioriza las etiquetas sobre el nombre de archivo', () => {
     expect(

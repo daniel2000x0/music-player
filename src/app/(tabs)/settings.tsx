@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -27,10 +28,12 @@ import { themeAppIcon } from '@/constants/theme-catalog';
 import { canChangeAppIcon, setAppIconForTheme } from '@/services/app-icon.service';
 import type { Capability } from '@/services/capabilities';
 import {
-  applyAppUpdate,
-  checkForAppUpdate,
-  downloadAppUpdate,
-} from '@/services/update.service';
+  checkLatestGithubRelease,
+  downloadReleaseApk,
+  getCurrentAppVersion,
+  type GithubReleaseInfo,
+  canInstallApkInCurrentRuntime,
+} from '@/services/github-release.service';
 import { useLibraryStore } from '@/stores/library.store';
 import { useNoticeStore } from '@/stores/notice.store';
 import { useSettingsStore } from '@/stores/settings.store';
@@ -106,82 +109,163 @@ function ActionRow({
 }
 
 // Sección de actualizaciones OTA.
-type UpdateSectionProps = {
-  onCheckUpdates: () => Promise<string>;
-};
+type ReleaseState =
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'error'; message: string }
+  | { kind: 'up-to-date'; currentVersion: string; latest: GithubReleaseInfo }
+  | { kind: 'available'; currentVersion: string; latest: GithubReleaseInfo; downloadedUri?: string; downloading?: boolean; progress?: string };
 
-// Componente independiente para consultar actualizaciones.
-function UpdateSection({ onCheckUpdates }: UpdateSectionProps) {
+function UpdateSection() {
   const theme = useTheme();
   const { tr } = useTranslation();
+  const [state, setState] = useState<ReleaseState>({ kind: 'idle' });
 
-  // Estado local de la consulta de actualizaciones.
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
-  const handleCheckUpdates = async () => {
-    if (loading) return;
-
-    setLoading(true);
-    setMessage('');
-
+  const check = useCallback(async () => {
+    setState({ kind: 'checking' });
     try {
-      const result = await onCheckUpdates();
-      setMessage(result);
+      const result = await checkLatestGithubRelease();
+      if (result.status === 'up-to-date') {
+        setState({ kind: 'up-to-date', currentVersion: result.currentVersion, latest: result.latest });
+        return;
+      }
+      if (result.status === 'available') {
+        setState({ kind: 'available', currentVersion: result.currentVersion, latest: result.latest });
+        return;
+      }
+      setState({ kind: 'error', message: tr('No se pudo consultar GitHub Releases.') });
     } catch {
-      setMessage(tr('No se pudieron consultar las actualizaciones.'));
-    } finally {
-      setLoading(false);
+      setState({ kind: 'error', message: tr('No se pudo consultar GitHub Releases.') });
     }
-  };
+  }, [tr]);
+
+  const downloadApk = useCallback(async () => {
+    if (state.kind !== 'available') return;
+    if (Platform.OS !== 'android') {
+      Alert.alert(tr('Actualizaci?n APK'), tr('La descarga del APK no est? disponible en Expo Go. Usa una build instalada para instalar actualizaciones.'));
+      return;
+    }
+    setState({ ...state, downloading: true, progress: tr('Descargando actualizaci?n?') });
+    try {
+      const file = await downloadReleaseApk(state.latest, (p) => {
+        const pct = p.fraction != null ? Math.round(p.fraction * 100) : null;
+        setState((prev) => prev.kind === 'available' ? { ...prev, downloading: true, progress: pct != null ? pct + '%' : tr('Descargando actualizaci?n?') } : prev);
+      });
+      setState((prev) => prev.kind === 'available' ? { ...prev, downloading: false, downloadedUri: file.uri, progress: tr('APK descargado. Confirma la instalaci?n en Android.') } : prev);
+      if (!canInstallApkInCurrentRuntime()) {
+        Alert.alert(
+          tr('Actualizaci?n APK'),
+          tr('La descarga del APK no est? disponible en Expo Go. Usa una build instalada para instalar actualizaciones.'),
+          [
+            { text: tr('Cancelar'), style: 'cancel' },
+            { text: tr('Abrir p?gina de descarga'), onPress: () => void Linking.openURL(state.latest.htmlUrl) },
+          ]
+        );
+      } else {
+        Alert.alert(
+          tr('Actualizaci?n APK'),
+          tr('La instalaci?n autom?tica no est? disponible en este entorno. Se abri? la descarga para que puedas instalarla manualmente.'),
+          [
+            { text: tr('Despu?s'), style: 'cancel' },
+            { text: tr('Abrir p?gina de descarga'), onPress: () => void Linking.openURL(state.latest.htmlUrl) },
+          ]
+        );
+      }
+    } catch {
+      setState((prev) => prev.kind === 'available' ? { ...prev, downloading: false, progress: tr('Error al descargar la actualizaci?n.') } : prev);
+      Alert.alert(tr('Actualizaci?n APK'), tr('Error al descargar la actualizaci?n.'));
+    }
+  }, [state, tr]);
+
+  const latest = state.kind === 'available' || state.kind === 'up-to-date' ? state.latest : null;
+  const currentVersion = state.kind === 'available' || state.kind === 'up-to-date' ? state.currentVersion : getCurrentAppVersion();
 
   return (
-    <Pressable
-      onPress={() => void handleCheckUpdates()}
-      disabled={loading}
-      accessibilityRole="button"
-      accessibilityLabel={tr('Buscar actualizaciones')}
-      style={({ pressed }) => [
-        styles.updateCard,
-        { backgroundColor: theme.backgroundElement },
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={styles.updateIcon}>
-        {loading ? (
-          <ActivityIndicator size="small" color={theme.accent} />
-        ) : (
-          <Ionicons
-            name="cloud-download-outline"
-            size={25}
-            color={theme.accent}
-          />
-        )}
+    <View style={[styles.updateCard, { backgroundColor: theme.backgroundElement }]}> 
+      <View style={styles.updateHeaderRow}>
+        <View style={styles.updateIcon}>
+          {state.kind === 'checking' ? (
+            <ActivityIndicator size="small" color={theme.accent} />
+          ) : (
+            <Ionicons name="cloud-download-outline" size={25} color={theme.accent} />
+          )}
+        </View>
+        <View style={styles.updateInfo}>
+          <ThemedText type="smallBold">{tr('Buscar actualizaci?n APK')}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {state.kind === 'checking'
+              ? tr('Buscando actualizaciones...')
+              : state.kind === 'error'
+                ? state.message
+                : state.kind === 'available'
+                  ? tr('?ltima versi?n') + ': ' + state.latest.version
+                  : state.kind === 'up-to-date'
+                    ? tr('Ya tienes la ?ltima versi?n instalada.')
+                    : tr('Consulta si hay novedades disponibles')}
+          </ThemedText>
+        </View>
       </View>
 
-      <View style={styles.updateInfo}>
-        <ThemedText type="smallBold">
-          {loading
-            ? tr('Buscando actualizaciones...')
-            : tr('Buscar actualizaciones')}
-        </ThemedText>
-
-        <ThemedText type="small" themeColor="textSecondary">
-          {message || tr('Consulta si hay novedades disponibles')}
-        </ThemedText>
+      <View style={styles.updateMeta}>
+        <ThemedText type="small" themeColor="textSecondary">{tr('Versi?n instalada')}: {currentVersion}</ThemedText>
+        {latest ? <ThemedText type="small" themeColor="textSecondary">{tr('?ltima versi?n')}: {latest.version}</ThemedText> : null}
+        {latest?.apkAsset ? <ThemedText type="small" themeColor="textSecondary">{tr('Tama?o')}: {(latest.apkAsset.size / (1024 * 1024)).toFixed(1)} MB</ThemedText> : null}
+        <ThemedText type="small" themeColor="textSecondary">{tr('Fuente')}: GitHub Releases</ThemedText>
       </View>
 
-      {!loading && (
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={theme.textSecondary}
-        />
-      )}
-    </Pressable>
+      {latest?.body ? (
+        <View style={styles.releaseNotes}>
+          <ThemedText type="smallBold">{tr('Notas de la versi?n')}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary" numberOfLines={6}>{latest.body}</ThemedText>
+        </View>
+      ) : null}
+
+      {state.kind === 'available' && !state.latest.apkAsset ? (
+        <ThemedText type="small" style={{ color: theme.danger }}>{tr('No se encontr? un APK en la ?ltima release.')}</ThemedText>
+      ) : null}
+
+      {state.kind === 'available' && state.downloading ? (
+        <ThemedText type="small" themeColor="textSecondary">{state.progress ?? tr('Descargando actualizaci?n?')}</ThemedText>
+      ) : null}
+
+      <View style={styles.updateActions}>
+        <Pressable
+          onPress={() => void check()}
+          disabled={state.kind === 'checking' || (state.kind === 'available' && !!state.downloading)}
+          accessibilityRole="button"
+          accessibilityLabel={tr('Buscar actualizaciones')}
+          style={[styles.updateActionBtn, { borderColor: theme.border }]}> 
+          <ThemedText type="smallBold">{tr('Buscar actualizaciones')}</ThemedText>
+        </Pressable>
+
+        {state.kind === 'available' && state.latest.apkAsset ? (
+          <Pressable
+            onPress={() => void downloadApk()}
+            disabled={!!state.downloading}
+            accessibilityRole="button"
+            accessibilityLabel={tr('Descargar APK')}
+            style={[styles.updateActionBtn, { backgroundColor: theme.accent, borderColor: theme.accent }]}> 
+            <ThemedText type="smallBold" style={{ color: theme.accentText }}>{tr('Descargar APK')}</ThemedText>
+          </Pressable>
+        ) : null}
+
+        {latest ? (
+          <Pressable
+            onPress={() => void Linking.openURL(latest.htmlUrl)}
+            accessibilityRole="button"
+            accessibilityLabel={tr('Abrir p?gina de descarga')}
+            style={[styles.updateActionBtn, { borderColor: theme.border }]}> 
+            <ThemedText type="smallBold">{tr('Abrir p?gina de descarga')}</ThemedText>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <ThemedText type="small" themeColor="textSecondary">
+        {tr('La descarga del APK no est? disponible en Expo Go. Usa una build instalada para instalar actualizaciones.')}
+      </ThemedText>
+    </View>
   );
 }
-
 /** Pantalla de configuración: apariencia y administración. */
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -258,58 +342,6 @@ export default function SettingsScreen() {
   const restoreHiddenSongs = useLibraryStore((state) => state.restoreHiddenSongs);
 
   const [working, setWorking] = useState(false);
-
-  // Consulta real de OTA: informa el estado y, si hay actualización, ofrece
-  // descargarla y reiniciar. En web/Expo Go las actualizaciones no aplican.
-  const checkForUpdates = useCallback(async (): Promise<string> => {
-    if (Platform.OS === 'web') {
-      return tr('Las actualizaciones OTA no están disponibles en la versión web.');
-    }
-
-    const status = await checkForAppUpdate();
-
-    if (status === 'disabled') {
-      return tr('No disponible en Expo Go ni en modo desarrollo.');
-    }
-
-    if (status === 'not-available') {
-      return tr('Ya tienes la última versión instalada.');
-    }
-
-    const accepted = await new Promise<boolean>((resolve) => {
-      Alert.alert(
-        tr('Actualización disponible'),
-        tr('Hay una nueva versión del reproductor. ¿Deseas descargarla ahora?'),
-        [
-          { text: tr('Cancelar'), style: 'cancel', onPress: () => resolve(false) },
-          { text: tr('Descargar'), onPress: () => resolve(true) },
-        ],
-        { cancelable: true, onDismiss: () => resolve(false) }
-      );
-    });
-
-    if (!accepted) {
-      return tr('Actualización disponible. Puedes instalarla más tarde.');
-    }
-
-    await downloadAppUpdate();
-
-    Alert.alert(
-      tr('Actualización descargada'),
-      tr('La actualización está lista. Reinicia la aplicación para aplicarla.'),
-      [
-        { text: tr('Después'), style: 'cancel' },
-        {
-          text: tr('Reiniciar ahora'),
-          onPress: () => {
-            void applyAppUpdate();
-          },
-        },
-      ]
-    );
-
-    return tr('Actualización descargada. Reinicia la app para aplicarla.');
-  }, [tr]);
 
   // Barrido manual de carátulas ausentes (`FASE 5.1`): revisa las pistas sin
   // portada (FLAC incluidos) y las carpetas con `cover.jpg`.
@@ -617,7 +649,7 @@ export default function SettingsScreen() {
         <SectionHeader title={tr('Actualizaciones')} />
 
         <View style={styles.section}>
-          <UpdateSection onCheckUpdates={checkForUpdates} />
+          <UpdateSection />
         </View>
       </View>
     </ScreenShell>
@@ -671,11 +703,23 @@ const styles = StyleSheet.create({
   },
 
   updateCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.md,
     padding: Spacing.lg,
     borderRadius: Radius.medium,
+  },
+  updateHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  updateMeta: { gap: 2 },
+  releaseNotes: { gap: 4, paddingTop: Spacing.xs },
+  updateActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  updateActionBtn: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.medium,
+    borderWidth: 1,
   },
 
   updateIcon: {

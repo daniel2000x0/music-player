@@ -2,8 +2,8 @@ import { hasThemeBackdrop, themeBackdrop } from '@/constants/theme-backdrops';
 import { HERO_THEME_IDS } from '@/types/settings';
 
 describe('fondos de tema', () => {
-  it('todos los superhéroes tienen fondo de pantalla propio', () => {
-    expect(HERO_THEME_IDS).toHaveLength(6);
+  it('todos los temas con fondo de héroe tienen fondo de pantalla propio', () => {
+    expect(HERO_THEME_IDS).toHaveLength(7);
     for (const id of HERO_THEME_IDS) {
       expect(themeBackdrop(id)).not.toBeNull();
       expect(hasThemeBackdrop(id)).toBe(true);

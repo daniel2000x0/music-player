@@ -8,15 +8,25 @@
  */
 import { settingsRepository } from '@/data/repositories/settings.repository';
 import { useSettingsStore } from '@/stores/settings.store';
+import { DEFAULT_SETTINGS } from '@/types/settings';
 import { DEFAULT_VIEW_MODES } from '@/types/view-mode';
 
 jest.mock('@/data/repositories/settings.repository', () => ({
   settingsRepository: {
-    get: jest.fn(async () => ({ theme: 'dark', volume: 1, language: 'es', viewModes: {} })),
+    get: jest.fn(async () => ({
+      theme: 'dark',
+      volume: 1,
+      language: 'es',
+      viewModes: {},
+      songView: 'all',
+      sortModes: { songs: 'title-asc', albums: 'title-asc', playlists: 'created-desc' },
+    })),
     setTheme: jest.fn(async () => undefined),
     setVolume: jest.fn(async () => undefined),
     setLanguage: jest.fn(async () => undefined),
     setViewMode: jest.fn(async () => undefined),
+    setSongView: jest.fn(async () => undefined),
+    setSortMode: jest.fn(async () => undefined),
   },
 }));
 
@@ -31,9 +41,11 @@ beforeEach(() => {
     hydrated: false,
     language: 'es',
     viewModes: { ...DEFAULT_VIEW_MODES },
+    songView: 'all',
+    sortModes: { songs: 'title-asc', albums: 'title-asc', playlists: 'created-desc' },
   });
   jest.clearAllMocks();
-  mockedGet.mockResolvedValue({ theme: 'dark', volume: 1, language: 'es', viewModes: {} });
+  mockedGet.mockResolvedValue(DEFAULT_SETTINGS);
 });
 
 describe('settings.store: tema', () => {
@@ -46,7 +58,7 @@ describe('settings.store: tema', () => {
   });
 
   it('hydrate lee el repositorio y aplica el tema guardado', async () => {
-    mockedGet.mockResolvedValueOnce({ theme: 'light', volume: 0.4, language: 'es', viewModes: {} });
+    mockedGet.mockResolvedValueOnce({ ...DEFAULT_SETTINGS, theme: 'light', volume: 0.4 });
 
     await useSettingsStore.getState().hydrate();
 
@@ -58,7 +70,7 @@ describe('settings.store: tema', () => {
   });
 
   it('hydrate respeta el tema oscuro persistido', async () => {
-    mockedGet.mockResolvedValueOnce({ theme: 'dark', volume: 1, language: 'es', viewModes: {} });
+    mockedGet.mockResolvedValueOnce({ ...DEFAULT_SETTINGS, theme: 'dark' });
 
     await useSettingsStore.getState().hydrate();
 
@@ -88,10 +100,8 @@ describe('settings.store: tema', () => {
 describe('settings.store: idioma y vistas', () => {
   it('hidrata el idioma y las vistas guardadas', async () => {
     mockedGet.mockResolvedValueOnce({
-      theme: 'dark',
-      volume: 1,
+      ...DEFAULT_SETTINGS,
       language: 'en',
-      // El repositorio ya entrega vistas normalizadas al hidratar.
       viewModes: { albums: 'smallIcons' },
     });
 

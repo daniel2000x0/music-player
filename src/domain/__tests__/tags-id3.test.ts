@@ -115,7 +115,8 @@ describe('extractId3Tags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-    });
+        hasLyrics: false,
+      });
   });
 
   it('decodifica UTF-8 en v2.4', () => {
@@ -146,7 +147,8 @@ describe('extractId3Tags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-    });
+        hasLyrics: false,
+      });
   });
 
   it('une varios artistas separados por NUL', () => {

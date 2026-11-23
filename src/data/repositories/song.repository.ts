@@ -17,6 +17,7 @@ type SongRow = {
   bit_depth: number | null;
   sample_rate: number | null;
   bitrate: number | null;
+  has_lyrics: number | null;
   artwork_uri: string | null;
   added_at: number;
   is_available: number;
@@ -29,7 +30,7 @@ const SELECT_SONGS = `
   SELECT s.id, s.media_id, s.uri, s.title,
          ar.name AS artist, al.title AS album,
          s.track_number, s.folder_name,
-         s.duration, s.file_format, s.bit_depth, s.sample_rate, s.bitrate, s.artwork_uri, s.added_at,
+         s.duration, s.file_format, s.bit_depth, s.sample_rate, s.bitrate, s.has_lyrics, s.artwork_uri, s.added_at,
          s.is_available, s.is_audiobook, s.play_count, s.last_played_at
   FROM songs s
   JOIN artists ar ON ar.id = s.artist_id
@@ -60,6 +61,7 @@ function mapSong(row: SongRow): Song {
     bitDepth: row.bit_depth,
     sampleRate: row.sample_rate,
     bitrate: row.bitrate,
+    hasLyrics: row.has_lyrics === 1,
     artwork: row.artwork_uri,
     addedAt: row.added_at,
     isAvailable: row.is_available === 1,
@@ -246,7 +248,7 @@ export const songRepository = {
       const CHUNK_SIZE = 50;
       for (const chunk of chunksOf(rows, CHUNK_SIZE)) {
         const placeholders = chunk
-          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
           .join(',');
         const params = chunk.flatMap(({ item, artistId, albumId }) => [
           item.mediaId,
@@ -261,6 +263,7 @@ export const songRepository = {
           item.bitDepth,
           item.sampleRate,
           item.bitrate,
+          item.hasLyrics ? 1 : 0,
           item.artwork,
           now,
           now,
@@ -270,7 +273,7 @@ export const songRepository = {
         await db.runAsync(
           `INSERT INTO songs
             (media_id, uri, title, artist_id, album_id, track_number, folder_name,
-             duration, file_format, bit_depth, sample_rate, bitrate, artwork_uri, added_at, last_seen_at, modification_time,
+             duration, file_format, bit_depth, sample_rate, bitrate, has_lyrics, artwork_uri, added_at, last_seen_at, modification_time,
              artwork_checked_at, is_available)
            VALUES ${placeholders}
            ON CONFLICT(media_id) DO UPDATE SET
@@ -285,6 +288,7 @@ export const songRepository = {
              bit_depth = COALESCE(excluded.bit_depth, bit_depth),
              sample_rate = COALESCE(excluded.sample_rate, sample_rate),
              bitrate = COALESCE(excluded.bitrate, bitrate),
+             has_lyrics = CASE WHEN excluded.has_lyrics = 1 OR has_lyrics = 1 THEN 1 ELSE 0 END,
              artwork_uri = COALESCE(excluded.artwork_uri, artwork_uri),
              last_seen_at = excluded.last_seen_at,
              modification_time = excluded.modification_time,

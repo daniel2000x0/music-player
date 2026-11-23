@@ -33,6 +33,15 @@ describe('filterSongs', () => {
     expect(filterSongs(songs, { view: 'unplayed' }, favorites).map((song) => song.id)).toEqual([1]);
   });
 
+  it('filtra canciones con letras disponibles', () => {
+    const withLyrics = [
+      ...songs,
+      makeSong({ id: 5, title: 'Con letra', hasLyrics: true }),
+      makeSong({ id: 6, title: 'Sin letra', hasLyrics: false }),
+    ];
+    expect(filterSongs(withLyrics, { view: 'withLyrics' }, favorites).map((song) => song.id)).toEqual([5]);
+  });
+
   it('combina búsqueda, artista y álbum', () => {
     const result = filterSongs(songs, { query: 'tres', artist: 'Ana', album: 'B' }, favorites);
     expect(result.map((song) => song.id)).toEqual([3]);

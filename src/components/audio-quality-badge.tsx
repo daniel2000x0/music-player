@@ -15,32 +15,39 @@ type AudioQualityBadgeProps = {
   bitDepth?: number | null;
   sampleRate?: number | null;
   bitrate?: number | null;
+  /** Muestra la etiqueta "Lyrics" solo cuando la canción tiene letras. */
+  hasLyrics?: boolean;
 };
 
 /**
  * Píldora informativa de formato/calidad.
  *
- * LÓGICA: FLAC se resalta en verde para indicar alta calidad. Si hay datos
- * técnicos, muestra formato tipo `FLAC 16/44.1 kHz · 1411 kbps`. El resto se
- * muestra en neutro. Si no se reconoce, no se renderiza nada.
+ * LÓGICA: se conserva el patrón actual `FORMATO · BITRATE` (y detalles
+ * técnicos cuando existen). Si hay letras, se amplía a `... · Lyrics`.
+ * FLAC se resalta en verde para indicar alta calidad.
  */
-export function AudioQualityBadge({ format, bitDepth, sampleRate, bitrate }: AudioQualityBadgeProps) {
+export function AudioQualityBadge({ format, bitDepth, sampleRate, bitrate, hasLyrics }: AudioQualityBadgeProps) {
   const theme = useTheme();
-  const { language } = useTranslation();
+  const { language, tr } = useTranslation();
   const normalized = normalizeAudioFormat(format);
   const quality = { format: normalized, bitDepth, sampleRate, bitrate };
-  const label = formatAudioQualityLabel(quality, language);
-  const description = describeAudioQuality(quality, language);
+  const baseLabel = formatAudioQualityLabel(quality, language);
+  const baseDescription = describeAudioQuality(quality, language);
 
-  if (!label || !normalized) {
+  if (!baseLabel || !normalized) {
     return null;
   }
 
+  const lyricsLabel = tr('Letras');
+  const label = hasLyrics ? `${baseLabel} · ${lyricsLabel}` : baseLabel;
+  const description = hasLyrics
+    ? `${baseDescription ?? baseLabel}, ${lyricsLabel}`
+    : baseDescription ?? baseLabel;
   const highQuality = normalized === 'flac';
 
   return (
     <View
-      accessibilityLabel={description ?? label}
+      accessibilityLabel={description}
       style={[
         styles.badge,
         {

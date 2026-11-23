@@ -281,6 +281,57 @@ const greenLantern = {
   },
 } as const;
 
+/**
+ * Hunger Games: Sunrise on the Reaping — identidad luminosa, perla/plata/champán.
+ *
+ * LÓGICA: inspirado en la imagen real del fondo (blancos, grises claros,
+ * acentos champán/dorado suave y grafito). Mantiene legibilidad en superficies
+ * claras con contraste grafito y veladura translúcida sobre la imagen.
+ * La variante "dark" conserva elegancia cinematográfica grafito/plata, sin rojos.
+ */
+const hungergames = {
+  light: {
+    text: '#2F343A',
+    background: '#FAF9F6',
+    backgroundElement: '#FFFFFFD1',
+    backgroundSelected: '#E0D6C6B8',
+    textSecondary: '#7A8088',
+    border: '#D9DDE2',
+    accent: '#B8A47A',
+    accentText: '#2F343A',
+    danger: '#B04A4A',
+    success: '#5F8A6A',
+    successBg: '#EDF4EF',
+    link: '#7C8794',
+    scrollbarIndicator: '#8F949C',
+    backdropScrim: 'rgba(250, 249, 246, 0.52)',
+    pearl: '#FAF9F6',
+    silver: '#C9CED4',
+    champagne: '#D8C7A3',
+    graphite: '#2F343A',
+  },
+  dark: {
+    text: '#F4F1EA',
+    background: '#2B3036',
+    backgroundElement: '#3F454CC7',
+    backgroundSelected: '#B8A47A47',
+    textSecondary: '#C7CDD3',
+    border: '#707882',
+    accent: '#D8C7A3',
+    accentText: '#2B3036',
+    danger: '#D47A7A',
+    success: '#8FB59A',
+    successBg: '#334038',
+    link: '#D6DEE6',
+    scrollbarIndicator: '#D8C7A3',
+    backdropScrim: 'rgba(43, 48, 54, 0.46)',
+    pearl: '#F4F1EA',
+    silver: '#BFC7CF',
+    champagne: '#D8C7A3',
+    graphite: '#2B3036',
+  },
+} as const;
+
 /** Familias de tema con las dos variantes (clara y oscura) del personaje. */
 export const HeroThemes = {
   ironman,
@@ -289,6 +340,7 @@ export const HeroThemes = {
   spiderman,
   superman,
   greenLantern,
+  hungergames,
 } satisfies Record<HeroThemeId, { light: object; dark: object }>;
 
 export type { HeroThemeId };

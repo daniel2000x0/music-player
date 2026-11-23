@@ -1,17 +1,29 @@
 import type { ImageSourcePropType } from 'react-native';
 
 // Las etiquetas pasan por `tr(...)` en el selector: tiparlas como LiteralKey
-// obliga a que cada tema añadido tenga traducción antes de compilar.
+// obliga a que cada tema a?adido tenga traducci?n antes de compilar.
 import type { LiteralKey } from '@/i18n';
 import type { ThemeMode } from '@/types/settings';
 
 /**
- * Catálogo visible del selector de temas.
+ * Logotipo predeterminado de la app. Se usa cuando un tema no tiene imagen
+ * espec?fica asignada. Importaci?n est?tica para que Metro lo resuelva.
+ */
+export const DEFAULT_THEME_LOGO: ImageSourcePropType = require('../../assets/images/defaultLogo.jpg');
+
+/**
+ * Logotipo espec?fico del tema Hunger Games.
+ * Ubicado en `assets/images/Hungergames/` seg?n la regla de asignaci?n por tema.
+ */
+export const HUNGER_GAMES_THEME_LOGO: ImageSourcePropType = require('../../assets/images/Hungergames/defaultLogo.jpg');
+
+/**
+ * Cat?logo visible del selector de temas.
  *
- * LÓGICA: `icon` es la imagen que se pinta dentro de la app (funciona en Expo
+ * L?GICA: `icon` es la imagen que se pinta dentro de la app (funciona en Expo
  * Go) y `appIcon` es el nombre registrado por el config plugin para el icono
- * del launcher (solo en builds nativos). Claro y Oscuro no tienen `appIcon`:
- * conservan el icono por defecto.
+ * del launcher (solo en builds nativos). Claro y Oscuro usan el logotipo
+ * predeterminado; los temas con imagen propia conservan su recurso.
  */
 export type ThemeCatalogItem = {
   id: ThemeMode;
@@ -25,14 +37,14 @@ export const THEME_CATALOG: readonly ThemeCatalogItem[] = [
   {
     id: 'light',
     label: 'Claro',
-    icon: require('../../assets/images/icon.png'),
+    icon: DEFAULT_THEME_LOGO,
     appIcon: null,
     swatch: '#12B76A',
   },
   {
     id: 'dark',
     label: 'Oscuro',
-    icon: require('../../assets/images/icon.png'),
+    icon: DEFAULT_THEME_LOGO,
     appIcon: null,
     swatch: '#1ED760',
   },
@@ -78,7 +90,30 @@ export const THEME_CATALOG: readonly ThemeCatalogItem[] = [
     appIcon: 'GreenLantern',
     swatch: '#50C878',
   },
+  {
+    id: 'hungergames',
+    label: 'Hunger Games',
+    icon: HUNGER_GAMES_THEME_LOGO,
+    appIcon: 'HungerGames',
+    swatch: '#B8A47A',
+  },
 ];
+
+/**
+ * Resuelve el logotipo a mostrar para un tema.
+ *
+ * Reglas:
+ * - Hunger Games: imagen espec?fica en `assets/images/Hungergames/`.
+ * - Tema con imagen propia asignada en cat?logo: conserva su imagen.
+ * - Tema sin imagen espec?fica: `DEFAULT_THEME_LOGO`.
+ */
+export function getThemeLogo(theme: ThemeMode | string): ImageSourcePropType {
+  if (theme === 'hungergames' || theme === 'hungerGames' || theme === 'HungerGames') {
+    return HUNGER_GAMES_THEME_LOGO;
+  }
+  const item = THEME_CATALOG.find((entry) => entry.id === theme);
+  return item?.icon ?? DEFAULT_THEME_LOGO;
+}
 
 export function themeAppIcon(theme: ThemeMode): string | null {
   return THEME_CATALOG.find((item) => item.id === theme)?.appIcon ?? null;

@@ -8,7 +8,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Nunca se borran datos del usuario en una migración.
  */
 
-export const DATABASE_VERSION = 10;
+export const DATABASE_VERSION = 11;
 
 const V1 = `
 CREATE TABLE IF NOT EXISTS artists (
@@ -243,6 +243,17 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   }
   if (!(await columnExists('songs', 'bitrate'))) {
     await db.runAsync('ALTER TABLE songs ADD COLUMN bitrate INTEGER');
+  }
+  /**
+   * V11: indicador de letras disponibles.
+   *
+   * LÓGICA: solo persistimos disponibilidad (0/1) derivada de metadatos
+   * (USLT/SYLT, ©lyr, LYRICS/UNSYNCEDLYRICS). No se guarda el texto de la
+   * letra para evitar bloat en SQLite. NULL/0 en filas antiguas se rellenará
+   * cuando el archivo se reescanee o se vuelva a leer metadata.
+   */
+  if (!(await columnExists('songs', 'has_lyrics'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0');
   }
   await db.execAsync('CREATE INDEX IF NOT EXISTS idx_songs_audiobook ON songs(is_audiobook)');
   await db.execAsync(

@@ -101,7 +101,19 @@ export async function readAudioTags(
 
     const bitrate = estimateBitrateKbps(size, durationSeconds);
     if (!tags) {
-      return bitrate ? { title: null, artist: null, album: null, albumArtist: null, track: null, bitDepth: null, sampleRate: null, bitrate } : null;
+      return bitrate
+        ? {
+            title: null,
+            artist: null,
+            album: null,
+            albumArtist: null,
+            track: null,
+            bitDepth: null,
+            sampleRate: null,
+            bitrate,
+            hasLyrics: false,
+          }
+        : null;
     }
     return { ...tags, bitrate: tags.bitrate ?? bitrate };
   } catch {

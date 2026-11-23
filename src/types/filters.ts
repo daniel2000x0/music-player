@@ -1,4 +1,4 @@
-export type SongView = 'all' | 'favorites' | 'played' | 'unplayed';
+export type SongView = 'all' | 'favorites' | 'withLyrics' | 'played' | 'unplayed';
 
 export type SongFilter = {
   query?: string;

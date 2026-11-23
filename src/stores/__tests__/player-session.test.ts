@@ -175,6 +175,8 @@ describe('player.store: hydrateSession restaura sin auto-play', () => {
       volume: 0.3,
       language: 'es',
       viewModes: {},
+      songView: 'all',
+      sortModes: { songs: 'title-asc', albums: 'title-asc', playlists: 'created-desc' },
     });
 
     await modules.playerStore.usePlayerStore.getState().hydrateSession();

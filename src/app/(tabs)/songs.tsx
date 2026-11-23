@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
@@ -28,6 +28,7 @@ import { useTranslation } from '@/hooks/use-translation';
 import { useViewMode } from '@/hooks/use-view-mode';
 import { useLibraryStore } from '@/stores/library.store';
 import { usePlayerStore } from '@/stores/player.store';
+import { useSettingsStore } from '@/stores/settings.store';
 import type { SongSortKey, SongView } from '@/types/filters';
 import type { Song } from '@/types/song';
 
@@ -38,7 +39,11 @@ type SongAction = 'playlist' | 'audiobook' | 'edit' | 'delete';
 // activo sin necesidad de reiniciar la pantalla.
 
 const isSongView = (value: string | undefined): value is SongView =>
-  value === 'all' || value === 'favorites' || value === 'played' || value === 'unplayed';
+  value === 'all' ||
+  value === 'favorites' ||
+  value === 'withLyrics' ||
+  value === 'played' ||
+  value === 'unplayed';
 
 /** Pantalla "Canciones": búsqueda, filtros, orden y reproducción. */
 export default function SongsScreen() {
@@ -59,7 +64,10 @@ export default function SongsScreen() {
   const play = usePlayerStore((state) => state.play);
 
   const [query, setQuery] = useState('');
-  const [sortKey, setSortKey] = useState<SongSortKey>('title-asc');
+  const sortKey = useSettingsStore((state) => state.sortModes.songs);
+  const setSortMode = useSettingsStore((state) => state.setSortMode);
+  const songView = useSettingsStore((state) => state.songView);
+  const setSongView = useSettingsStore((state) => state.setSongView);
   const [sortVisible, setSortVisible] = useState(false);
   const [viewVisible, setViewVisible] = useState(false);
   const [menuSong, setMenuSong] = useState<Song | null>(null);
@@ -82,6 +90,7 @@ export default function SongsScreen() {
   const views: readonly Option<SongView>[] = [
     { value: 'all', label: tr('Todas') },
     { value: 'favorites', label: tr('Favoritos') },
+    { value: 'withLyrics', label: tr('Con letras') },
     { value: 'played', label: tr('Escuchadas') },
     { value: 'unplayed', label: tr('Sin reproducir') },
   ];
@@ -120,14 +129,23 @@ export default function SongsScreen() {
     { value: 'lastPlayed-desc', label: tr('Última reproducción') },
   ];
 
-  const view: SongView = isSongView(params.view) ? params.view : 'all';
+  // La vista persiste en SQLite (app_settings). Si llega por deep link/ruta,
+  // se sincroniza una vez al store para que reabrir la app mantenga la elección.
+  const view: SongView = isSongView(params.view) ? params.view : songView;
+  useEffect(() => {
+    if (isSongView(params.view) && params.view !== songView) {
+      void setSongView(params.view);
+    }
+  }, [params.view, setSongView, songView]);
+
   const setView = useCallback(
     (next: SongView) => {
+      void setSongView(next);
       if (next !== view) {
         router.setParams({ view: next });
       }
     },
-    [view]
+    [setSongView, view]
   );
 
   // El filtrado (caro con bibliotecas grandes) corre sobre el texto
@@ -185,7 +203,7 @@ export default function SongsScreen() {
           style={[styles.menuButton, { backgroundColor: theme.backgroundElement }]}
           accessibilityRole="button"
           accessibilityLabel={tr('Filtrar canciones por vista')}
-          accessibilityHint={tr('Abre las opciones Todas, Favoritos, Escuchadas y Sin reproducir')}>
+          accessibilityHint={tr('Abre las opciones Todas, Favoritos, Con letras, Escuchadas y Sin reproducir')}>
           <Ionicons name="list-outline" size={16} color={theme.text} />
           <ThemedText type="small" numberOfLines={1} style={styles.menuButtonLabel}>
             {views.find((option) => option.value === view)?.label ?? tr('Todas')}
@@ -348,7 +366,7 @@ export default function SongsScreen() {
         title={tr('Ordenar canciones')}
         fields={sortFields}
         value={sortKey}
-        onSelect={setSortKey}
+        onSelect={(value) => void setSortMode('songs', value)}
         onClose={() => setSortVisible(false)}
       />
       <PlaylistPicker

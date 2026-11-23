@@ -920,6 +920,8 @@ describe('player.store: hydrateSession', () => {
       volume: 0.3,
       language: 'es',
       viewModes: {},
+      songView: 'all',
+      sortModes: { songs: 'title-asc', albums: 'title-asc', playlists: 'created-desc' },
     });
 
     await player().getState().hydrateSession();

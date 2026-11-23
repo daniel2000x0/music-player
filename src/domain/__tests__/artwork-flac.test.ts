@@ -223,7 +223,8 @@ describe('extractFlacTags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-    });
+        hasLyrics: false,
+      });
   });
 
   it('devuelve null si no hay campos conocidos', async () => {
@@ -238,3 +239,8 @@ describe('extractFlacTags', () => {
     expect(await extractFlacTags(readerFor(file), file.length)).toBeNull();
   });
 });
+
+  it('detecta letras en comentario Vorbis LYRICS', async () => {
+    const file = flacFile(block(4, vorbisComment(['TITLE=Song', 'LYRICS=Hello']), true));
+    expect((await extractFlacTags(readerFor(file), file.length))?.hasLyrics).toBe(true);
+  });
