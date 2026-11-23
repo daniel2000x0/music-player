@@ -161,10 +161,10 @@
           },
           {
             "name": "HungerGames",
-            "ios": "./assets/images/defaultLogo.jpg",
+            "ios": "./assets/images/themesIcons/Hungergames/HungerGame.png",
             "android": {
-              "foregroundImage": "./assets/images/Hungergames/defaultLogo.jpg",
-              "monochromeImage": "./assets/images/Hungergames/defaultLogo.jpg",
+              "foregroundImage": "./assets/images/themesIcons/Hungergames/HungerGame.png",
+              "monochromeImage": "./assets/images/themesIcons/Hungergames/HungerGame.png",
               "backgroundColor": "#FAF9F6"
             }
           }
