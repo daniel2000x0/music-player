@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type EmptyStateProps = {
@@ -38,6 +38,7 @@ export function EmptyState({ icon = 'musical-notes', title, message, actionLabel
       {actionLabel && onAction ? (
         <Pressable
           onPress={onAction}
+          accessibilityRole="button"
           style={({ pressed }) => [
             styles.button,
             { backgroundColor: theme.accent },
@@ -79,6 +80,8 @@ const styles = StyleSheet.create({
   },
   button: {
     marginTop: Spacing.lg,
+    minHeight: MinTouchTarget,
+    justifyContent: 'center',
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.xl,
     borderRadius: Radius.pill,

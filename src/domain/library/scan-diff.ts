@@ -22,6 +22,10 @@ export type DeviceTrack = {
   mediaId: string;
   /** Última modificación en milisegundos; `null` si el proveedor no la da. */
   modificationTime: number | null;
+  /** Nombre del asset (barato de obtener en `exeForMetadata`). */
+  filename?: string | null;
+  /** Duración en milisegundos, para detectar renombrados con el mismo id. */
+  durationMs?: number;
 };
 
 /** Pista tal como está guardada en SQLite. */
@@ -29,6 +33,14 @@ export type StoredTrack = {
   mediaId: string;
   modificationTime: number | null;
   isAvailable: boolean;
+  /** URI reproducible; se compara con el archivo real para detectar movimientos. */
+  uri?: string;
+  filename?: string | null;
+  /** Último segmento de carpeta, para el apareamiento de reubicaciones. */
+  folder?: string | null;
+  durationMs?: number;
+  artworkUri?: string | null;
+  contentKey?: string | null;
 };
 
 export type ScanMode = 'incremental' | 'full';
@@ -90,6 +102,13 @@ export function diffScan(
       typeof previous.modificationTime !== 'number' ||
       previous.modificationTime !== track.modificationTime
     ) {
+      updated.push(track.mediaId);
+      continue;
+    }
+    // Un renombrado con el mismo `mediaId` NO cambia la fecha de modificación.
+    // Comparar el nombre que da la mediateca permite refrescar la URI sin
+    // leer el archivo de todas las pistas en cada arranque.
+    if (track.filename && previous.filename && track.filename !== previous.filename) {
       updated.push(track.mediaId);
       continue;
     }

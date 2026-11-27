@@ -25,9 +25,18 @@ import { mapLimit } from '@/utils/async';
  *    - FLAC: bloque `PICTURE` (o `METADATA_BLOCK_PICTURE`), saltando el audio.
  * 2. Respaldo de carpeta: una imagen suelta (`cover.jpg`, `folder.png`…) junto
  *    al archivo, como hacen los reproductores que sí muestran la portada.
- * El arte embebido se guarda en `Paths.cache/artwork/{mediaId}.(jpg|png|webp|gif)`
- * y su URI se persiste en SQLite (`artwork_uri` de songs y albums). El arte de
- * carpeta se referencia en su sitio (no se copia) para no duplicar la imagen.
+ * El arte embebido se guarda en `Paths.document/artwork/{clave}.(jpg|png|webp|gif)`,
+ * donde `clave` es la huella de contenido de la pista (o su `mediaId` en filas
+ * antiguas), y su URI se persiste en SQLite (`artwork_uri` de songs y albums).
+ * `Paths.document` es el directorio persistente de la app: a diferencia de
+ * `Paths.cache`, ni el sistema ni un limpiador de caché pueden borrarlo. El arte
+ * de carpeta se referencia en su sitio (no se copia) para no duplicar la imagen.
+ * Cuando la canción se mueve, `remapArtwork` traslada el archivo a la clave new
+ * o vuelve a buscar el `cover.jpg` junto a la nueva ruta.
+ *
+ * Las versiones anteriores escribían en `Paths.cache/artwork`. Esos archivos se
+ * promueven al directorio persistente al resolverlos (`storedArtworkFile`) y sus
+ * URIs se reescriben en SQLite desde `artwork-backfill.service`.
  */
 
 const ARTWORK_DIRECTORY = 'artwork';
@@ -61,6 +70,9 @@ const FOLDER_ART_NAMES = new Set([
 /** Extensiones de imagen aceptadas para el arte de carpeta. */
 const FOLDER_ART_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif']);
 
+/** Extensiones de los archivos gestionados por la app. */
+const ARTWORK_EXTENSIONS = new Set(Object.values(EXTENSION_BY_MIME));
+
 /** Órdenes de formato soportados, derivados del mapa de extensiones. */
 const ARTWORK_MIMES = Object.keys(EXTENSION_BY_MIME) as ArtworkMime[];
 
@@ -78,19 +90,138 @@ function shouldAttempt(uri: string): boolean {
   return uri.startsWith('content://');
 }
 
-function cacheFileFor(mediaId: string, mime: ArtworkMime): File {
-  const safeId = mediaId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return new File(Paths.cache, ARTWORK_DIRECTORY, `${safeId}.${EXTENSION_BY_MIME[mime]}`);
+/** Directorio persistente (no borrado por limpiezas de caché). */
+function artworkDirectory(): Directory {
+  return new Directory(Paths.document, ARTWORK_DIRECTORY);
 }
 
-function cachedArtworkUri(mediaId: string): string | null {
+/** Directorio usado por versiones anteriores; solo se lee para migrar. */
+function legacyArtworkDirectory(): Directory {
+  return new Directory(Paths.cache, ARTWORK_DIRECTORY);
+}
+
+/** Prefijo URI con barra final, para comparar sin falsos positivos. */
+function directoryPrefix(directory: Directory): string {
+  return `${directory.uri.replace(/\/$/, '')}/`;
+}
+
+/**
+ * Los prefijos se calculan bajo demanda, no al cargar el módulo: en el bundle
+ * de servidor de Expo Router (`Paths.document` no es un `Directory`) hacerlo
+ * arriba tumbaba el servidor con `this.validatePath is not a function`.
+ */
+function artworkUriPrefix(): string {
+  return directoryPrefix(artworkDirectory());
+}
+
+function legacyArtworkUriPrefix(): string {
+  return directoryPrefix(legacyArtworkDirectory());
+}
+
+/** Normaliza cualquier identificador (mediaId o huella) a nombre de archivo. */
+function safeId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+/**
+ * Clave del archivo persistido: la huella de contenido cuando está disponible,
+ * porque sobrevive a reindexados; el `mediaId` en filas anteriores a la V12.
+ */
+function artworkKeyFor(song: { mediaId: string; contentKey?: string | null }): string {
+  return song.contentKey ?? song.mediaId;
+}
+
+function cacheFileFor(key: string, mime: ArtworkMime): File {
+  return new File(artworkDirectory(), `${safeId(key)}.${EXTENSION_BY_MIME[mime]}`);
+}
+
+function legacyCacheFileFor(key: string, mime: ArtworkMime): File {
+  return new File(legacyArtworkDirectory(), `${safeId(key)}.${EXTENSION_BY_MIME[mime]}`);
+}
+
+/** Extensión de una URI de portada, en minúsculas. */
+function extensionOf(uri: string): string {
+  const clean = uri.split('?')[0].toLowerCase();
+  const dot = clean.lastIndexOf('.');
+  return dot === -1 ? '' : clean.slice(dot + 1);
+}
+
+/** `true` si la URI apunta a un archivo gestionado por la app. */
+export function isManagedArtworkUri(uri: string): boolean {
+  return uri.startsWith(artworkUriPrefix()) || uri.startsWith(legacyArtworkUriPrefix());
+}
+
+/**
+ * Portada ya almacenada de una pista. Si solo existe en el caché antiguo, se
+ * copia al directorio persistente y se devuelve la URI nueva. Ante un error de
+ * copia se sigue sirviendo la URI vieja: es mejor mostrarla desde el caché que
+ * perder la portada hasta el próximo barrido.
+ */
+async function storedArtworkFile(key: string): Promise<File | null> {
   for (const mime of ARTWORK_MIMES) {
-    const file = cacheFileFor(mediaId, mime);
-    if (file.exists && file.size > 0) {
-      return file.uri;
+    const file = cacheFileFor(key, mime);
+    // `exists` no basta: un archivo truncado o corrupto tiene bytes pero
+    // `expo-image` lo pinta como un cuadro negro. Solo se sirve si su firma
+    // es una imagen reconocible.
+    if (file.exists && file.size > 0 && (await hasImageSignature(file))) {
+      return file;
+    }
+
+    const legacy = legacyCacheFileFor(key, mime);
+    if (!legacy.exists || legacy.size === 0 || !(await hasImageSignature(legacy))) {
+      continue;
+    }
+    try {
+      const directory = artworkDirectory();
+      if (!directory.exists) {
+        directory.create();
+      }
+      await legacy.copy(file, { overwrite: true });
+      return file;
+    } catch (error) {
+      logError('artwork-service', 'promote-cache', error);
+      return legacy;
     }
   }
   return null;
+}
+
+/**
+ * `true` si la URI guardada en SQLite debe repararse: apunta al caché antiguo
+ * (aunque el archivo siga ahí), a un archivo gestionado borrado o a una portada
+ * de carpeta que ya no está junto a la canción (se movió el álbum).
+ */
+export function needsArtworkRepair(uri: string): boolean {
+  if (uri.startsWith(legacyArtworkUriPrefix())) {
+    return true;
+  }
+  if (uri.startsWith(artworkUriPrefix())) {
+    return !new File(uri).exists;
+  }
+  // Las portadas de carpeta no se copian: si el archivo desapareció, hay que
+  // volver a buscarlo en la nueva ubicación. Los URI content:// se dejan
+  // intactos porque `File.exists` no los resuelve de forma fiable.
+  return uri.startsWith('file://') && !new File(uri).exists;
+}
+
+/**
+ * `true` si una URI guardada todavía puede pintarse. Además de comprobar que
+ * el archivo exista, valida su firma: un archivo corrupto o a medias escribir
+ * pasa `exists` pero se muestra negro en la lista. Los `content://` se dejan
+ * intactos porque el proveedor ya valida el contenido al leerlo.
+ */
+export async function isUsableArtworkUri(uri: string): Promise<boolean> {
+  if (uri.startsWith('content://')) {
+    return true;
+  }
+  if (needsArtworkRepair(uri)) {
+    return false;
+  }
+  try {
+    return await hasImageSignature(new File(uri));
+  } catch {
+    return false;
+  }
 }
 
 async function readEmbeddedArtwork(uri: string): Promise<EmbeddedArtwork | null> {
@@ -156,23 +287,38 @@ async function readEmbeddedArtwork(uri: string): Promise<EmbeddedArtwork | null>
   }
 }
 
-/** Escribe la portada embebida en la caché y devuelve su URI. */
+/** Escribe la portada embebida en el almacenamiento persistente y devuelve su URI. */
 async function writeArtworkCache(
-  mediaId: string,
+  key: string,
   artwork: EmbeddedArtwork
 ): Promise<string | null> {
+  const target = cacheFileFor(key, artwork.mime);
   try {
-    const directory = new Directory(Paths.cache, ARTWORK_DIRECTORY);
+    const directory = artworkDirectory();
     if (!directory.exists) {
       directory.create();
     }
-    const target = cacheFileFor(mediaId, artwork.mime);
     await target.write(artwork.data);
-    return target.uri;
   } catch (error) {
     logError('artwork-service', 'write-cache', error);
     return null;
   }
+
+  // La copia ya es persistente: retirar el duplicado del caché antiguo evita
+  // que un limpiador vuelva a dejar la URI en un archivo inexistente.
+  for (const mime of ARTWORK_MIMES) {
+    const legacy = legacyCacheFileFor(key, mime);
+    if (!legacy.exists) {
+      continue;
+    }
+    try {
+      legacy.delete();
+    } catch {
+      // Si no se puede borrar, la próxima resolución lo promoverá de nuevo.
+    }
+  }
+
+  return target.uri;
 }
 
 /** Carpeta contenedora de una URI `file://`; `null` si no la expone. */
@@ -251,16 +397,88 @@ async function readFolderArtwork(uri: string): Promise<string | null> {
 }
 
 /**
- * URI de la portada de una canción: reutiliza la caché si existe y, si no,
- * prueba el arte embebido y luego el de la carpeta.
+ * Traslada la portada de una pista que cambió de ruta/`mediaId`.
+ *
+ * LÓGICA: los archivos gestionados por la app se renombran a la nueva huella de
+ * contenido (o al nuevo `mediaId` si aún no hay huella), porque el contenido no
+ * cambió al mover el archivo. Las portadas de carpeta no se copian: se buscan de
+ * nuevo junto a la nueva ruta. Ante cualquier error se devuelve `null` para que
+ * la BD libere la URI y el backfill pueda reintentarlo.
+ */
+export async function remapArtworkUri(params: {
+  oldUri: string | null;
+  nextMediaId: string;
+  nextUri: string;
+  nextContentKey?: string | null;
+}): Promise<string | null> {
+  const { oldUri, nextMediaId, nextUri, nextContentKey } = params;
+  if (!oldUri) {
+    return null;
+  }
+
+  if (!isManagedArtworkUri(oldUri)) {
+    try {
+      return await readFolderArtwork(nextUri);
+    } catch (error) {
+      logError('artwork-service', 'remap-folder', error);
+      return null;
+    }
+  }
+
+  const extension = extensionOf(oldUri);
+  if (!ARTWORK_EXTENSIONS.has(extension)) {
+    return null;
+  }
+  const key = nextContentKey ?? nextMediaId;
+  const source = new File(oldUri);
+  const target = new File(artworkDirectory(), `${safeId(key)}.${extension}`);
+  if (!source.exists || source.size === 0) {
+    return null;
+  }
+  if (source.uri === target.uri) {
+    return source.uri;
+  }
+
+  try {
+    if (!target.exists || target.size === 0) {
+      const directory = artworkDirectory();
+      if (!directory.exists) {
+        directory.create();
+      }
+      await source.copy(target, { overwrite: true });
+    }
+    source.delete();
+    return target.uri;
+  } catch (error) {
+    logError('artwork-service', 'remap-cache', error);
+    return null;
+  }
+}
+
+/**
+ * URI de la portada de una canción: reutiliza el archivo persistente (o promueve
+ * el del caché antiguo) si existe y, si no, prueba el arte embebido y luego el de
+ * la carpeta.
  */
 export async function resolveArtworkUri(song: {
   mediaId: string;
   uri: string;
+  contentKey?: string | null;
 }): Promise<string | null> {
-  const cached = cachedArtworkUri(song.mediaId);
-  if (cached) {
-    return cached;
+  const key = artworkKeyFor(song);
+  const stored = await storedArtworkFile(key);
+  if (stored) {
+    return stored.uri;
+  }
+
+  // Una biblioteca migrada puede conservar su portada bajo el `mediaId`
+  // aunque la fila ya tenga huella de contenido (V12). Se reutiliza en vez
+  // de descartarla y obligar a reextraerla del audio.
+  if (song.contentKey && song.contentKey !== song.mediaId) {
+    const byMediaId = await storedArtworkFile(song.mediaId);
+    if (byMediaId) {
+      return byMediaId.uri;
+    }
   }
 
   if (shouldAttempt(song.uri)) {
@@ -272,7 +490,7 @@ export async function resolveArtworkUri(song: {
       artwork = null;
     }
     if (artwork) {
-      const uri = await writeArtworkCache(song.mediaId, artwork);
+      const uri = await writeArtworkCache(key, artwork);
       if (uri) {
         return uri;
       }
@@ -297,7 +515,7 @@ export async function resolveArtworkUri(song: {
  * entre el escaneo y el barrido de carátulas ausentes (`FASE 5.1`).
  */
 export async function resolveAlbumArtwork(
-  songs: readonly { mediaId: string; uri: string }[]
+  songs: readonly { mediaId: string; uri: string; contentKey?: string | null }[]
 ): Promise<string | null> {
   for (const song of songs.slice(0, MAX_ATTEMPTS_PER_ALBUM)) {
     try {

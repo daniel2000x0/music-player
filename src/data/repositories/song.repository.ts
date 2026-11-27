@@ -1,5 +1,6 @@
 import { getDatabase } from '@/data/db/database';
 import { detectAudiobookSongIds } from '@/domain/library/audiobooks';
+import { filenameFromUri } from '@/domain/library/content-key';
 import type { StoredTrack } from '@/domain/library/scan-diff';
 import type { Song, ScannedSong } from '@/types/song';
 
@@ -18,6 +19,7 @@ type SongRow = {
   sample_rate: number | null;
   bitrate: number | null;
   has_lyrics: number | null;
+  lyrics: string | null;
   artwork_uri: string | null;
   added_at: number;
   is_available: number;
@@ -30,7 +32,7 @@ const SELECT_SONGS = `
   SELECT s.id, s.media_id, s.uri, s.title,
          ar.name AS artist, al.title AS album,
          s.track_number, s.folder_name,
-         s.duration, s.file_format, s.bit_depth, s.sample_rate, s.bitrate, s.has_lyrics, s.artwork_uri, s.added_at,
+         s.duration, s.file_format, s.bit_depth, s.sample_rate, s.bitrate, s.has_lyrics, s.lyrics, s.artwork_uri, s.added_at,
          s.is_available, s.is_audiobook, s.play_count, s.last_played_at
   FROM songs s
   JOIN artists ar ON ar.id = s.artist_id
@@ -44,6 +46,18 @@ export type ArtworkCandidate = {
   uri: string;
   /** Álbum al que pertenece; agrupa la extracción por disco. */
   albumId: number;
+  /** Huella usada como nombre de la portada persistente. */
+  contentKey?: string | null;
+};
+
+/** Pista con una URI de portada ya persistida (para reparar archivos perdidos). */
+export type StoredArtworkUri = {
+  id: number;
+  mediaId: string;
+  uri: string;
+  albumId: number;
+  artworkUri: string;
+  contentKey?: string | null;
 };
 
 function mapSong(row: SongRow): Song {
@@ -62,6 +76,7 @@ function mapSong(row: SongRow): Song {
     sampleRate: row.sample_rate,
     bitrate: row.bitrate,
     hasLyrics: row.has_lyrics === 1,
+    lyrics: row.lyrics,
     artwork: row.artwork_uri,
     addedAt: row.added_at,
     isAvailable: row.is_available === 1,
@@ -195,11 +210,26 @@ export const songRepository = {
       media_id: string;
       modification_time: number | null;
       is_available: number;
-    }>('SELECT media_id, modification_time, is_available FROM songs');
+      uri: string;
+      duration: number;
+      folder_name: string | null;
+      artwork_uri: string | null;
+      content_key: string | null;
+    }>(
+      `SELECT media_id, modification_time, is_available, uri, duration, folder_name,
+              artwork_uri, content_key
+       FROM songs`
+    );
     return rows.map((row) => ({
       mediaId: row.media_id,
       modificationTime: row.modification_time,
       isAvailable: row.is_available === 1,
+      uri: row.uri,
+      filename: filenameFromUri(row.uri),
+      folder: row.folder_name,
+      durationMs: Math.round(row.duration * 1000),
+      artworkUri: row.artwork_uri,
+      contentKey: row.content_key,
     }));
   },
 
@@ -244,11 +274,11 @@ export const songRepository = {
         rows.push({ item, artistId, albumId });
       }
 
-      // 50 filas × 17 parámetros = 850, por debajo del límite de SQLite.
-      const CHUNK_SIZE = 50;
+      // 45 filas × 20 parámetros = 900, por debajo del límite de 999 de SQLite.
+      const CHUNK_SIZE = 45;
       for (const chunk of chunksOf(rows, CHUNK_SIZE)) {
         const placeholders = chunk
-          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+          .map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
           .join(',');
         const params = chunk.flatMap(({ item, artistId, albumId }) => [
           item.mediaId,
@@ -264,17 +294,19 @@ export const songRepository = {
           item.sampleRate,
           item.bitrate,
           item.hasLyrics ? 1 : 0,
+          item.lyrics,
           item.artwork,
           now,
           now,
           item.modificationTime,
+          item.contentKey ?? null,
           now,
         ]);
         await db.runAsync(
           `INSERT INTO songs
             (media_id, uri, title, artist_id, album_id, track_number, folder_name,
-             duration, file_format, bit_depth, sample_rate, bitrate, has_lyrics, artwork_uri, added_at, last_seen_at, modification_time,
-             artwork_checked_at, is_available)
+             duration, file_format, bit_depth, sample_rate, bitrate, has_lyrics, lyrics, artwork_uri, added_at, last_seen_at, modification_time,
+             content_key, artwork_checked_at, is_available)
            VALUES ${placeholders}
            ON CONFLICT(media_id) DO UPDATE SET
              uri = excluded.uri,
@@ -289,15 +321,91 @@ export const songRepository = {
              sample_rate = COALESCE(excluded.sample_rate, sample_rate),
              bitrate = COALESCE(excluded.bitrate, bitrate),
              has_lyrics = CASE WHEN excluded.has_lyrics = 1 OR has_lyrics = 1 THEN 1 ELSE 0 END,
+              lyrics = COALESCE(excluded.lyrics, lyrics),
              artwork_uri = COALESCE(excluded.artwork_uri, artwork_uri),
              last_seen_at = excluded.last_seen_at,
              modification_time = excluded.modification_time,
-             artwork_checked_at = excluded.artwork_checked_at,
+             content_key = COALESCE(excluded.content_key, content_key),
+              artwork_checked_at = excluded.artwork_checked_at,
              is_available = 1`,
           ...params
         );
       }
     });
+  },
+
+  /**
+   * Reubica una pista ya guardada cuando cambia su `mediaId` o su URI.
+   *
+   * LÓGICA: se actualiza la MISMA fila (no se inserta otra), así que sobreviven
+   * el id interno, favoritos, historial, playlists y las correcciones manuales.
+   * Ante un `media_id`/`uri` ya ocupado por otra fila se aborta sin tocar nada:
+   * es mejor dejar el escaneo normal decidir que fusionar canciones distintas.
+   */
+  async relocateSong(params: {
+    oldMediaId: string;
+    next: ScannedSong;
+    contentKey: string | null;
+    artworkUri: string | null;
+  }): Promise<boolean> {
+    const { oldMediaId, next, contentKey, artworkUri } = params;
+    const db = await getDatabase();
+    const now = Date.now();
+
+    let relocated = false;
+    await db.withTransactionAsync(async () => {
+      const row = await db.getFirstAsync<{ id: number }>(
+        'SELECT id FROM songs WHERE media_id = ?',
+        oldMediaId
+      );
+      if (!row) {
+        return;
+      }
+      const conflict = await db.getFirstAsync<{ id: number }>(
+        'SELECT id FROM songs WHERE (media_id = ? OR uri = ?) AND id != ?',
+        next.mediaId,
+        next.uri,
+        row.id
+      );
+      if (conflict) {
+        return;
+      }
+
+      await db.runAsync(
+        `UPDATE songs
+         SET media_id = ?, uri = ?, folder_name = ?, duration = ?,
+             file_format = COALESCE(?, file_format),
+             bit_depth = COALESCE(?, bit_depth),
+             sample_rate = COALESCE(?, sample_rate),
+             bitrate = COALESCE(?, bitrate),
+             has_lyrics = CASE WHEN ? = 1 OR has_lyrics = 1 THEN 1 ELSE 0 END,
+              lyrics = COALESCE(?, lyrics),
+             artwork_uri = ?, content_key = COALESCE(?, content_key),
+             modification_time = ?,
+             artwork_checked_at = CASE WHEN ? IS NULL THEN artwork_checked_at ELSE ? END,
+             last_seen_at = ?, is_available = 1
+         WHERE id = ?`,
+        next.mediaId,
+        next.uri,
+        next.folder,
+        next.duration,
+        next.fileFormat,
+        next.bitDepth,
+        next.sampleRate,
+        next.bitrate,
+        next.hasLyrics ? 1 : 0,
+        next.lyrics,
+        artworkUri,
+        contentKey,
+        next.modificationTime,
+        artworkUri,
+        artworkUri,
+        now,
+        row.id
+      );
+      relocated = true;
+    });
+    return relocated;
   },
 
   /**
@@ -362,6 +470,52 @@ export const songRepository = {
     return updated;
   },
 
+  /**
+   * Filas a las que aún no se les calculó la huella de contenido (V12).
+   *
+   * El sello `content_key_checked_at` distingue «no se ha intentado» de
+   * «no se pudo calcular» (URI MediaStore/iOS): así un archivo ilegible no
+   * obliga a reintentar la lectura en cada arranque.
+   */
+  async getContentKeyBackfillRows(): Promise<
+    { id: number; uri: string; duration: number }[]
+  > {
+    const db = await getDatabase();
+    return await db.getAllAsync<{ id: number; uri: string; duration: number }>(
+      `SELECT id, uri, duration FROM songs
+       WHERE content_key IS NULL AND content_key_checked_at IS NULL`
+    );
+  },
+
+  /** Persiste el resultado del backfill de huellas, incluso cuando es `null`. */
+  async setContentKeyChecks(
+    updates: { id: number; contentKey: string | null }[],
+    checkedAt: number
+  ): Promise<void> {
+    if (updates.length === 0) {
+      return;
+    }
+    const db = await getDatabase();
+    // 200 filas × 3 parámetros (id + huella) + 201 del `IN` = 601, por debajo
+    // del límite de 999 variables de las compilaciones antiguas de SQLite.
+    const CHUNK_SIZE = 200;
+    await db.withTransactionAsync(async () => {
+      for (const chunk of chunksOf(updates, CHUNK_SIZE)) {
+        const cases = chunk.map(() => 'WHEN ? THEN ?').join(' ');
+        const placeholders = chunk.map(() => '?').join(',');
+        await db.runAsync(
+          `UPDATE songs
+           SET content_key = CASE id ${cases} END,
+               content_key_checked_at = ?
+           WHERE id IN (${placeholders})`,
+          ...chunk.flatMap((item) => [item.id, item.contentKey]),
+          checkedAt,
+          ...chunk.map((item) => item.id)
+        );
+      }
+    });
+  },
+
   async getArtworkCandidates(force = false): Promise<ArtworkCandidate[]> {
     const db = await getDatabase();
     const pending = force
@@ -372,8 +526,9 @@ export const songRepository = {
       media_id: string;
       uri: string;
       album_id: number;
+      content_key: string | null;
     }>(
-      `SELECT s.id, s.media_id, s.uri, s.album_id
+      `SELECT s.id, s.media_id, s.uri, s.album_id, s.content_key
        FROM songs s
        WHERE s.is_available = 1 AND ${pending}`
     );
@@ -382,6 +537,7 @@ export const songRepository = {
       mediaId: row.media_id,
       uri: row.uri,
       albumId: row.album_id,
+      contentKey: row.content_key,
     }));
   },
 
@@ -430,6 +586,64 @@ export const songRepository = {
           albumId
         );
       }
+    });
+  },
+
+  /**
+   * URIs de portada ya guardadas. Alimenta la reparación de archivos borrados
+   * por una limpieza de caché: la BD conserva la URI pero el archivo ya no está.
+   */
+  async getStoredArtworkUris(): Promise<StoredArtworkUri[]> {
+    const db = await getDatabase();
+    const rows = await db.getAllAsync<{
+      id: number;
+      media_id: string;
+      uri: string;
+      album_id: number;
+      artwork_uri: string;
+      content_key: string | null;
+    }>(
+      `SELECT s.id, s.media_id, s.uri, s.album_id, s.artwork_uri, s.content_key
+       FROM songs s
+       WHERE s.is_available = 1 AND s.artwork_uri IS NOT NULL`
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      mediaId: row.media_id,
+      uri: row.uri,
+      albumId: row.album_id,
+      artworkUri: row.artwork_uri,
+      contentKey: row.content_key,
+    }));
+  },
+
+  /** Sustituye una URI de portada rota por la nueva en songs y albums. */
+  async replaceArtworkUri(oldUri: string, newUri: string): Promise<void> {
+    const db = await getDatabase();
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        'UPDATE songs SET artwork_uri = ? WHERE artwork_uri = ?',
+        newUri,
+        oldUri
+      );
+      await db.runAsync(
+        'UPDATE albums SET artwork_uri = ? WHERE artwork_uri = ?',
+        newUri,
+        oldUri
+      );
+    });
+  },
+
+  /** Libera una URI irreparable para que un barrido posterior pueda intentarlo. */
+  async clearArtworkUri(uri: string): Promise<void> {
+    const db = await getDatabase();
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(
+        `UPDATE songs SET artwork_uri = NULL, artwork_checked_at = NULL
+         WHERE artwork_uri = ?`,
+        uri
+      );
+      await db.runAsync('UPDATE albums SET artwork_uri = NULL WHERE artwork_uri = ?', uri);
     });
   },
 

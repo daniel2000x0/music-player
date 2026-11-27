@@ -62,7 +62,8 @@ export function NoticeBanner() {
                 dismiss(notice.code);
               }}
               style={styles.action}
-              accessibilityRole="button">
+              accessibilityRole="button"
+              accessibilityLabel={notice.action.label}>
               <ThemedText type="smallBold" style={{ color }}>
                 {notice.action.label}
               </ThemedText>
@@ -71,7 +72,7 @@ export function NoticeBanner() {
         </View>
 
         <Pressable
-          hitSlop={10}
+          hitSlop={13}
           onPress={() => dismiss(notice.code)}
           style={styles.close}
           accessibilityRole="button"

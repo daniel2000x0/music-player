@@ -55,8 +55,9 @@ export const Colors = {
     backgroundSelected: '#26262E',
     textSecondary: '#9BA1A6',
     border: '#26262E',
-    accent: '#1ED760',
-    accentText: '#04140A',
+    /** Rojo fuego: realce de los elementos manipulables del reproductor. */
+    accent: '#FF3D1F',
+    accentText: '#FFFFFF',
     danger: '#FF453A',
     /** Verde informativo para formatos de alta calidad (FLAC). */
     success: '#34D399',

@@ -11,6 +11,7 @@ import type { DeviceTrack } from '@/domain/library/scan-diff';
 import { resolveSongMetadata } from '@/domain/metadata';
 import { tr } from '@/i18n';
 import { getCurrentLanguage } from '@/i18n/current-language';
+import { computeContentKey } from '@/services/content-key.service';
 import { logError, logWarning } from '@/services/error-log.service';
 import { readAudioTags } from '@/services/tag.service';
 import type { ScannedSong } from '@/types/song';
@@ -131,6 +132,11 @@ export async function enumerateDeviceAudio(): Promise<DeviceTrack[] | null> {
     return metadata.map((item) => ({
       mediaId: item.id,
       modificationTime: item.modificationTime,
+      // `exeForMetadata` expone ambos campos sin resolver la URI del asset; el
+      // diff los usa para detectar renombrados y el apareamiento de reubicación
+      // los necesita cuando la huella de contenido aún no existe.
+      filename: item.filename ?? null,
+      durationMs: item.duration ? Math.round(item.duration * 1000) : 0,
     }));
   } catch (error) {
     logError('media-service', 'query.exeForMetadata', error);
@@ -258,8 +264,12 @@ export async function readDeviceTrack(track: DeviceTrack): Promise<ScannedSong |
       sampleRate: tags?.sampleRate ?? null,
       bitrate: tags?.bitrate ?? null,
       hasLyrics: tags?.hasLyrics ?? false,
+      lyrics: tags?.lyrics ?? null,
       artwork: null,
       modificationTime: track.modificationTime,
+      // Solo se calcula para pistas que el diff marcó como nuevas o cambiadas;
+      // nunca para las que ya están sin cambios.
+      contentKey: await computeContentKey(info.uri, durationSeconds),
     };
   } catch (error) {
     logError('media-service', 'asset.getInfo', error);

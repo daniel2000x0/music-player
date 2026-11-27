@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
+import { BackButton } from '@/components/back-button';
 import { CategoryBar, type CategoryOption } from '@/components/category-bar';
 import { EmptyState } from '@/components/empty-state';
 import { ScreenShell } from '@/components/screen-shell';
@@ -121,15 +122,7 @@ export default function LogsScreen() {
       subtitle={
         entries === null ? tr('Cargando…') : t('logEventsCount', { count: total })
       }
-      leading={
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={tr('Volver')}>
-          <Ionicons name="chevron-back" size={26} color={theme.text} />
-        </Pressable>
-      }
+      leading={<BackButton onPress={() => router.back()} />}
       action={
         total > 0 ? (
           <Pressable

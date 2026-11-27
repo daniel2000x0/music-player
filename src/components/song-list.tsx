@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, type ReactElement } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import {
   FlatList,
   RefreshControl,
@@ -13,7 +13,7 @@ import {
 import { AlphabetChips } from '@/components/alphabet-chips';
 import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { MediaTile } from '@/components/media-tile';
-import { SongRow } from '@/components/song-row';
+import { SONG_ROW_HEIGHT, SongRow } from '@/components/song-row';
 import {
   BottomTabInset,
   MiniPlayerInset,
@@ -40,6 +40,8 @@ export type SongListProps = {
   ListHeaderComponent?: ReactElement | null;
   /** Pie que se desplaza con la lista. */
   ListFooterComponent?: ReactElement | null;
+  /** Estado vacío de la lista; las pantallas pueden aportar su propio mensaje. */
+  ListEmptyComponent?: ReactElement | null;
   contentContainerStyle?: StyleProp<ViewStyle>;
   /** Muestra el spinner de "desliza para actualizar". */
   refreshing?: boolean;
@@ -57,8 +59,60 @@ export type SongListProps = {
   mode?: ViewMode;
 };
 
-/** Altura fija de una fila (artwork 52 + padding 8×2). */
-const ROW_HEIGHT = 68;
+type GridSongTileProps = {
+  song: Song;
+  width: number;
+  variant: 'block' | 'icon';
+  selectionActive: boolean;
+  selected: boolean;
+  onPress: (song: Song) => void;
+  onToggleSelect?: (song: Song) => void;
+  onLongPress?: (song: Song) => void;
+};
+
+/**
+ * Celda de rejilla con callbacks estables por canción.
+ *
+ * RENDIMIENTO: `MediaTile` está memoizado, pero crear las tres funciones en
+ * `renderItem` rompía la memoización en cada render de la lista. Aquí se
+ * crean una vez por celda y solo cambian si cambia la canción o el callback
+ * del padre.
+ */
+const GridSongTile = memo(function GridSongTile({
+  song,
+  width,
+  variant,
+  selectionActive,
+  selected,
+  onPress,
+  onToggleSelect,
+  onLongPress,
+}: GridSongTileProps) {
+  const handlePress = useCallback(() => onPress(song), [onPress, song]);
+  const handleToggleSelect = useCallback(
+    () => onToggleSelect?.(song),
+    [onToggleSelect, song]
+  );
+  const handleLongPress = useCallback(
+    () => onLongPress?.(song),
+    [onLongPress, song]
+  );
+
+  return (
+    <MediaTile
+      width={width}
+      variant={variant}
+      artworkUri={song.artwork}
+      title={song.title}
+      subtitle={song.artist}
+      selectionActive={selectionActive}
+      selected={selected}
+      onPress={handlePress}
+      onToggleSelect={onToggleSelect ? handleToggleSelect : undefined}
+      onLongPress={onLongPress ? handleLongPress : undefined}
+    />
+  );
+});
 
 /**
  * Lista de canciones virtualizada (FlatList) conectada al store de favoritos.
@@ -74,6 +128,7 @@ export function SongList({
   onMore,
   ListHeaderComponent,
   ListFooterComponent,
+  ListEmptyComponent,
   contentContainerStyle,
   refreshing = false,
   onRefresh,
@@ -84,6 +139,8 @@ export function SongList({
   mode = 'list',
 }: SongListProps) {
   const listRef = useRef<FlatList<Song>>(null);
+  // Letra resaltada en el índice A–Z: da feedback tras tocar un chip.
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   const { width: windowWidth } = useWindowDimensions();
   const theme = useTheme();
@@ -130,8 +187,8 @@ export function SongList({
 
   const getItemLayout = useCallback(
     (_: ArrayLike<Song> | null | undefined, index: number) => ({
-      length: ROW_HEIGHT,
-      offset: ROW_HEIGHT * index,
+      length: SONG_ROW_HEIGHT,
+      offset: SONG_ROW_HEIGHT * index,
       index,
     }),
     []
@@ -170,17 +227,15 @@ export function SongList({
 
   const renderTile = useCallback(
     ({ item }: ListRenderItemInfo<Song>) => (
-      <MediaTile
+      <GridSongTile
+        song={item}
         width={tileWidth}
         variant={variant}
-        artworkUri={item.artwork}
-        title={item.title}
-        subtitle={item.artist}
         selectionActive={selectionActive}
         selected={selectedSet.has(item.id)}
-        onToggleSelect={() => onToggleSelect?.(item)}
-        onPress={() => playSong(item)}
-        onLongPress={() => onLongPressSong?.(item)}
+        onPress={playSong}
+        onToggleSelect={onToggleSelect}
+        onLongPress={onLongPressSong}
       />
     ),
     [tileWidth, variant, selectionActive, selectedSet, onToggleSelect, onLongPressSong, playSong]
@@ -198,6 +253,7 @@ export function SongList({
       const index = songs.findIndex(
         (song) => initialKey(song.title) === letter
       );
+      setActiveLetter(letter);
 
       if (index !== -1) {
         listRef.current?.scrollToIndex({
@@ -220,6 +276,7 @@ export function SongList({
           letters={availableLetters}
           onSelect={scrollToLetter}
           itemNoun={tr('canciones')}
+          activeLetter={activeLetter}
         />
       ) : null}
 
@@ -254,6 +311,7 @@ export function SongList({
           }
           ListHeaderComponent={ListHeaderComponent ?? undefined}
           ListFooterComponent={ListFooterComponent ?? undefined}
+          ListEmptyComponent={ListEmptyComponent ?? undefined}
           contentContainerStyle={[
             styles.content,
             {

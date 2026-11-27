@@ -20,6 +20,7 @@ import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { RefreshButton } from '@/components/refresh-button';
+import { ScanProgressBanner } from '@/components/scan-progress-banner';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { SkeletonList } from '@/components/skeleton';
@@ -27,6 +28,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ViewModePicker } from '@/components/view-mode-picker';
 import {
   BottomTabInset,
+  MinTouchTarget,
   MiniPlayerInset,
   Radius,
   ScrollbarEdgeMargin,
@@ -60,6 +62,7 @@ export default function AlbumsScreen() {
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
   const isScanning = useLibraryStore((state) => state.isScanning);
+  const error = useLibraryStore((state) => state.error);
   const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
 
@@ -118,6 +121,7 @@ export default function AlbumsScreen() {
         onChangeText={setQuery}
         placeholder={tr('Buscar álbumes o artistas')}
         placeholderTextColor={theme.textSecondary}
+        accessibilityLabel={tr('Buscar álbumes o artistas')}
         style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
       />
       {/* Selector al mismo nivel que la búsqueda/filtro de la pestaña. */}
@@ -159,8 +163,17 @@ export default function AlbumsScreen() {
           </View>
         }
         header={header}>
+        <ScanProgressBanner />
         {isLoading ? (
           <SkeletonList rows={6} />
+        ) : error && albums.length === 0 ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title={tr('No se pudo leer tu música')}
+            message={error}
+            actionLabel={tr('Reintentar')}
+            onAction={() => void refresh()}
+          />
         ) : albums.length === 0 ? (
           <EmptyState
             icon="albums-outline"
@@ -298,6 +311,8 @@ const styles = StyleSheet.create({
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MinTouchTarget,
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,

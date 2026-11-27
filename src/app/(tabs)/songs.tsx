@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
+import { ScanProgressBanner } from '@/components/scan-progress-banner';
 import { ScreenShell } from '@/components/screen-shell';
 import { SelectionActions } from '@/components/selection-actions';
 import { SkeletonList } from '@/components/skeleton';
@@ -15,9 +16,8 @@ import { SortSheet, type SortField } from '@/components/sort-sheet';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
 import { ViewModePicker } from '@/components/view-mode-picker';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { filterSongs } from '@/domain/library/filters';
-import { describeScanProgress } from '@/domain/library/scan-progress';
 import { resolveSongsByIds } from '@/domain/library/selection';
 import { sortDirectionOf, sortFieldOf, sortSongs } from '@/domain/library/sorting';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
@@ -48,7 +48,7 @@ const isSongView = (value: string | undefined): value is SongView =>
 /** Pantalla "Canciones": búsqueda, filtros, orden y reproducción. */
 export default function SongsScreen() {
   const theme = useTheme();
-  const { tr, t, language } = useTranslation();
+  const { tr, t } = useTranslation();
   const { mode } = useViewMode('songs');
   const params = useLocalSearchParams<{ view?: string }>();
   const songs = useLibraryStore((state) => state.songs);
@@ -56,7 +56,6 @@ export default function SongsScreen() {
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
   const isScanning = useLibraryStore((state) => state.isScanning);
-  const scanProgress = useLibraryStore((state) => state.scanProgress);
   const error = useLibraryStore((state) => state.error);
   const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
@@ -194,6 +193,7 @@ export default function SongsScreen() {
         onChangeText={setQuery}
         placeholder={tr('Buscar por título, artista o álbum')}
         placeholderTextColor={theme.textSecondary}
+        accessibilityLabel={tr('Buscar por título, artista o álbum')}
         returnKeyType="search"
         style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
       />
@@ -276,14 +276,7 @@ export default function SongsScreen() {
         header={header}>
         {/* Escaneo observable: fase y conteo, también en la sincronización
             silenciosa del arranque en frío (`UI-06`). */}
-        {scanProgress ? (
-          <View style={[styles.scanBanner, { backgroundColor: theme.backgroundElement }]}>
-            <ActivityIndicator size="small" color={theme.accent} />
-            <ThemedText type="small" themeColor="textSecondary" style={styles.scanText}>
-              {describeScanProgress(scanProgress, language)}
-            </ThemedText>
-          </View>
-        ) : null}
+        <ScanProgressBanner />
         {isLoading ? (
           <SkeletonList />
         ) : error && songs.length === 0 ? (
@@ -302,21 +295,6 @@ export default function SongsScreen() {
             actionLabel={tr('Escanear de nuevo')}
             onAction={() => void refresh()}
           />
-        ) : visibleSongs.length === 0 ? (
-          <EmptyState
-            icon="search-outline"
-            title={tr('Sin resultados')}
-            message={
-              query.trim()
-                ? t('noMatchQuery', { query: query.trim() })
-                : tr('No hay canciones en este filtro.')
-            }
-            actionLabel={tr('Limpiar filtros')}
-            onAction={() => {
-              setQuery('');
-              setView('all');
-            }}
-          />
         ) : (
           <SongList
             songs={visibleSongs}
@@ -328,6 +306,22 @@ export default function SongsScreen() {
             selectionActive={isActive}
             onToggleSelect={toggle}
             onLongPressSong={toggle}
+            ListEmptyComponent={
+              <EmptyState
+                icon="search-outline"
+                title={tr('Sin resultados')}
+                message={
+                  query.trim()
+                    ? t('noMatchQuery', { query: query.trim() })
+                    : tr('No hay canciones en este filtro.')
+                }
+                actionLabel={tr('Limpiar filtros')}
+                onAction={() => {
+                  setQuery('');
+                  setView('all');
+                }}
+              />
+            }
           />
         )}
       </ScreenShell>
@@ -412,7 +406,7 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     flex: 1,
-    minHeight: 40,
+    minHeight: MinTouchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -427,21 +421,11 @@ const styles = StyleSheet.create({
   playAll: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MinTouchTarget,
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.pill,
-  },
-  scanBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: Radius.medium,
-    marginBottom: Spacing.sm,
-  },
-  scanText: {
-    flex: 1,
   },
 });

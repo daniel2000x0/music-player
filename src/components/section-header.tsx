@@ -25,7 +25,7 @@ export function SectionHeader({ title, actionLabel, onActionPress }: SectionHead
 
   return (
     <View style={styles.container}>
-      <ThemedText type="default" numberOfLines={1} style={styles.title}>
+      <ThemedText type="default" numberOfLines={1} accessibilityRole="header" style={styles.title}>
         {title}
       </ThemedText>
       {actionLabel && onActionPress ? (
@@ -33,6 +33,7 @@ export function SectionHeader({ title, actionLabel, onActionPress }: SectionHead
           hitSlop={8}
           onPress={onActionPress}
           accessibilityRole="button"
+          accessibilityLabel={actionLabel}
           style={styles.action}>
           <ThemedText type="smallBold" themeColor="accent" numberOfLines={1}>
             {actionLabel}

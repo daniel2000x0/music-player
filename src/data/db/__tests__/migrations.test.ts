@@ -52,6 +52,9 @@ const SONG_COLUMNS = [
   'sample_rate',
   'bitrate',
   'has_lyrics',
+  'lyrics',
+  'content_key',
+  'content_key_checked_at',
 ];
 
 beforeEach(() => {
@@ -88,6 +91,12 @@ describe('migrateDatabase: base nueva', () => {
     expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN bit_depth INTEGER');
     expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN sample_rate INTEGER');
     expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN bitrate INTEGER');
+    expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0');
+    expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN lyrics TEXT');
+    expect(mockRunLog).toContain('ALTER TABLE songs ADD COLUMN content_key TEXT');
+    expect(mockRunLog).toContain(
+      'ALTER TABLE songs ADD COLUMN content_key_checked_at INTEGER'
+    );
   });
 
   it('crea la tabla de pistas quitadas de la biblioteca (V8)', async () => {
@@ -113,7 +122,7 @@ describe('migrateDatabase: base nueva', () => {
   it('deja PRAGMA user_version en la versión actual', async () => {
     await migrateDatabase(db);
 
-    expect(DATABASE_VERSION).toBe(11);
+    expect(DATABASE_VERSION).toBe(13);
     expect(mockExecLog).toContain(`PRAGMA user_version = ${DATABASE_VERSION}`);
   });
 });
@@ -140,7 +149,9 @@ describe('migrateDatabase: esquema ya migrado', () => {
   it('añade solo la columna faltante en una BD de la versión anterior', async () => {
     mockTables.add('songs');
     mockTables.add('error_logs');
-    for (const column of SONG_COLUMNS.filter((name) => name !== 'has_lyrics')) {
+    for (const column of SONG_COLUMNS.filter(
+      (name) => name !== 'has_lyrics' && name !== 'lyrics'
+    )) {
       mockColumns.add(column);
     }
 
@@ -148,6 +159,7 @@ describe('migrateDatabase: esquema ya migrado', () => {
 
     expect(mockRunLog).toEqual([
       'ALTER TABLE songs ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE songs ADD COLUMN lyrics TEXT',
     ]);
   });
 });

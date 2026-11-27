@@ -50,7 +50,8 @@ const TAGS: AudioTags = {
   bitDepth: null,
   sampleRate: null,
   bitrate: null,
-  hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
 };
 
 /** Cabecera ID3v2 de 14 bytes; el tamaño real lo decide el doble del parser. */

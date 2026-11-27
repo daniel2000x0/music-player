@@ -61,7 +61,11 @@ export function ScreenShell({
       <View style={styles.header}>
         {leading ? <View style={styles.leading}>{leading}</View> : null}
         <View style={styles.titleBlock}>
-          <ThemedText type="subtitle" numberOfLines={1} style={styles.title}>
+          <ThemedText
+            type="subtitle"
+            numberOfLines={1}
+            accessibilityRole="header"
+            style={styles.title}>
             {title}
           </ThemedText>
           {subtitle ? (

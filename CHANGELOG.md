@@ -14,6 +14,67 @@ verificación en dispositivo) vive en
 Fases 1 a 5.2 de la hoja de ruta (aún sin versión publicada; `app.json` sigue en
 `1.0.0` y se sella al publicar en FASE 8).
 
+### 2026-11-26 / 27 — letras incrustadas, reubicación y estabilidad
+
+**Añadido**
+
+- **Letras incrustadas (Opción A, texto plano):** lectura real de `USLT`, `ULT`,
+  `SYLT` y `SLT` en MP3/ID3, del átomo `©lyr` en MP4 (UTF-8 y UTF-16BE) y de
+  `LYRICS`, `UNSYNCEDLYRICS` y `SYNCEDLYRICS` en FLAC/Ogg. `cleanLyrics()`
+  conserva las estrofas y limita el texto a 8 000 caracteres por canción.
+- **Migración SQLite V13:** columna `songs.lyrics`, preservada por `upsertBatch`,
+  `relocateSong` y `updateMetadata`.
+- **Visualización:** `LyricsSheet` con la letra completa y `InlineLyrics`, vista
+  previa de altura fija entre la carátula y el título (2 líneas, 1 en pantallas
+  muy cortas) que abre la hoja al tocarla. Textos nuevos en español e inglés.
+- **Reubicación por huella de contenido:** `content_key`, `computeContentKey`,
+  `matchRelocations`, `remapArtworkUri` y `relocateSong`, con backfill y
+  disparadores al volver la app al primer plano y al cambiar la mediateca.
+- **Pruebas:** caso que reproduce el error real de SQLite
+  (`cannot start a transaction within a transaction`) en el doble de base de
+  datos, además de cobertura para parsers, migración V13, persistencia y layout.
+- **Herramientas:** guion `npm run verify` (tipado + lint + pruebas + doctor) y
+  documentación de publicación en [`docs/EAS_APK.md`](docs/EAS_APK.md).
+
+**Cambiado**
+
+- Acento del tema **Oscuro** de `#1ED760` a `#FF3D1F`, con `accentText` en
+  `#FFFFFF` para mantener contraste.
+- Icono base: `assets/images/defaultLogo.png` sustituye a `app-icon.svg` y a
+  `defaultLogo.jpg`; `app.json` apunta al nuevo PNG.
+- El widget conserva los glifos Unicode (`⏮`, `⏸`, `⏭`) porque `expo-widgets`
+  no admite `IconView`.
+- Carátulas: placeholder del tema con `expo-image` (sin `transition={150}`),
+  validación de firma de imagen, recuperación legacy por `mediaId` y prefijos
+  lazy para evitar fallos en SSR.
+- `playerArtworkSize(width, height, hasInlineLyrics)` descuenta el alto de la
+  vista previa y su hueco, de modo que la letra no desplaza controles ni barra.
+- Lote de `upsertBatch` reducido de 50 a 45 filas: cada fila pasó a tener 20
+  parámetros SQL al añadir `lyrics`.
+- `migrateLegacyLibrary()` comparte un único `migrationPromise` con `.finally()`
+  para no repetir la migración entre llamadas simultáneas.
+
+**Corregido**
+
+- «Cannot start a transaction within a transaction» al hidratar la biblioteca y
+  pedir permisos a la vez sobre la misma conexión SQLite.
+- Las letras ya no se pierden al reescanear, relocalizar o actualizar metadatos.
+- `SYLT`: la limpieza se aplica una sola vez después de concatenar los
+  fragmentos, para no borrar los espacios entre sílabas.
+- Development build instalado en el dispositivo: `expo-sqlite` no funciona en
+  Expo Go 58.0.5, que no incluye ese módulo nativo.
+
+**Eliminado**
+
+- `assets/images/app-icon.svg` y `assets/images/defaultLogo.jpg`.
+
+**Verificación**
+
+- `npm run verify`: 81 suites / 760 pruebas, lint y tipado limpios,
+  `expo-doctor` 20/20.
+- Intento de APK EAS del 2026-11-26 rechazado por cupo del plan Free (se
+  reinicia el 2026-12-01); procedimiento y reintento en `docs/EAS_APK.md`.
+
 ### Añadido
 
 - **Pruebas y optimización (FASE 7):** dobles reutilizables de los módulos

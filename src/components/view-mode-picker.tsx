@@ -4,7 +4,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/hooks/use-translation';
 import { useViewMode } from '@/hooks/use-view-mode';
@@ -84,7 +84,7 @@ export function ViewModePicker({ tab }: { tab: ViewModeTab }) {
 const styles = StyleSheet.create({
   button: {
     flex: 1,
-    minHeight: 40,
+    minHeight: MinTouchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

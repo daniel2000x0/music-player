@@ -8,7 +8,7 @@ import type { SQLiteDatabase } from 'expo-sqlite';
  * Nunca se borran datos del usuario en una migración.
  */
 
-export const DATABASE_VERSION = 11;
+export const DATABASE_VERSION = 13;
 
 const V1 = `
 CREATE TABLE IF NOT EXISTS artists (
@@ -247,15 +247,38 @@ export async function migrateDatabase(db: SQLiteDatabase): Promise<void> {
   /**
    * V11: indicador de letras disponibles.
    *
-   * LÓGICA: solo persistimos disponibilidad (0/1) derivada de metadatos
-   * (USLT/SYLT, ©lyr, LYRICS/UNSYNCEDLYRICS). No se guarda el texto de la
-   * letra para evitar bloat en SQLite. NULL/0 en filas antiguas se rellenará
-   * cuando el archivo se reescanee o se vuelva a leer metadata.
+   * LÓGICA: disponibilidad (0/1) derivada de metadatos (USLT/SYLT, ©lyr,
+   * LYRICS/UNSYNCEDLYRICS/SYNCEDLYRICS). V13 añade el texto; mientras tanto
+   * NULL/0 en filas antiguas se rellena al reescanear el archivo.
    */
   if (!(await columnExists('songs', 'has_lyrics'))) {
     await db.runAsync('ALTER TABLE songs ADD COLUMN has_lyrics INTEGER NOT NULL DEFAULT 0');
   }
+  /**
+   * V12: huella de contenido para reconocer una pista después de moverla o
+   * renombrarla (`mediaId` puede cambiar). `content_key_checked_at` evita
+   * recalcular la huella de filas cuyo URI no es legible (p. ej. MediaStore).
+   * `NULL` en filas antiguas: el primer escaneo las calcula y, mientras tanto,
+   * el apareamiento usa nombre + carpeta + duración.
+   */
+  if (!(await columnExists('songs', 'content_key'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN content_key TEXT');
+  }
+  if (!(await columnExists('songs', 'content_key_checked_at'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN content_key_checked_at INTEGER');
+  }
+  /**
+   * V13: texto de la letra incrustada en el archivo.
+   *
+   * LÓGICA: columna opcional (NULL en bibliotecas ya escaneadas). El parser
+   * recorta cada letra a `MAX_LYRICS_CHARS` para no inflar SQLite; se vuelve
+   * a leer cuando el archivo cambia o se fuerza un escaneo completo.
+   */
+  if (!(await columnExists('songs', 'lyrics'))) {
+    await db.runAsync('ALTER TABLE songs ADD COLUMN lyrics TEXT');
+  }
   await db.execAsync('CREATE INDEX IF NOT EXISTS idx_songs_audiobook ON songs(is_audiobook)');
+  await db.execAsync('CREATE INDEX IF NOT EXISTS idx_songs_content_key ON songs(content_key)');
   await db.execAsync(
     'CREATE INDEX IF NOT EXISTS idx_songs_modification ON songs(modification_time)'
   );

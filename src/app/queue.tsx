@@ -4,6 +4,7 @@ import { memo, useCallback } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { Artwork } from '@/components/artwork';
+import { BackButton } from '@/components/back-button';
 import { EdgeScrollIndicator } from '@/components/edge-scroll-indicator';
 import { EmptyState } from '@/components/empty-state';
 import { ScreenShell } from '@/components/screen-shell';
@@ -149,15 +150,7 @@ export default function QueueScreen() {
       title={tr('Cola de reproducción')}
       subtitle={t('songsCount', { count: queue.length })}
       scroll={false}
-      leading={
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={tr('Volver')}>
-          <Ionicons name="chevron-back" size={26} color={theme.text} />
-        </Pressable>
-      }
+      leading={<BackButton onPress={() => router.back()} />}
       action={
         queue.length > 1 ? (
           <Pressable

@@ -39,6 +39,8 @@ export function QuickAccess({ items }: QuickAccessProps) {
           <Pressable
             key={item.key}
             onPress={item.onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.label}, ${item.count}`}
             style={({ pressed }) => [
               styles.card,
               Elevation.card,

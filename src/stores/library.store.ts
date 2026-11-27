@@ -274,6 +274,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
       candidates: 0,
       resolved: 0,
       albums: 0,
+      repaired: 0,
       durationMs: 0,
     };
     if (get().isScanning || get().isSyncing || get().isBackfilling) {
@@ -285,7 +286,7 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
         force: true,
         onProgress: (scanProgress) => set({ scanProgress }),
       });
-      if (report.resolved > 0) {
+      if (report.resolved + report.repaired > 0) {
         const [songs, albums] = await Promise.all([
           songRepository.getAll(),
           albumRepository.getAll(),

@@ -93,6 +93,12 @@ type PlayerState = {
   setVolume: (value: number) => void;
   syncStatus: (status: PlaybackStatus) => void;
   syncTrack: (song: Song) => void;
+  /**
+   * Refresca la cola y la pista actual con las URIs ya reubicadas en SQLite.
+   * Recrea la playlist nativa solo si algún objeto cambió, para que la
+   * notificación de Android vuelva a cargar la carátula persistida.
+   */
+  applyLibraryRefresh: () => void;
   syncLockScreen: (health: LockScreenHealth) => void;
   syncSessionState: (snapshot: SessionSnapshot) => void;
   /**
@@ -512,6 +518,41 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       // El motor solo tiene una ventana de la cola: se recentra al acercarse a
       // sus bordes para que el avance automático no se corte (ANR).
       maintainWindow();
+    },
+
+    applyLibraryRefresh: () => {
+      const state = get();
+      if (state.queue.length === 0) {
+        return;
+      }
+      const byId = new Map(useLibraryStore.getState().songs.map((song) => [song.id, song]));
+      const queue = state.queue.map((song) => byId.get(song.id) ?? song);
+      const currentSong = state.currentSong
+        ? byId.get(state.currentSong.id) ?? state.currentSong
+        : null;
+      const changed =
+        currentSong !== state.currentSong ||
+        queue.some((song, index) => song !== state.queue[index]);
+      if (!changed) {
+        return;
+      }
+
+      const position = getPlaybackPosition();
+      set({ queue, currentSong });
+      saveSessionNow(() => buildSession(get()));
+      try {
+        // El motor guardó la URI antigua al crear la playlist: recrearla con los
+        // objetos ya reubicados restaura audio y carátula en la notificación.
+        rebuildQueue(queue, {
+          currentSongId: currentSong?.id ?? null,
+          loop: state.repeatMode,
+          shuffle: state.shuffle,
+          position,
+          playing: state.isPlaying,
+        });
+      } catch (error) {
+        logError('player-store', 'applyLibraryRefresh', error);
+      }
     },
 
     syncStatus: (status) => {

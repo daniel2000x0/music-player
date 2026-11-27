@@ -5,7 +5,7 @@ import type { ScannedSong } from '@/types/song';
  * Pruebas de la persistencia por lotes con un SQLite falso.
  *
  * LÓGICA: se registra cada sentencia para verificar los contratos que importan
- * en bibliotecas grandes: una transacción por lote, sentencias de ≤50 filas,
+ * en bibliotecas grandes: una transacción por lote, sentencias de ≤45 filas,
  * chunks de ≤500 ids y ausencia del reset global de disponibilidad.
  */
 type Row = Record<string, unknown>;
@@ -61,7 +61,8 @@ function scanned(mediaId: string, modificationTime: number | null = 10): Scanned
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
-    hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
     artwork: null,
     modificationTime,
   };
@@ -83,6 +84,7 @@ function songRow(id: number): Row {
     sample_rate: 44100,
     bitrate: 1411,
     has_lyrics: 1,
+    lyrics: 'Línea una\nLínea dos',
     artwork_uri: null,
     added_at: 1,
     is_available: 1,
@@ -109,7 +111,7 @@ describe('songRepository.upsertBatch', () => {
     expect(mockDb.withTransactionAsync).not.toHaveBeenCalled();
   });
 
-  it('escribe en una transacción con sentencias de 50 filas', async () => {
+  it('escribe en una transacción con sentencias de 45 filas', async () => {
     const songs = Array.from({ length: 120 }, (_, index) =>
       scanned(`m-${index}`, index + 1)
     );
@@ -119,16 +121,30 @@ describe('songRepository.upsertBatch', () => {
     expect(mockDb.withTransactionAsync).toHaveBeenCalledTimes(1);
     const inserts = mockRunLog.filter((entry) => entry.sql.includes('INSERT INTO songs'));
     expect(inserts).toHaveLength(3);
-    expect(inserts.map((entry) => entry.params.length)).toEqual([900, 900, 360]);
+    expect(inserts.map((entry) => entry.params.length)).toEqual([900, 900, 600]);
     expect(inserts[0].sql).toContain('file_format');
     expect(inserts[0].sql).toContain('bit_depth');
     expect(inserts[0].sql).toContain('sample_rate');
     expect(inserts[0].sql).toContain('bitrate');
     expect(inserts[0].sql).toContain('has_lyrics');
+    expect(inserts[0].sql).toContain('lyrics');
     expect(inserts[0].sql).toContain('modification_time');
     expect(inserts[0].sql).toContain('artwork_checked_at');
     // El valor guardado es el de la mediateca, no un contador del bucle.
-    expect(inserts[0].params[16]).toBe(1);
+    expect(inserts[0].params[17]).toBe(1);
+    // La letra viaja en el mismo lote (índice 13 tras añadir la columna).
+    expect(inserts[0].params[13]).toBeNull();
+  });
+
+  it('persiste el texto de la letra sin borrar la de escaneos anteriores', async () => {
+    await songRepository.upsertBatch([
+      { ...scanned('m-letras'), hasLyrics: true, lyrics: 'Primera\nSegunda' },
+    ]);
+
+    const insert = mockRunLog.find((entry) => entry.sql.includes('INSERT INTO songs'));
+    expect(insert?.sql).toContain('lyrics = COALESCE(excluded.lyrics, lyrics)');
+    expect(insert?.params[12]).toBe(1);
+    expect(insert?.params[13]).toBe('Primera\nSegunda');
   });
 
   it('nunca resetea la disponibilidad de toda la tabla', async () => {
@@ -208,6 +224,7 @@ describe('songRepository.getByIds', () => {
     expect(mockDb.getAllAsync).toHaveBeenCalledTimes(3);
     expect(songs).toHaveLength(1_200);
     expect(songs[0].id).toBe(1);
+    expect(songs[0].lyrics).toBe('Línea una\nLínea dos');
     expect(songs.at(-1)?.id).toBe(1_200);
   });
 
@@ -224,16 +241,127 @@ describe('songRepository.getByIds', () => {
 describe('songRepository.getScanState', () => {
   it('conserva la fecha nula y la disponibilidad de las filas migradas', async () => {
     mockAllHandler = () => [
-      { media_id: 'vieja', modification_time: null, is_available: 1 },
-      { media_id: 'podada', modification_time: 50, is_available: 0 },
+      {
+        media_id: 'vieja',
+        modification_time: null,
+        is_available: 1,
+        uri: 'file:///music/Vieja.mp3',
+        duration: 120,
+        folder_name: 'music',
+        artwork_uri: null,
+        content_key: null,
+      },
+      {
+        media_id: 'podada',
+        modification_time: 50,
+        is_available: 0,
+        uri: 'file:///music/podada.mp3',
+        duration: 90,
+        folder_name: 'discos',
+        artwork_uri: 'file:///documents/artwork/podada.jpg',
+        content_key: 'huella',
+      },
     ];
 
     const state = await songRepository.getScanState();
+    const sql = mockDb.getAllAsync.mock.calls[0][0];
 
+    expect(sql).toContain('folder_name');
+    expect(sql).toContain('content_key');
     expect(state).toEqual([
-      { mediaId: 'vieja', modificationTime: null, isAvailable: true },
-      { mediaId: 'podada', modificationTime: 50, isAvailable: false },
+      {
+        mediaId: 'vieja',
+        modificationTime: null,
+        isAvailable: true,
+        uri: 'file:///music/Vieja.mp3',
+        filename: 'vieja.mp3',
+        folder: 'music',
+        durationMs: 120_000,
+        artworkUri: null,
+        contentKey: null,
+      },
+      {
+        mediaId: 'podada',
+        modificationTime: 50,
+        isAvailable: false,
+        uri: 'file:///music/podada.mp3',
+        filename: 'podada.mp3',
+        folder: 'discos',
+        durationMs: 90_000,
+        artworkUri: 'file:///documents/artwork/podada.jpg',
+        contentKey: 'huella',
+      },
     ]);
+  });
+});
+
+describe('songRepository.relocateSong', () => {
+  const next = {
+    ...scanned('m-nuevo', 20),
+    uri: 'file:///music/nuevo.mp3',
+    artwork: 'file:///documents/artwork/huella.jpg',
+    contentKey: 'huella',
+  };
+  const params = {
+    oldMediaId: 'm-viejo',
+    next,
+    contentKey: 'huella',
+    artworkUri: 'file:///documents/artwork/huella.jpg',
+  };
+
+  it('actualiza en sitio la fila existing sin borrar datos del usuario', async () => {
+    mockFirstHandler = (sql) => (sql.includes('WHERE media_id = ?') ? { id: 42 } : null);
+
+    await expect(songRepository.relocateSong(params)).resolves.toBe(true);
+
+    const update = mockRunLog.find(
+      (entry) => entry.sql.startsWith('UPDATE songs') && entry.sql.includes('media_id = ?')
+    );
+    expect(update?.sql).toContain('WHERE id = ?');
+    expect(update?.params[0]).toBe('m-nuevo');
+    expect(update?.params.at(-1)).toBe(42);
+    expect(update?.sql).not.toContain('INSERT INTO');
+  });
+
+  it('aborta sin escribir si la fila antigua no existe', async () => {
+    await expect(songRepository.relocateSong(params)).resolves.toBe(false);
+    expect(mockRunLog).toHaveLength(0);
+  });
+
+  it('aborta sin escribir si el nuevo id o URI ya pertenece a otra fila', async () => {
+    mockFirstHandler = (sql) =>
+      sql.includes('AND id != ?') ? { id: 7 } : { id: 42 };
+
+    await expect(songRepository.relocateSong(params)).resolves.toBe(false);
+    expect(mockRunLog).toHaveLength(0);
+  });
+});
+
+describe('songRepository: backfill de huellas', () => {
+  it('pide solo filas sin huella ni intento previo', async () => {
+    mockAllHandler = () => [];
+
+    await songRepository.getContentKeyBackfillRows();
+
+    const sql = mockDb.getAllAsync.mock.calls[0][0];
+    expect(sql).toContain('content_key IS NULL');
+    expect(sql).toContain('content_key_checked_at IS NULL');
+  });
+
+  it('guarda resultados (incluidos nulos) en lotes por debajo del límite de variables', async () => {
+    const updates = Array.from({ length: 250 }, (_, index) => ({
+      id: index + 1,
+      contentKey: index === 0 ? null : `huella-${index}`,
+    }));
+
+    await songRepository.setContentKeyChecks(updates, 9_000);
+
+    const writes = mockRunLog.filter((entry) => entry.sql.startsWith('UPDATE songs'));
+    expect(writes).toHaveLength(2);
+    expect(writes.map((entry) => entry.params.length)).toEqual([601, 151]);
+    expect(writes[0].sql).toContain('CASE id');
+    expect(writes[0].params).toContain(null);
+    expect(writes[0].params).toContain(9_000);
   });
 });
 
@@ -472,5 +600,57 @@ describe('songRepository.ignored media', () => {
     await songRepository.restoreIgnored();
 
     expect(mockRunLog.some((entry) => entry.sql === 'DELETE FROM ignored_media')).toBe(true);
+  });
+});
+
+describe('songRepository.artwork persistente', () => {
+  it('devuelve las URIs guardadas de las pistas disponibles', async () => {
+    mockAllHandler = () => [
+      {
+        id: 1,
+        media_id: 'm-1',
+        uri: 'file:///music/m-1.mp3',
+        album_id: 7,
+        artwork_uri: 'file:///cache/artwork/m-1.jpg',
+      },
+    ];
+
+    await expect(songRepository.getStoredArtworkUris()).resolves.toEqual([
+      {
+        id: 1,
+        mediaId: 'm-1',
+        uri: 'file:///music/m-1.mp3',
+        albumId: 7,
+        artworkUri: 'file:///cache/artwork/m-1.jpg',
+      },
+    ]);
+    expect(mockDb.getAllAsync.mock.calls[0][0]).toContain('s.artwork_uri IS NOT NULL');
+  });
+
+  it('sustituye la URI rota en songs y albums en una transacción', async () => {
+    await songRepository.replaceArtworkUri(
+      'file:///cache/artwork/m-1.jpg',
+      'file:///documents/artwork/m-1.jpg'
+    );
+
+    expect(mockDb.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(mockRunLog.map((entry) => entry.sql)).toEqual([
+      'UPDATE songs SET artwork_uri = ? WHERE artwork_uri = ?',
+      'UPDATE albums SET artwork_uri = ? WHERE artwork_uri = ?',
+    ]);
+    expect(mockRunLog[0].params).toEqual([
+      'file:///documents/artwork/m-1.jpg',
+      'file:///cache/artwork/m-1.jpg',
+    ]);
+  });
+
+  it('libera la URI irreparable y permite volver a intentarlo', async () => {
+    await songRepository.clearArtworkUri('file:///cache/artwork/m-1.jpg');
+
+    expect(mockRunLog[0].sql).toContain('artwork_uri = NULL, artwork_checked_at = NULL');
+    expect(mockRunLog[1].sql).toBe(
+      'UPDATE albums SET artwork_uri = NULL WHERE artwork_uri = ?'
+    );
+    expect(mockRunLog[1].params).toEqual(['file:///cache/artwork/m-1.jpg']);
   });
 });

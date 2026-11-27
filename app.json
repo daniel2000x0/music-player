@@ -4,7 +4,7 @@
     "slug": "mi-music-player",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/defaultLogo.jpg",
+    "icon": "./assets/images/defaultLogo.png",
     "scheme": "mimusicplayer",
     "userInterfaceStyle": "automatic",
     "ios": {
@@ -169,7 +169,8 @@
             }
           }
         ]
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,

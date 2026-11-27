@@ -1,5 +1,6 @@
 import { ascii, sniffArtwork, syncsafe, u32, type EmbeddedArtwork } from '@/domain/artwork/bytes';
 import {
+  cleanLyrics,
   decodeLatin1,
   decodeUtf16,
   decodeUtf8,
@@ -165,6 +166,84 @@ function decodeTextFrame(tag: Uint8Array, frame: Id3Frame): string[] {
 }
 
 /**
+ * Salta el `Content descriptor` de USLT/SYLT (y su equivalente v2.2) y
+ * devuelve el índice justo después de su terminador. El terminador ocupa 1
+ * byte en Latin-1/UTF-8 y 2 en UTF-16. `start` marca el inicio real del
+ * descriptor, así que el barrido respeta la alineación del texto.
+ */
+function skipDescriptor(bytes: Uint8Array, start: number, end: number, encoding: number): number {
+  const step = encoding === 1 || encoding === 2 ? 2 : 1;
+  let cursor = start;
+  while (cursor + step - 1 < end) {
+    if (step === 1 ? bytes[cursor] === 0 : bytes[cursor] === 0 && bytes[cursor + 1] === 0) {
+      return cursor + step;
+    }
+    cursor += step;
+  }
+  return end;
+}
+
+/** Decodifica un tramo de letra según el encoding del frame ID3 (sin limpiar). */
+function decodeLyricsBytes(
+  bytes: Uint8Array,
+  start: number,
+  end: number,
+  encoding: number
+): string {
+  switch (encoding) {
+    case 1:
+      return decodeUtf16(bytes, start, end, false);
+    case 2:
+      return decodeUtf16(bytes, start, end, true);
+    case 3:
+      return decodeUtf8(bytes, start, end);
+    default:
+      return decodeLatin1(bytes, start, end);
+  }
+}
+
+/**
+ * Lee el texto de USLT/ULT (letra plana) o SYLT/SLT (letra sincronizada).
+ * En SYLT el cuerpo son pares `texto terminado en NUL` + timestamp de 4 bytes;
+ * se concatenan los fragmentos y se descartan los timestamps para mostrar la
+ * letra como texto plano. Los saltos de línea presentes en el texto se conservan.
+ */
+function extractId3Lyrics(tag: Uint8Array, frame: Id3Frame): string | null {
+  const encoding = tag[frame.start];
+  const synced = frame.id === 'SYLT' || frame.id === 'SLT';
+  // encoding(1) + idioma(3) [+ formato de tiempo(1) + tipo(1) en SYLT] + descriptor.
+  const descriptorStart = frame.start + (synced ? 6 : 4);
+  const bodyStart = skipDescriptor(tag, descriptorStart, frame.end, encoding);
+
+  if (!synced) {
+    return cleanLyrics(decodeLyricsBytes(tag, bodyStart, frame.end, encoding));
+  }
+
+  const step = encoding === 1 || encoding === 2 ? 2 : 1;
+  let cursor = bodyStart;
+  let text = '';
+  while (cursor < frame.end) {
+    let term = cursor;
+    while (term + step - 1 < frame.end) {
+      if (step === 1 ? tag[term] === 0 : tag[term] === 0 && tag[term + 1] === 0) {
+        break;
+      }
+      term += step;
+    }
+    if (term + step > frame.end) {
+      break;
+    }
+    text += decodeLyricsBytes(tag, cursor, term, encoding);
+    cursor = term + step;
+    if (cursor + 4 > frame.end) {
+      break;
+    }
+    cursor += 4;
+  }
+  return cleanLyrics(text);
+}
+
+/**
  * Extrae la mejor portada de un tag ID3v2 completo (header + body).
  *
  * El buffer puede venir truncado (tag gigante recortado): los frames que
@@ -206,13 +285,15 @@ export function extractId3Tags(tag: Uint8Array): AudioTags | null {
     sampleRate: null,
     bitrate: null,
     hasLyrics: false,
+    lyrics: null,
   };
   let found = false;
 
   const valid = forEachFrame(tag, (frame) => {
-    // Detección de letras: solo marcamos disponibilidad, no guardamos contenido.
     if (LYRICS_FRAMES.has(frame.id)) {
-      if (frame.end > frame.start + 1) {
+      const lyrics = extractId3Lyrics(tag, frame);
+      if (lyrics) {
+        tags.lyrics = tags.lyrics ?? lyrics;
         tags.hasLyrics = true;
         found = true;
       }

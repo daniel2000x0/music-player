@@ -9,7 +9,7 @@ import type { ThemeMode } from '@/types/settings';
  * Logotipo predeterminado de la app. Se usa como fallback para temas sin imagen
  * específica asignada. Importación estática para que Metro lo resuelva.
  */
-export const DEFAULT_THEME_LOGO: ImageSourcePropType = require('../../assets/images/defaultLogo.jpg');
+export const DEFAULT_THEME_LOGO: ImageSourcePropType = require('../../assets/images/defaultLogo.png');
 
 /** Imagen específica del tema claro (selector/preview en app). */
 export const LIGHT_THEME_LOGO: ImageSourcePropType = require('../../assets/images/themesIcons/defaultlight/lighticon (1).jpg');
@@ -51,7 +51,7 @@ export const THEME_CATALOG: readonly ThemeCatalogItem[] = [
     label: 'Oscuro',
     icon: DARK_THEME_LOGO,
     appIcon: null,
-    swatch: '#1ED760',
+    swatch: '#FF3D1F',
   },
   {
     id: 'ironman',

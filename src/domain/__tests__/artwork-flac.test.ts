@@ -223,7 +223,8 @@ describe('extractFlacTags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-        hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
       });
   });
 
@@ -240,7 +241,27 @@ describe('extractFlacTags', () => {
   });
 });
 
-  it('detecta letras en comentario Vorbis LYRICS', async () => {
-    const file = flacFile(block(4, vorbisComment(['TITLE=Song', 'LYRICS=Hello']), true));
-    expect((await extractFlacTags(readerFor(file), file.length))?.hasLyrics).toBe(true);
+  it('lee el texto de LYRICS conservando estrofas', async () => {
+    const file = flacFile(
+      block(4, vorbisComment(['TITLE=Song', 'LYRICS=Verso uno\nVerso dos']), true)
+    );
+
+    expect(await extractFlacTags(readerFor(file), file.length)).toMatchObject({
+hasLyrics: true,
+lyrics: 'Verso uno\nVerso dos',
+    });
+  });
+
+  it('reconoce UNSYNCEDLYRICS y SYNCEDLYRICS', async () => {
+    const unsynced = flacFile(
+      block(4, vorbisComment(['UNSYNCEDLYRICS=Sincronizada no']), true)
+    );
+    const synced = flacFile(block(4, vorbisComment(['SYNCEDLYRICS=Sincronizada sí']), true));
+
+    expect((await extractFlacTags(readerFor(unsynced), unsynced.length))?.lyrics).toBe(
+      'Sincronizada no'
+    );
+    expect((await extractFlacTags(readerFor(synced), synced.length))?.lyrics).toBe(
+      'Sincronizada sí'
+    );
   });

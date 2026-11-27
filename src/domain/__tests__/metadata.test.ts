@@ -1,4 +1,5 @@
 import {
+  cleanLyrics,
   decodeLatin1,
   decodeUtf16,
   decodeUtf8,
@@ -9,6 +10,21 @@ import {
   UNKNOWN_ALBUM,
   UNKNOWN_ARTIST,
 } from '@/domain/metadata';
+
+describe('cleanLyrics', () => {
+  it('conserva estrofas y elimina espacios en los bordes de cada línea', () => {
+    expect(cleanLyrics('  Verso   uno \r\n\r\n Verso dos  ')).toBe('Verso uno\n\nVerso dos');
+  });
+
+  it('descarta terminadores NUL y textos vacíos', () => {
+    expect(cleanLyrics('a\u0000b')).toBe('ab');
+    expect(cleanLyrics('   \n  ')).toBeNull();
+  });
+
+  it('recorta letras muy largas al tope persistible', () => {
+    expect(cleanLyrics('x'.repeat(9_000))).toHaveLength(8_000);
+  });
+});
 
 describe('parseFilename', () => {
   it('separa el número de pista del título', () => {
@@ -64,7 +80,8 @@ describe('resolveSongMetadata', () => {
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
-      hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
     };
 
   it('prioriza las etiquetas sobre el nombre de archivo', () => {

@@ -1,19 +1,28 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import {
+  Alert,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import { EmptyState } from '@/components/empty-state';
 import { MediaTile } from '@/components/media-tile';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistCard } from '@/components/playlist-card';
+import { ScanProgressBanner } from '@/components/scan-progress-banner';
 import { ScreenShell } from '@/components/screen-shell';
 import { SectionHeader } from '@/components/section-header';
 import { SkeletonList } from '@/components/skeleton';
 import { TextPromptModal } from '@/components/text-prompt-modal';
 import { ThemedText } from '@/components/themed-text';
 import { ViewModePicker } from '@/components/view-mode-picker';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { AUTO_PLAYLISTS, getAutoPlaylistSongs } from '@/domain/library/auto-playlists';
 import { sortPlaylists } from '@/domain/library/sorting';
 import { useTheme } from '@/hooks/use-theme';
@@ -43,6 +52,7 @@ export default function PlaylistsScreen() {
   const recentIds = useLibraryStore((state) => state.recentIds);
   const hasPermission = useLibraryStore((state) => state.hasPermission);
   const isLoading = useLibraryStore((state) => state.isLoading);
+  const isScanning = useLibraryStore((state) => state.isScanning);
   const error = useLibraryStore((state) => state.error);
   const refresh = useLibraryStore((state) => state.refresh);
   const requestAccess = useLibraryStore((state) => state.requestAccess);
@@ -154,7 +164,16 @@ export default function PlaylistsScreen() {
               {tr('Nueva')}
             </ThemedText>
           </Pressable>
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={isLoading || isScanning}
+            onRefresh={() => void refresh()}
+            tintColor={theme.accent}
+            colors={[theme.accent]}
+          />
         }>
+        <ScanProgressBanner />
         {isLoading ? (
           <SkeletonList rows={5} />
         ) : error && songs.length === 0 ? (
@@ -340,6 +359,8 @@ const styles = StyleSheet.create({
   newButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MinTouchTarget,
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,

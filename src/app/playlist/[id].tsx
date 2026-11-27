@@ -6,12 +6,14 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { EmptyState } from '@/components/empty-state';
 import { OptionSheet, type Option } from '@/components/option-sheet';
 import { ScreenShell } from '@/components/screen-shell';
+import { SkeletonList } from '@/components/skeleton';
+import { BackButton } from '@/components/back-button';
 import { SelectionActions } from '@/components/selection-actions';
 import { SongDeleteSheet, type DeleteChoice } from '@/components/song-delete-sheet';
 import { SongEditModal } from '@/components/song-edit-modal';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { resolveSongsByIds } from '@/domain/library/selection';
 import { useSongLibraryActions } from '@/hooks/use-song-library-actions';
 import { useSongSelection } from '@/hooks/use-song-selection';
@@ -52,6 +54,9 @@ export default function PlaylistDetailScreen() {
     state.playlists.find((item) => item.id === playlistId)
   );
   const librarySongs = useLibraryStore((state) => state.songs);
+  const isLoading = useLibraryStore((state) => state.isLoading);
+  const error = useLibraryStore((state) => state.error);
+  const refresh = useLibraryStore((state) => state.refresh);
   const removeFromPlaylist = useLibraryStore((state) => state.removeFromPlaylist);
   const movePlaylistSong = useLibraryStore((state) => state.movePlaylistSong);
   const play = usePlayerStore((state) => state.play);
@@ -110,15 +115,29 @@ export default function PlaylistDetailScreen() {
     [confirmDelete, clear]
   );
 
-  const back = (
-    <Pressable
-      onPress={() => router.back()}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={tr('Volver')}>
-      <Ionicons name="chevron-back" size={26} color={theme.text} />
-    </Pressable>
-  );
+  const back = <BackButton onPress={() => router.back()} />;
+
+  if (isLoading && !playlist) {
+    return (
+      <ScreenShell title={tr('Playlist')} scroll={false} leading={back}>
+        <SkeletonList rows={6} />
+      </ScreenShell>
+    );
+  }
+
+  if (error && !playlist) {
+    return (
+      <ScreenShell title={tr('Playlist')} scroll={false} leading={back}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={tr('No se pudo leer tu música')}
+          message={error}
+          actionLabel={tr('Reintentar')}
+          onAction={() => void refresh()}
+        />
+      </ScreenShell>
+    );
+  }
 
   if (!playlist) {
     return (
@@ -153,29 +172,28 @@ export default function PlaylistDetailScreen() {
             </Pressable>
           ) : null
         }>
-        {songs.length === 0 ? (
-          <EmptyState
-            icon="list-outline"
-            title={tr('Playlist vacía')}
-            message={tr('Agrega canciones desde el menú de cada pista.')}
-          />
-        ) : (
-          <SongList
-            songs={songs}
-            onMore={(song) => setActionSong(song)}
-            selectedIds={selectedIds}
-            selectionActive={isActive}
-            onToggleSelect={toggle}
-            onLongPressSong={toggle}
-            ListFooterComponent={
-              <View style={styles.hint}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {tr('Usa el botón de opciones de cada canción para reordenarla o quitarla.')}
-                </ThemedText>
-              </View>
-            }
-          />
-        )}
+        <SongList
+          songs={songs}
+          onMore={setActionSong}
+          selectedIds={selectedIds}
+          selectionActive={isActive}
+          onToggleSelect={toggle}
+          onLongPressSong={toggle}
+          ListEmptyComponent={
+            <EmptyState
+              icon="list-outline"
+              title={tr('Playlist vacía')}
+              message={tr('Agrega canciones desde el menú de cada pista.')}
+            />
+          }
+          ListFooterComponent={
+            <View style={styles.hint}>
+              <ThemedText type="small" themeColor="textSecondary">
+                {tr('Usa el botón de opciones de cada canción para reordenarla o quitarla.')}
+              </ThemedText>
+            </View>
+          }
+        />
       </ScreenShell>
 
       <OptionSheet
@@ -207,8 +225,8 @@ export default function PlaylistDetailScreen() {
 
 const styles = StyleSheet.create({
   playButton: {
-    width: 40,
-    height: 40,
+    width: MinTouchTarget,
+    height: MinTouchTarget,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',

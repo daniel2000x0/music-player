@@ -12,6 +12,7 @@
 
 export const Paths = {
   cache: 'file:///cache',
+  document: 'file:///documents',
   documentDirectory: 'file:///documents',
 };
 
@@ -193,5 +194,6 @@ export function __reset(): void {
   files.clear();
   directories.clear();
   ensureDirectory(Paths.cache);
+  ensureDirectory(Paths.document);
   ensureDirectory(Paths.documentDirectory);
 }

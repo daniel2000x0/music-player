@@ -24,10 +24,11 @@ export type AudioTags = {
   bitrate: number | null;
   /**
    * `true` solo cuando el archivo expone metadatos de letras (USLT/SYLT,
-   * ©lyr, LYRICS/UNSYNCEDLYRICS). Es un indicador de disponibilidad, no el
-   * contenido completo de la letra.
+   * ©lyr, LYRICS/UNSYNCEDLYRICS/SYNCEDLYRICS).
    */
   hasLyrics: boolean;
+  /** Texto de la letra extraído del tag; `null` si no se pudo leer. */
+  lyrics: string | null;
 };
 
 /** Autor/artista que se muestra cuando el archivo no trae etiqueta. */
@@ -85,6 +86,30 @@ export function cleanText(value: string | null | undefined): string | null {
   }
   const cleaned = value.replace(/\u0000/g, ' ').replace(/\s+/g, ' ').trim();
   return cleaned.length > 0 ? cleaned : null;
+}
+
+/** Tope de caracteres persistidos por canción (~24 KB en UTF-8). */
+export const MAX_LYRICS_CHARS = 8000;
+
+/**
+ * Limpia la letra conservando los saltos de línea. `cleanText` no sirve aquí:
+ * colapsa `\n` a espacios y convertiría la letra en un párrafo ilegible.
+ * Se normalizan finales de línea, se descartan NUL (terminadores de frame) y
+ * se recortan los espacios sobrantes sin tocar la estructura de estrofas.
+ */
+export function cleanLyrics(value: string | null | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+  const cleaned = value
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u0000/g, '')
+    .replace(/[^\S\n]+/g, ' ')
+    .replace(/ ?\n ?/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return cleaned.length > 0 ? cleaned.slice(0, MAX_LYRICS_CHARS) : null;
 }
 
 /** Decodifica un buffer latin-1 (ISO-8859-1). */

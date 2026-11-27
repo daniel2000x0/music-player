@@ -1,6 +1,11 @@
 import { songRepository, type ArtworkCandidate } from '@/data/repositories/song.repository';
 import type { ScanProgress } from '@/domain/library/scan-progress';
-import { EXTRACTION_CONCURRENCY, resolveAlbumArtwork } from '@/services/artwork.service';
+import {
+  EXTRACTION_CONCURRENCY,
+  isUsableArtworkUri,
+  resolveAlbumArtwork,
+  resolveArtworkUri,
+} from '@/services/artwork.service';
 import { logError } from '@/services/error-log.service';
 import { mapLimit } from '@/utils/async';
 
@@ -28,6 +33,8 @@ export type ArtworkBackfillReport = {
   resolved: number;
   /** Álbumes que recibieron portada nueva. */
   albums: number;
+  /** URIs reparadas tras perder el archivo por una limpieza de caché. */
+  repaired: number;
   durationMs: number;
 };
 
@@ -37,15 +44,81 @@ export type ArtworkBackfillOptions = {
   onProgress?: (progress: ScanProgress) => void;
 };
 
+export type ArtworkRepairReport = {
+  /** URIs huérfanas detectadas (caché borrada o archivo persistent perdido). */
+  checked: number;
+  /** URIs que volvieron a apuntar a un archivo persistente. */
+  resolved: number;
+};
+
+/**
+ * Repara las URIs de portada que siguen en SQLite pero cuyo archivo ya no
+ * existe, y las que aún apuntan al caché antiguo. `resolveArtworkUri` promueve
+ * el archivo del caché al directorio persistente o vuelve a extraerlo del audio.
+ * Si no hay forma de recuperarlo, se libera la URI para que un barrido posterior
+ * lo intente de nuevo.
+ */
+export async function repairMissingArtwork(): Promise<ArtworkRepairReport> {
+  const stored = await songRepository.getStoredArtworkUris();
+  const broken = new Map<string, (typeof stored)[number]>();
+
+  for (const row of stored) {
+    if (broken.has(row.artworkUri)) {
+      continue;
+    }
+    // Un archivo corrupto también sale negro: se trata como roto para que
+    // `resolveArtworkUri` vuelva a extraerlo del audio en esta misma pasada.
+    if (!(await isUsableArtworkUri(row.artworkUri))) {
+      broken.set(row.artworkUri, row);
+    }
+  }
+
+  let resolved = 0;
+  for (const [oldUri, row] of broken) {
+    try {
+      const uri = await resolveArtworkUri({
+        mediaId: row.mediaId,
+        uri: row.uri,
+        contentKey: row.contentKey,
+      });
+      if (!uri || uri === oldUri) {
+        await songRepository.clearArtworkUri(oldUri);
+        continue;
+      }
+      await songRepository.replaceArtworkUri(oldUri, uri);
+      resolved += 1;
+    } catch (error) {
+      logError('artwork-backfill', 'repair', error);
+    }
+  }
+
+  return { checked: broken.size, resolved };
+}
+
 export async function runArtworkBackfill(
   options: ArtworkBackfillOptions = {}
 ): Promise<ArtworkBackfillReport> {
   const startedAt = Date.now();
   const { force = false, onProgress } = options;
 
+  // Primero se reparan las URIs rotas: si no, el backfill no las ve porque no
+  // están vacías. Un fallo aquí no impide revisar el resto de la biblioteca.
+  let repaired = 0;
+  try {
+    repaired = (await repairMissingArtwork()).resolved;
+  } catch (error) {
+    logError('artwork-backfill', 'repair-pass', error);
+  }
+
   const candidates = await songRepository.getArtworkCandidates(force);
   if (candidates.length === 0) {
-    return { candidates: 0, resolved: 0, albums: 0, durationMs: Date.now() - startedAt };
+    return {
+      candidates: 0,
+      resolved: 0,
+      albums: 0,
+      repaired,
+      durationMs: Date.now() - startedAt,
+    };
   }
 
   // Agrupa por álbum: una extracción por disco cubre a todas sus pistas.
@@ -101,6 +174,7 @@ export async function runArtworkBackfill(
     candidates: candidates.length,
     resolved,
     albums,
+    repaired,
     durationMs: Date.now() - startedAt,
   };
 }

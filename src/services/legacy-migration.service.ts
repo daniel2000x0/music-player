@@ -25,13 +25,33 @@ async function readLegacy<T>(key: string, fallback: T): Promise<T> {
 }
 
 /**
+ * Migración en vuelo. `hydrate` y `requestAccess` pueden llegar a importar los
+ * datos heredados al mismo tiempo; sin este guard ambas abrirían
+ * `withTransactionAsync` sobre la misma conexión y SQLite rechazaría la segunda
+ * con «cannot start a transaction within a transaction». Igual que
+ * `hydratePromise`/`scanPromise` en el store, se limpia al terminar para no
+ * congelar el resultado entre sesiones.
+ */
+let migrationPromise: Promise<boolean> | null = null;
+
+/**
  * Importa una sola vez los datos del antiguo almacén clave-valor a SQLite.
  * Se ejecuta después del primer escaneo para poder resolver ids de mediateca.
  *
  * Devuelve `true` solo si en esta llamada importó datos; así el llamador
- * puede evitar recargar el estado cuando no hubo cambios.
+ * puede evitar recargar el estado cuando no hubo cambios. Las llamadas
+ * simultáneas comparten el mismo trabajo en vez de solapar transacciones.
  */
-export async function migrateLegacyLibrary(): Promise<boolean> {
+export function migrateLegacyLibrary(): Promise<boolean> {
+  if (!migrationPromise) {
+    migrationPromise = runMigration().finally(() => {
+      migrationPromise = null;
+    });
+  }
+  return migrationPromise;
+}
+
+async function runMigration(): Promise<boolean> {
   const db = await getDatabase();
   const done = await db.getFirstAsync<{ value: string }>(
     'SELECT value FROM app_settings WHERE key = ?',

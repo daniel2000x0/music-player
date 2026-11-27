@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { MinTouchTarget, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/hooks/use-translation';
 
@@ -81,6 +81,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   icon: {
-    padding: Spacing.xs,
+    minWidth: MinTouchTarget,
+    minHeight: MinTouchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

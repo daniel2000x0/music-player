@@ -200,6 +200,8 @@ describe('enumerateDeviceAudio (C-02: sin tope silencioso)', () => {
     expect(tracks?.[11_999]).toEqual({
       mediaId: 'media-11999',
       modificationTime: 1_000 + 11_999,
+      filename: null,
+      durationMs: 0,
     });
     // 12 páginas completas + una vacía que confirma el final.
     expect(mockPageReads).toBe(13);

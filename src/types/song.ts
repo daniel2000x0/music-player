@@ -32,6 +32,8 @@ export type Song = {
   bitrate: number | null;
   /** `true` cuando los metadatos del archivo indican letras disponibles. */
   hasLyrics: boolean;
+  /** Texto de la letra incrustada en el archivo; `null` si no se pudo leer. */
+  lyrics: string | null;
   artwork: string | null;
   /** Fecha de incorporación a la biblioteca (ms). */
   addedAt: number;
@@ -84,6 +86,10 @@ export type ScannedSong = {
   bitrate: number | null;
   /** `true` cuando los metadatos del archivo indican letras disponibles. */
   hasLyrics: boolean;
+  /** Texto de la letra incrustada en el archivo; `null` si no se pudo leer. */
+  lyrics: string | null;
   /** Fecha de modificación del asset (ms); `null` si el proveedor no la da. */
   modificationTime: number | null;
+  /** Huella del contenido (independiente de ruta); `null` si no se pudo calcular. */
+  contentKey?: string | null;
 };

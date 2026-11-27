@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Scrim, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Scrim, Spacing } from '@/constants/theme';
 import { sortDirectionOf, sortFieldOf, toggleSortDirection } from '@/domain/library/sorting';
 import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from '@/hooks/use-translation';
@@ -36,16 +36,34 @@ export function SortSheet<K extends string>({
   const activeField = sortFieldOf(value);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      accessibilityViewIsModal>
+      <View style={styles.container}>
+        {/* Fondo y hoja son hermanos: tocar una opción no propaga el gesto al
+            cierre, sin depender del orden de responder de React Native. */}
+        <Pressable
+          style={styles.backdrop}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel={tr('Cerrar')}
+        />
         <Pressable
           style={[styles.sheet, { backgroundColor: theme.backgroundElement }]}
-          onPress={(event) => event.stopPropagation()}>
+          accessibilityViewIsModal>
           <View style={styles.header}>
-            <ThemedText type="smallBold" style={styles.headerTitle}>
+            <ThemedText type="smallBold" accessibilityRole="header" style={styles.headerTitle}>
               {title}
             </ThemedText>
-            <Pressable hitSlop={8} onPress={onClose} accessibilityRole="button" accessibilityLabel={tr('Cerrar')}>
+            <Pressable
+              hitSlop={11}
+              onPress={onClose}
+              style={styles.closeButton}
+              accessibilityRole="button"
+              accessibilityLabel={tr('Cerrar')}>
               <Ionicons name="close" size={22} color={theme.textSecondary} />
             </Pressable>
           </View>
@@ -94,15 +112,18 @@ export function SortSheet<K extends string>({
             })}
           </ScrollView>
         </Pressable>
-      </Pressable>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
+  container: {
     flex: 1,
     justifyContent: 'flex-end',
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFill,
     backgroundColor: Scrim,
   },
   sheet: {
@@ -122,6 +143,12 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
   },
+  closeButton: {
+    minWidth: MinTouchTarget,
+    minHeight: MinTouchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   list: {
     paddingVertical: Spacing.sm,
     gap: Spacing.xs,
@@ -129,6 +156,7 @@ const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: MinTouchTarget,
     paddingVertical: Spacing.lg,
     gap: Spacing.lg,
   },

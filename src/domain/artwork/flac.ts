@@ -7,7 +7,7 @@ import {
   type AsyncByteReader,
   type EmbeddedArtwork,
 } from '@/domain/artwork/bytes';
-import { cleanText, decodeUtf8, parseTrackNumber, type AudioTags } from '@/domain/metadata';
+import { cleanLyrics, cleanText, decodeUtf8, parseTrackNumber, type AudioTags } from '@/domain/metadata';
 
 /**
  * Parser del contenedor FLAC (Free Lossless Audio Codec).
@@ -31,6 +31,18 @@ const BLOCK_STREAMINFO = 0;
 const BLOCK_VORBIS_COMMENT = 4;
 const BLOCK_PICTURE = 6;
 const PICTURE_TYPE_FRONT_COVER = 3;
+
+/**
+ * No hay campo oficial de letras en Vorbis comments: estas son las
+ * convenciones de facto que usan Picard, mp3tag y los tagueadores habituales.
+ */
+const LYRICS_KEYS = new Set([
+  'LYRICS',
+  'UNSYNCEDLYRICS',
+  'UNSYNCED LYRICS',
+  'SYNCEDLYRICS',
+  'SYNCED LYRICS',
+]);
 
 /** Techo de seguridad para un bloque de comentarios corrupto o gigante. */
 const VORBIS_COMMENT_MAX_BYTES = 1024 * 1024;
@@ -327,6 +339,7 @@ export async function extractFlacTags(
     sampleRate: streamInfo.sampleRate,
     bitrate: null,
     hasLyrics: false,
+    lyrics: null,
   };
   let found = streamInfo.bitDepth !== null || streamInfo.sampleRate !== null;
 
@@ -367,10 +380,15 @@ export async function extractFlacTags(
     } else if (key === 'TRACKNUMBER' && tags.track === null) {
       tags.track = parseTrackNumber(value);
       found = found || tags.track !== null;
-    } else if ((key === 'LYRICS' || key === 'UNSYNCEDLYRICS' || key === 'UNSYNCED LYRICS') && !tags.hasLyrics) {
-      // Solo marcamos disponibilidad; el texto completo no se persiste.
-      tags.hasLyrics = true;
-      found = true;
+    } else if (LYRICS_KEYS.has(key) && !tags.lyrics) {
+      // `value` usa cleanText (colapsa saltos de línea); la letra necesita
+      // cleanLyrics para conservar estrofas.
+      const lyrics = cleanLyrics(rawValue);
+      if (lyrics) {
+        tags.lyrics = lyrics;
+        tags.hasLyrics = true;
+        found = true;
+      }
     }
   }
 

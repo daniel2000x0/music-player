@@ -74,6 +74,7 @@ jest.mock('@/services/artwork-backfill.service', () => ({
     candidates: 0,
     resolved: 0,
     albums: 0,
+    repaired: 0,
     durationMs: 0,
   })),
 }));

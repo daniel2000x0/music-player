@@ -29,6 +29,24 @@ export function createFakeDatabase() {
   const transactions: number[] = [];
   let firstHandler: ReadHandler | null = null;
   let allHandler: AllHandler = () => [];
+  let strictTransactions = false;
+  let inTransaction = false;
+
+  const defaultWithTransaction = async (fn: () => Promise<void>) => {
+    transactions.push(runs.length);
+    if (strictTransactions) {
+      // Reproduce la restricción real de SQLite: una sola transacción por conexión.
+      if (inTransaction) {
+        throw new Error('cannot start a transaction within a transaction');
+      }
+      inTransaction = true;
+    }
+    try {
+      await fn();
+    } finally {
+      inTransaction = false;
+    }
+  };
 
   const db = {
     runAsync: jest.fn(async (sql: string, ...params: unknown[]) => {
@@ -39,10 +57,7 @@ export function createFakeDatabase() {
       firstHandler ? firstHandler(sql, params) : null
     ),
     getAllAsync: jest.fn(async (sql: string, ...params: unknown[]) => allHandler(sql, params)),
-    withTransactionAsync: jest.fn(async (fn: () => Promise<void>) => {
-      transactions.push(runs.length);
-      await fn();
-    }),
+    withTransactionAsync: jest.fn(defaultWithTransaction),
     execAsync: jest.fn(async () => undefined),
   };
 
@@ -56,11 +71,18 @@ export function createFakeDatabase() {
     setAll: (handler: AllHandler) => {
       allHandler = handler;
     },
+    /** Activa la comprobación estricta de transacciones anidadas de SQLite. */
+    setStrictTransactions: (enabled: boolean) => {
+      strictTransactions = enabled;
+    },
     clear: () => {
       runs.length = 0;
       transactions.length = 0;
       firstHandler = null;
       allHandler = () => [];
+      strictTransactions = false;
+      inTransaction = false;
+      db.withTransactionAsync.mockImplementation(defaultWithTransaction);
       jest.clearAllMocks();
     },
     /** Última sentencia registrada, para aserciones rápidas. */

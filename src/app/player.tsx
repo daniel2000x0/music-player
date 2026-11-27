@@ -15,6 +15,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ArtworkReveal } from '@/components/artwork-reveal';
 import { AudioQualityBadge } from '@/components/audio-quality-badge';
 import { EmptyState } from '@/components/empty-state';
+import { InlineLyrics } from '@/components/inline-lyrics';
+import { LyricsSheet } from '@/components/lyrics-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { SeekBar } from '@/components/seek-bar';
 import { ThemedText } from '@/components/themed-text';
@@ -28,7 +30,11 @@ import { useLibraryStore } from '@/stores/library.store';
 import { usePlaybackDuration, usePlaybackPosition } from '@/stores/playback-progress';
 import { usePlayerStore } from '@/stores/player.store';
 import { formatDuration } from '@/utils/format';
-import { playerArtworkSize, playerContentGap } from '@/utils/player-layout';
+import {
+  inlineLyricsBoxHeight,
+  playerArtworkSize,
+  playerContentGap,
+} from '@/utils/player-layout';
 
 /**
  * Bloque de progreso (barra + tiempos). Suscribe posición y duración al
@@ -98,6 +104,10 @@ export default function PlayerScreen() {
   const capabilities = useCapabilities();
 
   const [pickerVisible, setPickerVisible] = useState(false);
+  // Se guarda el id de la canción, no un booleano: así la hoja se cierra sola
+  // cuando cambia la pista (derived state) sin un effect que dispare renders.
+  const [lyricsSongId, setLyricsSongId] = useState<number | null>(null);
+  const lyricsVisible = currentSong?.id === lyricsSongId;
 
   // Transición mini-reproductor → reproductor (`UI-08`): el contenido entra
   // con un leve deslizamiento hacia arriba y un fundido, dando continuidad
@@ -113,7 +123,8 @@ export default function PlayerScreen() {
     return () => animation.stop();
   }, [enter]);
 
-  const artworkSize = playerArtworkSize(width, height);
+  const hasInlineLyrics = Boolean(currentSong?.lyrics);
+  const artworkSize = playerArtworkSize(width, height, hasInlineLyrics);
   const contentGap = playerContentGap(height);
   const compact = height < 740;
   const ultraCompact = height < 680;
@@ -219,10 +230,23 @@ export default function PlayerScreen() {
             <ArtworkReveal uri={currentSong.artwork} size={artworkSize} radius={Radius.large} elevated />
           </View>
 
+          {hasInlineLyrics && currentSong.lyrics ? (
+            <InlineLyrics
+              lyrics={currentSong.lyrics}
+              height={inlineLyricsBoxHeight(height)}
+              numberOfLines={ultraCompact ? 1 : 2}
+              onPress={() => setLyricsSongId(currentSong.id)}
+            />
+          ) : null}
+
           <View style={[styles.metaBlock, compact && styles.metaBlockCompact]}>
             <ThemedText
               type="subtitle"
               numberOfLines={ultraCompact ? 1 : 2}
+              // El título puede cortarse en pantallas pequeñas: el label da
+              // el texto completo y la región anuncia el cambio de pista.
+              accessibilityLabel={`${currentSong.title} · ${currentSong.artist}`}
+              accessibilityLiveRegion="polite"
               style={[styles.songTitle, compact && styles.songTitleCompact]}>
               {currentSong.title}
             </ThemedText>
@@ -318,6 +342,17 @@ export default function PlayerScreen() {
                 />
               </Pressable>
 
+              {currentSong.lyrics ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => setLyricsSongId(currentSong.id)}
+                  style={styles.secondaryControl}
+                  accessibilityRole="button"
+                  accessibilityLabel={tr('Ver letras')}>
+                  <Ionicons name="book-outline" size={24} color={theme.accent} />
+                </Pressable>
+              ) : null}
+
               <Pressable
                 hitSlop={8}
                 onPress={() => router.push('/queue')}
@@ -346,6 +381,12 @@ export default function PlayerScreen() {
         visible={pickerVisible}
         song={currentSong}
         onClose={() => setPickerVisible(false)}
+      />
+
+      <LyricsSheet
+        visible={lyricsVisible}
+        song={currentSong}
+        onClose={() => setLyricsSongId(null)}
       />
     </ThemedView>
   );

@@ -51,7 +51,11 @@ import {
  *   imágenes (`ExpoWidgetEmittableTree.kt:253-257`); los botones lo ignoran
  *   (`toPeekButton`, `:295-310`) y el modificador `semantics` no está entre
  *   los soportados (`toPeekModifier`, `:402-425`). Por eso la portada lleva
- *   `statusLabel` y los botones conservan glifos como texto visible.
+ *   `statusLabel`. El componente `Icon` de `@expo/ui` tampoco es una opción:
+ *   `toPeekNodes` no incluye `IconView` y renderizaría «View not found». Con
+ *   texto como único hijo, Glance crea un `EmittableButton` y ese texto es el
+ *   nombre accesible del botón; por eso se usan glifos Unicode de control
+ *   multimedia en vez de sustituirlos por imágenes.
  * - Los botones laterales solo se pintan si `canGoPrevious`/`canGoNext`; con
  *   una sola pista no habría nada que hacer y un botón inerte engaña (`A-03`).
  * - El formato replica `formatClock` de `src/utils/format.ts` (no se puede
@@ -158,7 +162,7 @@ function MediaWidget(props: MediaWidgetProps) {
             onClick={() => undefined}
             contentPadding={{ start: 14, top: 5, end: 14, bottom: 5 }}
             colors={sideButtonColors}>
-            <Text style={{ fontSize: 13 }}>◀◀</Text>
+            <Text style={{ fontSize: 13 }}>⏮</Text>
           </Button>
         ) : null}
 
@@ -170,7 +174,7 @@ function MediaWidget(props: MediaWidgetProps) {
             contentPadding={{ start: 18, top: 5, end: 18, bottom: 5 }}
             colors={toggleButtonColors}
             modifiers={[padding(12, 0, 12, 0)]}>
-            <Text style={{ fontSize: 15 }}>{props.isPlaying ? '▮▮' : '▶'}</Text>
+            <Text style={{ fontSize: 15 }}>{props.isPlaying ? '⏸' : '▶'}</Text>
           </Button>
         ) : null}
 
@@ -181,7 +185,7 @@ function MediaWidget(props: MediaWidgetProps) {
             onClick={() => undefined}
             contentPadding={{ start: 14, top: 5, end: 14, bottom: 5 }}
             colors={sideButtonColors}>
-            <Text style={{ fontSize: 13 }}>▶▶</Text>
+            <Text style={{ fontSize: 13 }}>⏭</Text>
           </Button>
         ) : null}
       </Row>

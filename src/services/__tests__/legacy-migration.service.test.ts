@@ -135,6 +135,25 @@ describe('migrateLegacyLibrary: importación', () => {
   });
 });
 
+describe('migrateLegacyLibrary: concurrencia', () => {
+  it('comparte una sola transacción entre llamadas simultáneas', async () => {
+    setLegacyValues(LEGACY);
+    setSongs(mockFake);
+    // El doble reproduce el error real de SQLite: si el guard falla, la segunda
+    // llamada lanza «cannot start a transaction within a transaction».
+    mockFake.setStrictTransactions(true);
+
+    const results = await Promise.all([migrateLegacyLibrary(), migrateLegacyLibrary()]);
+
+    expect(results).toEqual([true, true]);
+    // Sin el guard, el check previo a la transacción pasaba en las dos llamadas
+    // y la segunda abría una transacción anidada sobre la misma conexión.
+    expect(mockFake.db.withTransactionAsync).toHaveBeenCalledTimes(1);
+    expect(mockFake.transactions).toHaveLength(1);
+    expect(mockFake.callsMatching('INSERT INTO app_settings')).toHaveLength(1);
+  });
+});
+
 describe('migrateLegacyLibrary: fallos de lectura legacy', () => {
   it('absorbe un rechazo y unos JSON corruptos sin propagar el error', async () => {
     mockedGetItem.mockImplementation(async (key: string) => {

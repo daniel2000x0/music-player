@@ -12,6 +12,7 @@ Reproductor y administrador de música local para Android, construido con React 
 - Favoritos, playlists manuales y automáticas, historial y contadores de reproducción.
 - Búsqueda, filtros y ordenamientos.
 - Temas claro y oscuro, configuración y registro local de errores.
+- Letras incrustadas en MP3/MP4/FLAC: vista previa bajo la carátula y lectura completa al tocarla.
 - Funciona sin conexión a Internet.
 
 ## Requisitos
@@ -42,6 +43,7 @@ npx jest                  # pruebas
 npx jest --coverage       # pruebas con umbrales de cobertura
 npm run bench             # benchmarks de dominio, escaneo y listas
 npx expo-doctor           # diagnóstico de dependencias y configuración
+npm run verify            # los cuatro comandos anteriores en una sola pasada
 ```
 
 El guion de verificación en dispositivo, los umbrales de cobertura y la
@@ -51,13 +53,18 @@ El workflow `.github/workflows/ci.yml` ejecuta tipado, lint, pruebas y
 
 ## Compilación
 
-El proyecto usa EAS. El perfil `preview` genera un APK instalable:
+El proyecto usa EAS. El perfil `production` genera el APK instalable y firmado:
 
 ```bash
-npx eas-cli@latest build --profile preview --platform android
+npm run build:apk
+# equivalente: npx eas-cli@latest build -p android --profile production --non-interactive --wait
 ```
 
-Los cambios de `app.json` (plugins, permisos, configuración del widget) requieren una compilación nueva; no se pueden aplicar con una actualización OTA.
+El procedimiento completo, prerrequisitos y la alternativa local están en
+[`docs/EAS_APK.md`](docs/EAS_APK.md).
+
+Los cambios de `app.json` (plugins, permisos, icono, configuración del widget)
+requieren una compilación nueva; no se pueden aplicar con una actualización OTA.
 
 ## Estructura
 
@@ -75,3 +82,6 @@ Los cambios de `app.json` (plugins, permisos, configuración del widget) requier
 - [SRS](docs/requirements/SRS.md)
 - [Historias de usuario](docs/requirements/user-stories.md)
 - [Casos de uso](docs/requirements/uses-cases.md)
+- [Guion de verificación](docs/TESTING.md)
+- [Compilación de APK con EAS](docs/EAS_APK.md)
+- [Historial de cambios](CHANGELOG.md)

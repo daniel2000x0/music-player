@@ -44,3 +44,11 @@ example
 # generated native folders
 /ios
 /android
+
+# Herramientas locales del entorno de desarrollo (no forman parte de la app)
+/.agents/
+/.claude/skills/
+/agent/
+/opencode.json
+/skills-lock.json
+/my-expo-app/

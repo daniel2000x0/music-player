@@ -9,12 +9,14 @@ import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { ScreenShell } from '@/components/screen-shell';
 import { SelectionActions } from '@/components/selection-actions';
+import { SkeletonList } from '@/components/skeleton';
+import { BackButton } from '@/components/back-button';
 import { SongDeleteSheet, type DeleteChoice } from '@/components/song-delete-sheet';
 import { SongEditModal } from '@/components/song-edit-modal';
 import { SongList } from '@/components/song-list';
 import { TextPromptModal } from '@/components/text-prompt-modal';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { resolveSongsByIds, songsOfAlbum } from '@/domain/library/selection';
 import { useSongLibraryActions } from '@/hooks/use-song-library-actions';
 import { useSongSelection } from '@/hooks/use-song-selection';
@@ -35,7 +37,7 @@ type SongAction = 'playlist' | 'edit' | 'delete';
 export default function AlbumDetailScreen() {
   const theme = useTheme();
 
-  const { tr } = useTranslation();
+  const { tr, t } = useTranslation();
 
   const albumActions: readonly Option<AlbumAction>[] = [
     {
@@ -73,6 +75,9 @@ export default function AlbumDetailScreen() {
   const albumId = Number(params.id);
   const album = useLibraryStore((state) => state.albums.find((item) => item.id === albumId));
   const librarySongs = useLibraryStore((state) => state.songs);
+  const isLoading = useLibraryStore((state) => state.isLoading);
+  const error = useLibraryStore((state) => state.error);
+  const refresh = useLibraryStore((state) => state.refresh);
   const renameAlbum = useLibraryStore((state) => state.renameAlbum);
   const play = usePlayerStore((state) => state.play);
 
@@ -169,15 +174,31 @@ export default function AlbumDetailScreen() {
     [confirmDelete, clear, albumId]
   );
 
-  const back = (
-    <Pressable
-      onPress={() => router.back()}
-      hitSlop={8}
-      accessibilityRole="button"
-      accessibilityLabel={tr('Volver')}>
-      <Ionicons name="chevron-back" size={26} color={theme.text} />
-    </Pressable>
-  );
+  const back = <BackButton onPress={() => router.back()} />;
+
+  // El detalle puede abrirse antes de que termine el escaneo inicial: muestra
+  // el mismo esqueleto que las pestañas y permite reintentar si falló la lectura.
+  if (isLoading && !album) {
+    return (
+      <ScreenShell title={tr('Álbum')} scroll={false} leading={back}>
+        <SkeletonList rows={6} />
+      </ScreenShell>
+    );
+  }
+
+  if (error && !album) {
+    return (
+      <ScreenShell title={tr('Álbum')} scroll={false} leading={back}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={tr('No se pudo leer tu música')}
+          message={error}
+          actionLabel={tr('Reintentar')}
+          onAction={() => void refresh()}
+        />
+      </ScreenShell>
+    );
+  }
 
   if (!album) {
     return (
@@ -205,7 +226,7 @@ export default function AlbumDetailScreen() {
           ) : (
             <Pressable
               onPress={() => setAlbumMenuVisible(true)}
-              hitSlop={8}
+              hitSlop={11}
               style={styles.headerAction}
               accessibilityRole="button"
               accessibilityLabel={tr('Opciones del álbum')}>
@@ -213,36 +234,40 @@ export default function AlbumDetailScreen() {
             </Pressable>
           )
         }>
-        {songs.length === 0 ? (
-          <EmptyState title={tr('Sin canciones')} message={tr('Este álbum no tiene pistas disponibles.')} />
-        ) : (
-          <SongList
-            songs={songs}
-            onMore={(song) => setMenuSong(song)}
-            selectedIds={selectedIds}
-            selectionActive={isActive}
-            onToggleSelect={toggle}
-            onLongPressSong={toggle}
-            ListHeaderComponent={
-              <View style={styles.hero}>
-                <Artwork uri={album.artwork} size={160} radius={Radius.large} />
-                <View style={styles.heroInfo}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {formatDuration(album.totalDuration)} de música
+        <SongList
+          songs={songs}
+          onMore={setMenuSong}
+          selectedIds={selectedIds}
+          selectionActive={isActive}
+          onToggleSelect={toggle}
+          onLongPressSong={toggle}
+          ListEmptyComponent={
+            <EmptyState
+              title={tr('Sin canciones')}
+              message={tr('Este álbum no tiene pistas disponibles.')}
+            />
+          }
+          ListHeaderComponent={
+            <View style={styles.hero}>
+              <Artwork uri={album.artwork} size={160} radius={Radius.large} />
+              <View style={styles.heroInfo}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {formatDuration(album.totalDuration)} de música
+                </ThemedText>
+                <Pressable
+                  onPress={() => songs.length > 0 && play(songs[0], songs)}
+                  style={[styles.playButton, { backgroundColor: theme.accent }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('playAlbum', { title: album.title })}>
+                  <Ionicons name="play" size={18} color={theme.accentText} />
+                  <ThemedText type="smallBold" style={{ color: theme.accentText }}>
+                    {tr('Reproducir todo')}
                   </ThemedText>
-                  <Pressable
-                    onPress={() => songs.length > 0 && play(songs[0], songs)}
-                    style={[styles.playButton, { backgroundColor: theme.accent }]}>
-                    <Ionicons name="play" size={18} color={theme.accentText} />
-                    <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-                      Reproducir álbum
-                    </ThemedText>
-                  </Pressable>
-                </View>
+                </Pressable>
               </View>
-            }
-          />
-        )}
+            </View>
+          }
+        />
       </ScreenShell>
 
       <OptionSheet
@@ -308,6 +333,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
+    justifyContent: 'center',
+    minHeight: MinTouchTarget,
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,

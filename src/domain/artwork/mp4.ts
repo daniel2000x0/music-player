@@ -1,5 +1,5 @@
 import { ascii, sniffArtwork, u32, type AsyncByteReader, type EmbeddedArtwork } from '@/domain/artwork/bytes';
-import { cleanText, decodeUtf8, type AudioTags } from '@/domain/metadata';
+import { cleanLyrics, cleanText, decodeUtf16, decodeUtf8, type AudioTags } from '@/domain/metadata';
 
 /**
  * Parser de átomos MP4/M4A/M4B.
@@ -22,7 +22,10 @@ type Atom = AtomRange & {
 };
 
 /** Átomos de texto dentro de `ilst` que se mapean a `AudioTags`. */
-const TEXT_ATOMS: Record<string, Exclude<keyof AudioTags, 'track' | 'hasLyrics' | 'bitDepth' | 'sampleRate' | 'bitrate'>> = {
+const TEXT_ATOMS: Record<
+  string,
+  Exclude<keyof AudioTags, 'track' | 'hasLyrics' | 'lyrics' | 'bitDepth' | 'sampleRate' | 'bitrate'>
+> = {
   '\u00a9nam': 'title',
   '\u00a9ART': 'artist',
   '\u00a9alb': 'album',
@@ -175,14 +178,31 @@ export async function extractMp4Tags(
     sampleRate: null,
     bitrate: null,
     hasLyrics: false,
+    lyrics: null,
   };
   let found = false;
 
   await forEachAtom(read, ilst.payloadStart, ilst.end, async (atom) => {
-    // ©lyr indica letras disponibles; no leemos/guardamos el texto completo.
     if (LYRICS_ATOMS.has(atom.type)) {
       const dataAtom = await findAtom(read, atom.payloadStart, atom.end, 'data');
-      if (dataAtom && dataAtom.end > dataAtom.payloadStart + 8) {
+      if (!dataAtom || dataAtom.end <= dataAtom.payloadStart + 8) {
+        return;
+      }
+      // 'data': 8 bytes de tipo/locale; el primer byte indica la codificación
+      // del texto (1 = UTF-8, 2 = UTF-16).
+      const header = await read(dataAtom.payloadStart, 8);
+      const payloadStart = dataAtom.payloadStart + 8;
+      const payload = await read(payloadStart, dataAtom.end - payloadStart);
+      if (!header || !payload) {
+        return;
+      }
+      const raw =
+        header[0] === 2
+          ? decodeUtf16(payload, 0, payload.length, true)
+          : decodeUtf8(payload, 0, payload.length);
+      const lyrics = cleanLyrics(raw);
+      if (lyrics) {
+        tags.lyrics = lyrics;
         tags.hasLyrics = true;
         found = true;
       }

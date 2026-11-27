@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
 
   chip: {
     minWidth: MinTouchTarget,
-    minHeight: 32,
+    minHeight: MinTouchTarget,
     paddingHorizontal: Spacing.sm,
     borderRadius: Radius.pill,
     borderWidth: StyleSheet.hairlineWidth,

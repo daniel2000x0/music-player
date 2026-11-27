@@ -57,6 +57,22 @@ function textAtom(type: string, value: string): Uint8Array {
   return atom(type, atom('data', concat(u32be(1), u32be(0), utf8(value))));
 }
 
+function utf16be(value: string): Uint8Array {
+  const bytes: number[] = [];
+  for (let i = 0; i < value.length; i++) {
+    bytes.push(value.charCodeAt(i) >> 8, value.charCodeAt(i) & 0xff);
+  }
+  return new Uint8Array(bytes);
+}
+
+/** `data` UTF-16BE: type flags (2) + locale + texto. */
+function utf16TextAtom(type: string, value: string): Uint8Array {
+  return atom(
+    type,
+    atom('data', concat(new Uint8Array([2, 0, 0, 0]), u32be(0), utf16be(value)))
+  );
+}
+
 function trackAtom(track: number, total: number): Uint8Array {
   return atom(
     'trkn',
@@ -106,8 +122,24 @@ describe('extractMp4Tags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-        hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
       });
+  });
+
+  it('lee el texto del átomo ©lyr conservando estrofas', async () => {
+    const file = mp4File(textAtom('\u00a9lyr', 'Verso uno\nVerso dos'));
+
+    expect(await extractMp4Tags(readerFor(file), file.length)).toMatchObject({
+hasLyrics: true,
+lyrics: 'Verso uno\nVerso dos',
+    });
+  });
+
+  it('decodifica ©lyr en UTF-16BE', async () => {
+    const file = mp4File(utf16TextAtom('\u00a9lyr', 'Verso único'));
+
+    expect((await extractMp4Tags(readerFor(file), file.length))?.lyrics).toBe('Verso único');
   });
 
   it('decodifica acentos en UTF-8', async () => {

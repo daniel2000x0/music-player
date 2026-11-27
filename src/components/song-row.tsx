@@ -5,12 +5,19 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Artwork } from '@/components/artwork';
 import { AudioQualityBadge } from '@/components/audio-quality-badge';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { usePlayerStore } from '@/stores/player.store';
 import type { Song } from '@/types/song';
 import { displayMetadata, formatDuration } from '@/utils/format';
 import { useTranslation } from '@/hooks/use-translation';
+
+/**
+ * Altura nominal de una fila: tres líneas de 20 px (título, artista y meta)
+ * + dos `gap` de 2 + `marginTop` de 2 + padding vertical de 8×2 = 82 px.
+ * Debe ser la misma que usa `getItemLayout` en `SongList`.
+ */
+export const SONG_ROW_HEIGHT = 82;
 
 export type SongRowProps = {
   /** Cola de reproducción al pulsar la fila. */
@@ -223,6 +230,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: SONG_ROW_HEIGHT,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     gap: Spacing.md,
@@ -258,8 +266,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   action: {
-    minWidth: 44,
-    minHeight: 44,
+    minWidth: MinTouchTarget,
+    minHeight: MinTouchTarget,
     alignItems: 'center',
     justifyContent: 'center',
   },

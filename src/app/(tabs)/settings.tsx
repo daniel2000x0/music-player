@@ -348,16 +348,17 @@ export default function SettingsScreen() {
   const confirmBackfillArtwork = () => {
     Alert.alert(
       tr('Buscar carátulas faltantes'),
-      tr('Se volverán a leer las canciones que no muestran portada, incluidos los FLAC y las carpetas con cover.jpg. Puede tardar unos minutos.'),
+      tr('Se volverán a leer las canciones que no muestran portada y a restaurar las portadas borradas de la caché, incluidos los FLAC y las carpetas con cover.jpg. Puede tardar unos minutos.'),
       [
         { text: tr('Cancelar'), style: 'cancel' },
         {
           text: tr('Buscar'),
           onPress: () => {
             void backfillArtwork().then((report) => {
+              const found = report.resolved + report.repaired;
               const message =
-                report.resolved > 0
-                  ? t('artworkFound', { count: report.resolved })
+                found > 0
+                  ? t('artworkFound', { count: found })
                   : report.candidates === 0
                     ? tr('Todas las canciones ya tienen carátula o ya se revisaron.')
                     : tr('No se encontraron carátulas nuevas en los archivos revisados.');

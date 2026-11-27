@@ -24,6 +24,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ViewModePicker } from '@/components/view-mode-picker';
 import {
   BottomTabInset,
+  MinTouchTarget,
   MiniPlayerInset,
   Radius,
   ScrollbarEdgeMargin,
@@ -44,8 +45,11 @@ import { getGridMetrics } from '@/utils/grid-layout';
 // NOTA (i18n): los textos con conteo usan la plantilla `chapters`, que
 // aplica el plural correcto en cada idioma mediante Intl.PluralRules.
 
-/** Altura fija de una fila de audiolibro (artwork 56 + padding 8×2). */
-const ROW_HEIGHT = 72;
+/**
+ * Altura nominal de una fila de audiolibro: tres líneas de 20 px + dos `gap`
+ * de 4 + padding vertical de 8×2 = 84 px. La usa también `getItemLayout`.
+ */
+const BOOK_ROW_HEIGHT = 84;
 
 const BookRow = memo(function BookRow({
   book,
@@ -160,6 +164,8 @@ export default function AudiobooksScreen() {
   const keyExtractor = useCallback((book: Audiobook) => book.key, []);
 
   const listRef = useRef<FlatList<Audiobook>>(null);
+  // Letra resaltada en el índice A–Z: da feedback tras tocar un chip.
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   // Letras presentes en los audiolibros visibles, en orden alfabético.
   const availableLetters = useMemo(
@@ -173,6 +179,7 @@ export default function AudiobooksScreen() {
       const index = visibleBooks.findIndex(
         (book) => initialKey(book.title) === letter
       );
+      setActiveLetter(letter);
 
       if (index !== -1) {
         listRef.current?.scrollToIndex({
@@ -193,6 +200,7 @@ export default function AudiobooksScreen() {
           onChangeText={setQuery}
           placeholder={tr('Buscar audiolibros')}
           placeholderTextColor={theme.textSecondary}
+          accessibilityLabel={tr('Buscar audiolibros')}
           returnKeyType="search"
           style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
         />
@@ -200,7 +208,12 @@ export default function AudiobooksScreen() {
       </View>
       {/* El índice alfabético solo aplica a la vista de lista. */}
       {mode === 'list' ? (
-        <AlphabetChips letters={availableLetters} onSelect={scrollToLetter} itemNoun={tr('audiolibros')} />
+        <AlphabetChips
+          letters={availableLetters}
+          onSelect={scrollToLetter}
+          itemNoun={tr('audiolibros')}
+          activeLetter={activeLetter}
+        />
       ) : null}
     </View>
   );
@@ -285,8 +298,8 @@ export default function AudiobooksScreen() {
             getItemLayout={
               mode === 'list'
                 ? (_, index) => ({
-                    length: ROW_HEIGHT,
-                    offset: ROW_HEIGHT * index,
+                    length: BOOK_ROW_HEIGHT,
+                    offset: BOOK_ROW_HEIGHT * index,
                     index,
                   })
                 : undefined
@@ -354,6 +367,7 @@ const styles = StyleSheet.create({
   book: {
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: BOOK_ROW_HEIGHT,
     gap: Spacing.lg,
     paddingVertical: Spacing.sm,
   },
@@ -365,11 +379,14 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
   },
   action: {
-    padding: Spacing.xs,
+    minWidth: MinTouchTarget,
+    minHeight: MinTouchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   playButton: {
-    width: 38,
-    height: 38,
+    width: MinTouchTarget,
+    height: MinTouchTarget,
     borderRadius: Radius.pill,
     alignItems: 'center',
     justifyContent: 'center',

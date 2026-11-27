@@ -9,11 +9,13 @@ import { OptionSheet, type Option } from '@/components/option-sheet';
 import { PlaylistPicker } from '@/components/playlist-picker';
 import { ScreenShell } from '@/components/screen-shell';
 import { SelectionActions } from '@/components/selection-actions';
+import { SkeletonList } from '@/components/skeleton';
+import { BackButton } from '@/components/back-button';
 import { SongDeleteSheet, type DeleteChoice } from '@/components/song-delete-sheet';
 import { SongEditModal } from '@/components/song-edit-modal';
 import { SongList } from '@/components/song-list';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing } from '@/constants/theme';
+import { MinTouchTarget, Radius, Spacing } from '@/constants/theme';
 import { resolveSongsByIds, songsOfArtist } from '@/domain/library/selection';
 import { useSongLibraryActions } from '@/hooks/use-song-library-actions';
 import { useSongSelection } from '@/hooks/use-song-selection';
@@ -64,6 +66,9 @@ export default function ArtistDetailScreen() {
   }, [params.name]);
   const artist = useLibraryStore((state) => state.artists.find((item) => item.name === name));
   const librarySongs = useLibraryStore((state) => state.songs);
+  const isLoading = useLibraryStore((state) => state.isLoading);
+  const error = useLibraryStore((state) => state.error);
+  const refresh = useLibraryStore((state) => state.refresh);
   // Seleccionar el array completo y filtrar en `useMemo` evita devolver un
   // array nuevo en el selector (que re-renderiza en cada cambio del store).
   const allAlbums = useLibraryStore((state) => state.albums);
@@ -130,19 +135,35 @@ export default function ArtistDetailScreen() {
     [confirmDelete, clear, name]
   );
 
-  if (!artist || songs.length === 0) {
+  const back = <BackButton onPress={() => router.back()} />;
+
+  if (isLoading && !artist) {
+    return (
+      <ScreenShell title={tr('Artista')} scroll={false} leading={back}>
+        <SkeletonList rows={6} />
+      </ScreenShell>
+    );
+  }
+
+  if (error && !artist) {
+    return (
+      <ScreenShell title={tr('Artista')} scroll={false} leading={back}>
+        <EmptyState
+          icon="alert-circle-outline"
+          title={tr('No se pudo leer tu música')}
+          message={error}
+          actionLabel={tr('Reintentar')}
+          onAction={() => void refresh()}
+        />
+      </ScreenShell>
+    );
+  }
+
+  if (!artist) {
     return (
       <ScreenShell
         title={tr('Artista')}
-        leading={
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={tr('Volver')}>
-            <Ionicons name="chevron-back" size={26} color={theme.text} />
-          </Pressable>
-        }>
+        leading={back}>
         <EmptyState title={tr('Artista no encontrado')} message={tr('Puede que ya no esté en tu biblioteca.')} />
       </ScreenShell>
     );
@@ -157,15 +178,7 @@ export default function ArtistDetailScreen() {
           albums: artist.albumCount,
         })}
         scroll={false}
-        leading={
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={tr('Volver')}>
-            <Ionicons name="chevron-back" size={26} color={theme.text} />
-          </Pressable>
-        }
+        leading={back}
         action={
           isActive ? (
             <SelectionActions
@@ -178,23 +191,33 @@ export default function ArtistDetailScreen() {
         }>
         <SongList
           songs={songs}
-          onMore={(song) => setMenuSong(song)}
+          onMore={setMenuSong}
           selectedIds={selectedIds}
           selectionActive={isActive}
           onToggleSelect={toggle}
           onLongPressSong={toggle}
+          ListEmptyComponent={
+            <EmptyState
+              title={tr('Sin canciones')}
+              message={tr('Este artista no tiene pistas disponibles.')}
+            />
+          }
           ListHeaderComponent={
             <>
               <View style={styles.hero}>
                 <Artwork size={120} radius={Radius.pill} />
-                <Pressable
-                  onPress={() => play(songs[0], songs)}
-                  style={[styles.playButton, { backgroundColor: theme.accent }]}>
-                  <Ionicons name="play" size={18} color={theme.accentText} />
-                  <ThemedText type="smallBold" style={{ color: theme.accentText }}>
-                    {tr('Reproducir todo')}
-                  </ThemedText>
-                </Pressable>
+                {songs.length > 0 ? (
+                  <Pressable
+                    onPress={() => play(songs[0], songs)}
+                    style={[styles.playButton, { backgroundColor: theme.accent }]}
+                    accessibilityRole="button"
+                    accessibilityLabel={tr('Reproducir todo')}>
+                    <Ionicons name="play" size={18} color={theme.accentText} />
+                    <ThemedText type="smallBold" style={{ color: theme.accentText }}>
+                      {tr('Reproducir todo')}
+                    </ThemedText>
+                  </Pressable>
+                ) : null}
               </View>
 
               {artistAlbums.length > 0 ? (
@@ -205,7 +228,9 @@ export default function ArtistDetailScreen() {
                       onPress={() =>
                         router.push({ pathname: '/album/[id]', params: { id: String(album.id) } })
                       }
-                      style={styles.albumItem}>
+                      style={styles.albumItem}
+                      accessibilityRole="button"
+                      accessibilityLabel={album.title}>
                       <Artwork uri={album.artwork} size={80} />
                       <ThemedText type="small" numberOfLines={1} style={styles.albumTitle}>
                         {album.title}
@@ -261,6 +286,8 @@ const styles = StyleSheet.create({
   playButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: MinTouchTarget,
     gap: Spacing.xs,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,

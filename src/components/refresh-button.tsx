@@ -2,11 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { MinTouchTarget, Spacing } from '@/constants/theme';
 import { describeScanPercent } from '@/domain/library/scan-progress';
 import { useTheme } from '@/hooks/use-theme';
 import { useLibraryStore } from '@/stores/library.store';
 import { useTranslation } from '@/hooks/use-translation';
+
+/** Icono de 22 px + `hitSlop` a cada lado = área táctil de 44 dp. */
+const ICON_SIZE = 22;
+const ICON_HIT_SLOP = (MinTouchTarget - ICON_SIZE) / 2;
 
 /**
  * Botón de actualizar biblioteca.
@@ -26,7 +30,7 @@ export function RefreshButton() {
 
   return (
     <Pressable
-      hitSlop={10}
+      hitSlop={ICON_HIT_SLOP}
       disabled={isScanning}
       onPress={() => void refresh()}
       accessibilityRole="button"
@@ -40,7 +44,7 @@ export function RefreshButton() {
           </ThemedText>
         </View>
       ) : (
-        <Ionicons name="refresh" size={22} color={theme.text} />
+        <Ionicons name="refresh" size={ICON_SIZE} color={theme.text} />
       )}
     </Pressable>
   );

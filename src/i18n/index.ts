@@ -87,6 +87,8 @@ export const EN = {
   'Notas de la versi?n': 'Release notes',
   'Descargar APK': 'Download APK',
   'Letras': 'Lyrics',
+  'Ver letras': 'View lyrics',
+  'Esta canción no tiene letras incrustadas.': 'This song has no embedded lyrics.',
   'Instalar APK': 'Install APK',
   'Descargando actualizaci?n?': 'Downloading update?',
   'Verificando descarga?': 'Verifying download?',
@@ -160,6 +162,7 @@ export const EN = {
   'Esta lista se llenará a medida que uses la aplicación.':
     'This list will fill up as you use the app.',
   'Este álbum no tiene pistas disponibles.': 'This album has no available tracks.',
+  'Este artista no tiene pistas disponibles.': 'This artist has no available tracks.',
   'Este entorno no admite controles del sistema. La reproducción puede detenerse en segundo plano.':
     'This environment does not support system controls. Playback may stop in the background.',
   'Estilo de visualización': 'View style',
@@ -275,8 +278,8 @@ export const EN = {
     "It's hidden from Songs and appears in the Audiobooks tab.",
   'Se quitarán las canciones pendientes. La actual seguirá sonando.':
     'Pending songs will be removed. The current one keeps playing.',
-  'Se volverán a leer las canciones que no muestran portada, incluidos los FLAC y las carpetas con cover.jpg. Puede tardar unos minutos.':
-    'Songs without artwork will be read again, including FLAC and folders with cover.jpg. This may take a few minutes.',
+  'Se volverán a leer las canciones que no muestran portada y a restaurar las portadas borradas de la caché, incluidos los FLAC y las carpetas con cover.jpg. Puede tardar unos minutos.':
+    'Songs without artwork will be read again and cached covers restored, including FLAC and folders with cover.jpg. This may take a few minutes.',
   'Seleccionar todo': 'Select all',
   'Sin acceso a tu música': 'No access to your music',
   'Sin álbum': 'No album',

@@ -95,6 +95,28 @@ function textFrame(
   return id3Frame(version, id, concat(new Uint8Array([encoding]), encoded));
 }
 
+/** USLT/ULT: encoding + idioma + descriptor vacío + letra completa. */
+function unsyncedLyricsFrame(version: 2 | 3 | 4, encoding: 0 | 3, value: string): Uint8Array {
+  const encoded = encoding === 3 ? utf8(value) : str(value);
+  return id3Frame(
+    version,
+    version === 2 ? 'ULT' : 'USLT',
+    concat(new Uint8Array([encoding]), str('spa'), new Uint8Array([0]), encoded)
+  );
+}
+
+/** SYLT/SLT: formato de tiempo (ms) + tipo (lyrics) + pares texto/timestamp. */
+function syncedLyricsFrame(
+  version: 2 | 3 | 4,
+  pieces: { text: string; at: number }[]
+): Uint8Array {
+  const parts: Uint8Array[] = [new Uint8Array([3]), str('spa'), new Uint8Array([2, 1, 0])];
+  for (const piece of pieces) {
+    parts.push(utf8(piece.text), new Uint8Array([0]), u32be(piece.at));
+  }
+  return id3Frame(version, version === 2 ? 'SLT' : 'SYLT', concat(...parts));
+}
+
 describe('extractId3Tags', () => {
   it('lee título, artista, álbum, artista de álbum y pista en v2.3', () => {
     const tag = id3Tag(
@@ -115,7 +137,8 @@ describe('extractId3Tags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-        hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
       });
   });
 
@@ -147,8 +170,36 @@ describe('extractId3Tags', () => {
       bitDepth: null,
       sampleRate: null,
       bitrate: null,
-        hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
       });
+  });
+
+  it('extrae el texto de USLT conservando los saltos de línea', () => {
+    const tag = id3Tag(4, unsyncedLyricsFrame(4, 3, 'Verso uno\nVerso dos'));
+
+    expect(extractId3Tags(tag)).toMatchObject({
+hasLyrics: true,
+lyrics: 'Verso uno\nVerso dos',
+    });
+  });
+
+  it('lee ULT de v2.2 en Latin-1', () => {
+    const tag = id3Tag(2, unsyncedLyricsFrame(2, 0, 'Canción'));
+
+    expect(extractId3Tags(tag)).toMatchObject({ hasLyrics: true, lyrics: 'Canción' });
+  });
+
+  it('concatena los fragmentos de SYLT sin guardar los timestamps', () => {
+    const tag = id3Tag(
+      3,
+      syncedLyricsFrame(3, [
+        { text: 'Hola ', at: 0 },
+        { text: 'mundo', at: 1_200 },
+      ])
+    );
+
+    expect(extractId3Tags(tag)).toMatchObject({ hasLyrics: true, lyrics: 'Hola mundo' });
   });
 
   it('une varios artistas separados por NUL', () => {

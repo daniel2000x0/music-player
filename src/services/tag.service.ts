@@ -112,6 +112,7 @@ export async function readAudioTags(
             sampleRate: null,
             bitrate,
             hasLyrics: false,
+            lyrics: null,
           }
         : null;
     }

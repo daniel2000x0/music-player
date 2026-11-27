@@ -15,6 +15,7 @@ import {
   subscribeTrackChange,
 } from '@/services/audio';
 import { flushSessionPersistence } from '@/services/audio/session-persistence';
+import { watchMediaLibraryChanges } from '@/services/media-library-observer.service';
 import {
   reconcileMediaWidget,
   registerMediaWidgetInteractions,
@@ -132,12 +133,42 @@ export function AudioBridge() {
       ) {
         reconcileMediaWidget();
       }
+      // Una reubicación conserva el id de SQLite pero cambia la URI y la
+      // carátula. Refrescar la cola evita que la notificación siga apuntando al
+      // archivo (o al arte) que ya no existe.
+      if (state.songs !== previous.songs) {
+        const before = new Map(previous.songs.map((song) => [song.id, song]));
+        const moved = state.songs.some((song) => {
+          const previousSong = before.get(song.id);
+          return (
+            previousSong &&
+            (previousSong.uri !== song.uri || previousSong.artwork !== song.artwork)
+          );
+        });
+        if (moved) {
+          usePlayerStore.getState().applyLibraryRefresh();
+        }
+      }
+    });
+    // Un cambio en MediaStore (mover/renombrar un archivo mientras la app está
+    // abierta) dispara el mismo escaneo incremental que el arranque. El observador
+    // agrupa las ráfagas de eventos de Android en una sola sincronización.
+    const unsubscribeMediaChanges = watchMediaLibraryChanges(() => {
+      void useLibraryStore.getState().sync();
     });
     // Al pasar a segundo plano se fuerza la escritura de la sesión pendiente:
-    // Android puede matar el proceso sin dar otra oportunidad (`05` §7.3).
+    // Android puede matar el proceso sin dar otra oportunidad (`05` §7.3). Al
+    // volver al primer plano se reproduce el escaneo que pudo perderse en background.
+    let wasInBackground = AppState.currentState !== 'active';
     const appStateSubscription = AppState.addEventListener('change', (next) => {
       if (next !== 'active') {
+        wasInBackground = true;
         void flushSessionPersistence();
+        return;
+      }
+      if (wasInBackground) {
+        wasInBackground = false;
+        void useLibraryStore.getState().sync();
       }
     });
 
@@ -156,6 +187,7 @@ export function AudioBridge() {
       unsubscribeWidgetProgress();
       unsubscribeWidgetReconcile();
       unsubscribeWidgetInteractions();
+      unsubscribeMediaChanges();
       appStateSubscription.remove();
     };
   }, [syncStatus, syncTrack, syncLockScreen, syncSessionState]);

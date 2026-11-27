@@ -1,7 +1,8 @@
 import { songRepository } from '@/data/repositories/song.repository';
 import type { DeviceTrack } from '@/domain/library/scan-diff';
 import type { ScanProgress } from '@/domain/library/scan-progress';
-import { assignAlbumArtwork } from '@/services/artwork.service';
+import { assignAlbumArtwork, remapArtworkUri } from '@/services/artwork.service';
+import { computeContentKey } from '@/services/content-key.service';
 import { runArtworkBackfill } from '@/services/artwork-backfill.service';
 import { runLibraryScan } from '@/services/library-scan.service';
 import { enumerateDeviceAudio, readDeviceTrack } from '@/services/media.service';
@@ -20,15 +21,26 @@ jest.mock('@/data/repositories/song.repository', () => ({
     markMissing: jest.fn(async () => undefined),
     reclassifyAudiobooks: jest.fn(async () => undefined),
     getIgnoredMediaIds: jest.fn(async () => new Set<string>()),
+    relocateSong: jest.fn(async () => false),
+    replaceArtworkUri: jest.fn(async () => undefined),
+    clearArtworkUri: jest.fn(async () => undefined),
+    getContentKeyBackfillRows: jest.fn(async () => []),
+    setContentKeyChecks: jest.fn(async () => undefined),
+    backfillFileFormats: jest.fn(async () => undefined),
   },
 }));
 
 jest.mock('@/services/artwork.service', () => ({
   assignAlbumArtwork: jest.fn(async () => undefined),
+  remapArtworkUri: jest.fn(async () => null),
 }));
 
 jest.mock('@/services/artwork-backfill.service', () => ({
   runArtworkBackfill: jest.fn(async () => undefined),
+}));
+
+jest.mock('@/services/content-key.service', () => ({
+  computeContentKey: jest.fn(async () => null),
 }));
 
 jest.mock('@/services/error-log.service', () => ({
@@ -43,6 +55,10 @@ const mockedUpsert = jest.mocked(songRepository.upsertBatch);
 const mockedMarkMissing = jest.mocked(songRepository.markMissing);
 const mockedReclassify = jest.mocked(songRepository.reclassifyAudiobooks);
 const mockedGetIgnored = jest.mocked(songRepository.getIgnoredMediaIds);
+const mockedRelocate = jest.mocked(songRepository.relocateSong);
+const mockedReplaceArtwork = jest.mocked(songRepository.replaceArtworkUri);
+const mockedRemap = jest.mocked(remapArtworkUri);
+const mockedComputeKey = jest.mocked(computeContentKey);
 
 function device(mediaId: string, modificationTime: number | null = 100): DeviceTrack {
   return { mediaId, modificationTime };
@@ -62,7 +78,8 @@ function scanned(track: DeviceTrack): ScannedSong {
     bitDepth: null,
     sampleRate: null,
     bitrate: null,
-    hasLyrics: false,
+hasLyrics: false,
+lyrics: null,
     artwork: null,
     modificationTime: track.modificationTime,
   };
@@ -191,6 +208,97 @@ describe('runLibraryScan: incremental', () => {
     expect(mockedUpsert).toHaveBeenCalledTimes(3);
     expect(mockedUpsert.mock.calls.map(([batch]) => batch.length)).toEqual([100, 100, 50]);
     expect(mockedRead).toHaveBeenCalledTimes(250);
+  });
+});
+
+describe('runLibraryScan: reubicaciones', () => {
+  it('reconoce por huella una canción movida y conserva su fila', async () => {
+    const moved = {
+      ...scanned(device('nuevo', 200)),
+      contentKey: 'huella',
+      artwork: 'file:///documents/artwork/huella.jpg',
+    };
+    mockedEnumerate.mockResolvedValueOnce([device('nuevo', 200)]);
+    mockedGetScanState.mockResolvedValueOnce([
+      {
+        mediaId: 'viejo',
+        modificationTime: 100,
+        isAvailable: true,
+        uri: 'file:///music/viejo.mp3',
+        filename: 'viejo.mp3',
+        folder: 'Album',
+        durationMs: 120_000,
+        contentKey: 'huella',
+        artworkUri: 'file:///documents/artwork/viejo.jpg',
+      },
+    ]);
+    mockedRead.mockResolvedValueOnce(moved);
+    mockedRemap.mockResolvedValueOnce('file:///documents/artwork/huella.jpg');
+    mockedRelocate.mockResolvedValueOnce(true);
+
+    const report = await runLibraryScan();
+
+    expect(mockedRelocate).toHaveBeenCalledWith({
+      oldMediaId: 'viejo',
+      next: moved,
+      contentKey: 'huella',
+      artworkUri: 'file:///documents/artwork/huella.jpg',
+    });
+    expect(mockedRemap).toHaveBeenCalledWith({
+      oldUri: 'file:///documents/artwork/viejo.jpg',
+      nextMediaId: 'nuevo',
+      nextUri: moved.uri,
+      nextContentKey: 'huella',
+    });
+    expect(mockedReplaceArtwork).toHaveBeenCalledWith(
+      'file:///documents/artwork/viejo.jpg',
+      'file:///documents/artwork/huella.jpg'
+    );
+    expect(mockedUpsert).not.toHaveBeenCalled();
+    expect(mockedMarkMissing).not.toHaveBeenCalled();
+    expect(report).toMatchObject({ added: 0, missing: 0, unchanged: 0, updated: 0 });
+  });
+
+  it('inserta como nueva si la reubicación choca con otra fila', async () => {
+    const moved = { ...scanned(device('nuevo', 200)), contentKey: 'huella' };
+    mockedEnumerate.mockResolvedValueOnce([device('nuevo', 200)]);
+    mockedGetScanState.mockResolvedValueOnce([
+      {
+        mediaId: 'viejo',
+        modificationTime: 100,
+        isAvailable: true,
+        uri: 'file:///music/viejo.mp3',
+        filename: 'viejo.mp3',
+        durationMs: 120_000,
+        contentKey: 'huella',
+      },
+    ]);
+    mockedRead.mockResolvedValueOnce(moved);
+    mockedRelocate.mockResolvedValueOnce(false);
+
+    await runLibraryScan();
+
+    expect(mockedUpsert.mock.calls[0][0].map((song) => song.mediaId)).toEqual(['nuevo']);
+    expect(mockedMarkMissing).toHaveBeenCalledWith(['viejo']);
+  });
+
+  it('calcula la huella de las filas anteriores antes del diff', async () => {
+    mockedEnumerate.mockResolvedValueOnce([device('igual', 100)]);
+    mockedGetScanState.mockResolvedValueOnce([
+      { mediaId: 'igual', modificationTime: 100, isAvailable: true },
+    ]);
+    mockedComputeKey.mockResolvedValueOnce('huella-antigua');
+    jest.mocked(songRepository.getContentKeyBackfillRows).mockResolvedValueOnce([
+      { id: 7, uri: 'file:///music/igual.mp3', duration: 120 },
+    ]);
+
+    await runLibraryScan();
+
+    expect(mockedComputeKey).toHaveBeenCalledWith('file:///music/igual.mp3', 120);
+    expect(songRepository.setContentKeyChecks).toHaveBeenCalledWith(
+      [{ id: 7, contentKey: 'huella-antigua' }],
+      expect.any(Number)
+    );
   });
 });
 
